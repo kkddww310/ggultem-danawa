@@ -563,7 +563,21 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint="", is_sh
 
     title, description, youtuber, channel_id = title_hint, "", youtuber_hint, ""
     caption_tracks = []
-    data = innertube_post("player", {"videoId": video_id}, client="IOS")
+    # YouTube는 특정 InnerTube 클라이언트를 일괄 차단하거나 400을 반환할 수 있다.
+    # WEB -> IOS 순서로 시도하고, player가 실패해도 검색에서 얻은 제목으로 분석을 계속한다.
+    data = {}
+    player_errors = []
+    for player_client in ("WEB", "IOS"):
+        try:
+            candidate = innertube_post("player", {"videoId": video_id}, client=player_client)
+            if candidate.get("videoDetails"):
+                data = candidate
+                break
+            playability = candidate.get("playabilityStatus", {})
+            player_errors.append(f"{player_client}: {playability.get('status', 'NO_DETAILS')} {playability.get('reason', '')}")
+        except Exception as error:
+            player_errors.append(f"{player_client}: {error}")
+
     details = data.get("videoDetails", {})
     if details:
         title = details.get("title") or title
@@ -572,6 +586,11 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint="", is_sh
         channel_id = details.get("channelId", "")
     caption_tracks = data.get("captions", {}).get("playerCaptionsTracklistRenderer", {}).get("captionTracks", [])
     transcript = fetch_transcript_text(video_id, caption_tracks)
+
+    # player 메타데이터가 막혀도 검색 결과 제목이 있으면 title_only로 보존한다.
+    # 이렇게 해야 영상 18개가 모두 HTTP 400으로 폐기되는 현상을 피할 수 있다.
+    if not data and not title.strip():
+        raise RuntimeError("YouTube player 조회 실패: " + " | ".join(player_errors))
 
     evidence_level = "title_only"
     if len(transcript.strip()) > 50:
