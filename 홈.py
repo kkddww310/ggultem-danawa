@@ -347,7 +347,7 @@ div[data-testid="stSliderTickBarMax"] {
 </style>
 """, unsafe_allow_html=True)
 
-# === 구조 기반 비상품 판별기 (단어 나열이 아닌 문장/서술어/추상표현 구조 차단) ===
+# === 비상품(문장/구매주의/배송안내/음원문구/공지) 차단 ===
 NON_PRODUCT_KEYWORDS = (
     "인트로", "오프닝", "마무리", "아웃트로", "총평", "결론", "구독", "이벤트",
     "당첨", "발표", "공지", "커뮤니티", "종료", "마감", "쿠키", "예고", "목차",
@@ -357,27 +357,30 @@ NON_PRODUCT_KEYWORDS = (
     "채널", "타임라인", "챕터", "링크", "바로가기", "프로필", "멤버십",
     "할인코드", "쿠폰", "최종가", "할인가", "혜택가", "정상가", "체감가",
     "해외직구", "직구", "로컬", "카테고리", "적용", "카드", "결제", "무료배송",
-    "진행기간", "한국시간", "항공권", "숙박", "예약", "고르는", "방법", "비교"
+    "진행기간", "한국시간", "항공권", "숙박", "예약", "고르는", "방법", "비교",
+    "배송", "소요", "선택해서", "구매하세요", "포함되어", "미포함", "옵션",
+    "free download", "watch more", "ncs", "stream", "download"
 )
 
 def is_non_product(text, youtuber=""):
     t = (text or "").strip()
+    t_low = t.lower()
     if not t or len(t) < 2 or len(t) > 42:
         return True
-    # 1) 특수기호 시작, 의문문/감탄문 차단
+    # 1) 기호 시작, 의문문/감탄문 차단
     if t[0] in ("=", "👉", "※", "→", "▶", "|", "-", "•") or "?" in t or "!" in t:
         return True
-    # 2) 한국어 서술어·문장 종결어미·관형형 어미 구조 차단 ("~에요", "~제품", "~것 같은", "~할 때", "~는", "~은")
-    if re.search(r"(?:합니다|입니다|됩니다|있습니다|없습니다|하세요|주세요|바랍니다|해요|예요|이에요|에요|가요|네요|같아요|되네|안해|가능|불가|제외|ㄷㄷ|ㅋㅋ|ㅎㅎ|ㅠㅠ)$", t):
+    # 2) 문장 종결어미/부정·안내 서술어/관형형 구조 차단
+    if re.search(r"(?:합니다|입니다|됩니다|있습니다|없습니다|않습니다|하세요|주세요|구매하세요|바랍니다|해요|예요|이에요|에요|가요|네요|같아요|되네|안해|소요|가능|불가|제외|ㄷㄷ|ㅋㅋ|ㅎㅎ|ㅠㅠ)$", t):
         return True
-    if re.search(r"(?:같은|하는|되는|있는|없는|빠지는|넘어질|살펴볼|알아볼|고르는)\s", t):
+    if re.search(r"(?:같은|하는|되는|있는|없는|빠지는|넘어질|살펴볼|알아볼|고르는|포함되어)\s", t):
         return True
     if t.endswith((" 제품", " 상품", " 아이템", " 추천", " 후기", " 리뷰", " 소개")):
         return True
-    if re.match(r"^(?:그래서|왜|어떻게|가장|제일|진짜|정말|드디어|이제|오늘|이번)\s", t):
+    if re.match(r"^(?:그래서|왜|어떻게|가장|제일|진짜|정말|드디어|이제|오늘|이번|옵션을)\s", t):
         return True
-    # 3) 날짜/시간/가격 단독 표기 차단
-    if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일\s*\([월화수목금토일]\)|\d{1,2}\s*시\s*\d{0,2}", t):
+    # 3) 날짜/시간/가격/배송기간 단독 표기 차단
+    if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일\s*\([월화수목금토일]\)|\d{1,2}\s*시\s*\d{0,2}|\d+\s*[-~]\s*\d+\s*일", t):
         return True
     if re.fullmatch(r"(?:약\s*)?(?:USD|KRW|US\$|\$|₩)?\s*[\d,\.]+\s*(?:원|달러|불|USD|KRW|%)?", t, re.IGNORECASE):
         return True
@@ -390,7 +393,7 @@ def is_non_product(text, youtuber=""):
         return True
     if len(re.findall(r"[가-힣A-Za-z0-9]", t)) < 2:
         return True
-    if any(w in t for w in NON_PRODUCT_KEYWORDS):
+    if any(w in t_low for w in NON_PRODUCT_KEYWORDS):
         return True
     return False
 
@@ -588,7 +591,7 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint="", need_
 
     return {"video_id": video_id, "youtuber": youtuber, "title": title, "desc": desc, "transcript": transcript[:4500]}
 
-# === [화이트리스트 방식] 로컬 추출은 오직 '구매 링크(http)'가 붙은 줄만 제품으로 인정 ===
+# === [화이트리스트 방식] 쇼핑몰 링크가 붙은 줄 중 실제 제품명만 추출 ===
 def extract_products_from_links(bundles):
     extracted = []
     for b in bundles:
@@ -611,18 +614,19 @@ def extract_products_from_links(bundles):
             if "@" in raw_ln or raw_ln.startswith("#"):
                 continue
 
-            # 구매 링크가 없는 일반 멘트/챕터 줄은 절대 제품명으로 수집하지 않음
             if "http" not in raw_ln:
                 continue
 
-            # SNS/채널/프로모션 링크 제외
-            if any(bad in raw_ln.lower() for bad in ("instagram.com", "youtube.com/@", "youtu.be", "t.me", "kakao", "이벤트", "공지", "당첨")):
+            raw_low = raw_ln.lower()
+            if any(bad in raw_low for bad in (
+                "instagram.com", "youtube.com/@", "youtu.be", "t.me", "kakao",
+                "ncs", "stream", "download", "이벤트", "공지", "당첨"
+            )):
                 continue
 
             ln = re.sub(r"https?://\S+", "", raw_ln).strip()
             ln = re.sub(r"[\(\[\{]\s*[\)\]\}]", "", ln).strip()
 
-            # 줄에 URL만 있고 제품명이 윗줄에 적힌 경우 ("1. 제품명\nhttps://...")
             if not ln and idx > 0:
                 prev_ln = raw_lines[idx - 1]
                 if "http" not in prev_ln and not re.match(r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+", prev_ln):
@@ -686,9 +690,9 @@ def analyze_batch_with_gemini(bundles):
     prompt = f"""너는 유튜브 쇼핑 큐레이터야. 아래 영상의 [설명란]과 [영상 자막]을 모두 읽고, 실제로 네이버 쇼핑이나 쿠팡에서 검색해 구매할 수 있는 **'진짜 제품명(브랜드명 + 정확한 상품명)'**만 골라서 JSON 배열로 답해줘.
 
 절대 규칙:
-1. 유튜버가 목차에 적어둔 어그로 문구("그래서 얼마에요", "제일 안 넘어질 것 같은 제품", "이동할 때 안 빠지는 제품" 등)는 절대 그대로 쓰지 마! 반드시 해당 타임스탬프 전후의 [영상 자막]을 읽어서 실제 소개된 **브랜드와 정확한 제품명**(예: "신지모루 맥세이프 태블릿 거치대")으로 바꿔서 적어줘.
+1. 유튜버가 목차에 적어둔 어그로 문구나 배송·옵션·구매주의 문구("그래서 얼마에요", "옵션을 ... 구매하세요", "배송 10-14일 소요", "어댑터는 포함되어있지 않습니다", "Free Download/Stream")는 절대 쓰지 마! 반드시 해당 타임스탬프 전후의 [영상 자막]을 읽어서 실제 소개된 **브랜드와 정확한 제품명**만 적어줘.
 2. 자막에도 브랜드·모델명이 안 나와서 쇼핑몰 검색이 불가능하면 그 항목은 과감히 버려.
-3. 이벤트, 행사 기간, 할인 금액, 코너명은 절대 포함하지 마.
+3. 이벤트, 행사 기간, 할인 금액, 음원/채널명은 절대 포함하지 마.
 4. 키 이름: "video_id", "youtuber", "name"(쇼핑몰 검색용 정확한 브랜드+제품명), "keyword"(품목명), "reason"(추천 이유 한 줄 요약), "start_sec"(등장 시작 초 정수, 모르면 0)
 
 {chr(10).join(blocks)}"""
