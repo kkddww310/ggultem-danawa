@@ -13,8 +13,10 @@ st.set_page_config(page_title="꿀템 다나와", page_icon="🛍️", layout="c
 
 if "nav" not in st.session_state:
     st.session_state.nav = "꿀템 홈"
+if "collect_mode" not in st.session_state:
+    st.session_state.collect_mode = "local"
 
-# === 토스 스타일 모바일 앱 UI (다크모드 위젯 강제 화이트 변환 포함) ===
+# === 토스 스타일 라이트 앱 UI (다크모드 위젯 완전 화이트화) ===
 st.markdown("""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -45,95 +47,138 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
     padding-right: 1rem !important;
 }
 
-/* 카드: 검은 테두리 완전 제거 + 부드러운 그림자 */
-[data-testid="stVerticalBlockBorderWrapper"],
-[data-testid="stVerticalBlockBorderWrapper"] > div {
+/* 기본 텍스트 색상 고정 (흰색 묻힘 방지) */
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"] label {
+    color: #191F28 !important;
+}
+
+/* 상단 요약 카드 (순수 HTML 카드로 겹침/테두리 완전 제거) */
+.hero-card {
+    background-color: #FFFFFF;
+    border-radius: 24px;
+    padding: 22px 22px 20px 22px;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+    margin-bottom: 16px;
+}
+
+/* Streamlit 카드 컨테이너 (검은 테두리 제거 + 부드러운 그림자) */
+div[data-testid="stVerticalBlockBorderWrapper"],
+div[data-testid="stVerticalBlockBorderWrapper"] > div {
     background-color: #FFFFFF !important;
     border: none !important;
-    border-color: transparent !important;
-    border-radius: 24px !important;
+    outline: none !important;
+    border-radius: 22px !important;
 }
-[data-testid="stVerticalBlockBorderWrapper"] {
+div[data-testid="stVerticalBlockBorderWrapper"] {
     box-shadow: 0 2px 14px rgba(0, 0, 0, 0.04) !important;
     padding: 18px 20px !important;
     margin-bottom: 12px !important;
 }
 
-/* 검색창 & 드롭다운: 다크모드 검은 배경 강제 화이트화 */
-[data-baseweb="input"],
-[data-baseweb="input"] > div,
-[data-baseweb="base-input"],
-[data-baseweb="select"],
-[data-baseweb="select"] > div {
+/* 검색창 & 드롭다운: Streamlit 다크모드 배경 완전 제거 */
+div[data-testid="stTextInputRootElement"],
+div[data-testid="stTextInputRootElement"] > div,
+div[data-baseweb="input"],
+div[data-baseweb="base-input"],
+div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
     background-color: #FFFFFF !important;
-    border-color: #E5E8EB !important;
+    border: 1.5px solid #E5E8EB !important;
     border-radius: 14px !important;
     color: #191F28 !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
 }
-[data-baseweb="input"] input,
-[data-baseweb="select"] span,
-[data-baseweb="select"] div {
+div[data-testid="stTextInputRootElement"]:focus-within {
+    border-color: #3182F6 !important;
+}
+div[data-testid="stTextInputRootElement"] input,
+div[data-baseweb="input"] input,
+div[data-testid="stSelectbox"] span,
+div[data-testid="stSelectbox"] div {
+    background-color: transparent !important;
     color: #191F28 !important;
     -webkit-text-fill-color: #191F28 !important;
     font-size: 14px !important;
     font-weight: 500 !important;
 }
-[data-baseweb="input"] input::placeholder {
+div[data-testid="stTextInputRootElement"] input::placeholder {
     color: #8B95A1 !important;
     -webkit-text-fill-color: #8B95A1 !important;
 }
-[data-baseweb="select"] svg {
-    fill: #6B7684 !important;
+div[data-testid="stSelectbox"] svg {
+    fill: #4E5968 !important;
 }
-[data-baseweb="popover"] ul,
-[data-baseweb="menu"],
-[data-baseweb="menu"] li {
+ul[data-baseweb="menu"],
+ul[data-baseweb="menu"] li {
     background-color: #FFFFFF !important;
     color: #191F28 !important;
 }
 
-/* 버튼 공통 스타일 */
+/* 버튼 스타일 (Streamlit 1.40+ data-testid 대응) */
 .stButton > button {
-    border-radius: 12px !important;
+    border-radius: 13px !important;
     font-weight: 600 !important;
     font-size: 13.5px !important;
     border: none !important;
+    min-height: 40px !important;
     transition: all 0.15s ease !important;
 }
 
-/* 네비게이션 탭 & 일반 실행 버튼 */
-.stButton > button[kind="primary"] {
+/* 바깥쪽 상단 탭 버튼 */
+button[data-testid="stBaseButton-primary"],
+button[data-testid="baseButton-primary"],
+button[kind="primary"] {
     background-color: #FFFFFF !important;
     color: #191F28 !important;
     font-weight: 700 !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
 }
-.stButton > button[kind="secondary"] {
+button[data-testid="stBaseButton-primary"] p,
+button[kind="primary"] p {
+    color: #191F28 !important;
+}
+
+button[data-testid="stBaseButton-secondary"],
+button[data-testid="baseButton-secondary"],
+button[kind="secondary"] {
     background-color: #E5E8EB !important;
+    color: #6B7684 !important;
+    box-shadow: none !important;
+}
+button[data-testid="stBaseButton-secondary"] p,
+button[kind="secondary"] p {
     color: #6B7684 !important;
 }
 
-/* 카드 내부 버튼 (삭제 ✕ 버튼은 투명 미니 아이콘, 실행 버튼은 토스 블루) */
-[data-testid="stVerticalBlockBorderWrapper"] .stButton > button[kind="secondary"] {
-    background-color: transparent !important;
-    color: #B0B8C1 !important;
-    font-size: 14px !important;
-    padding: 2px 6px !important;
-    min-height: 26px !important;
-    box-shadow: none !important;
-}
-[data-testid="stVerticalBlockBorderWrapper"] .stButton > button[kind="secondary"]:hover {
-    color: #4E5968 !important;
-    background-color: #F2F4F6 !important;
-}
-[data-testid="stVerticalBlockBorderWrapper"] .stButton > button[kind="primary"] {
+/* 카드 내부 주요 실행 버튼 (자동 수집 시작, API 키 저장 등) -> 토스 블루 */
+div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton-primary"],
+div[data-testid="stVerticalBlockBorderWrapper"] button[kind="primary"] {
     background-color: #3182F6 !important;
     color: #FFFFFF !important;
-    padding: 0.55rem 1rem !important;
+    box-shadow: 0 3px 10px rgba(49, 130, 246, 0.25) !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton-primary"] p,
+div[data-testid="stVerticalBlockBorderWrapper"] button[kind="primary"] p {
+    color: #FFFFFF !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton-primary"]:hover {
+    background-color: #1B64DA !important;
 }
 
-/* 최저가 / 영상보기 링크 버튼: 높이·모서리·여백 통일 */
+/* 카드 내부 보조 버튼 (삭제 ✕, 수집 모드 비선택 버튼) */
+div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton-secondary"],
+div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"] {
+    background-color: #F2F4F6 !important;
+    color: #6B7684 !important;
+    min-height: 32px !important;
+    padding: 4px 10px !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton-secondary"] p {
+    color: #6B7684 !important;
+}
+
+/* 최저가 / 영상보기 링크 버튼 */
 .stLinkButton > a {
     border-radius: 12px !important;
     font-weight: 600 !important;
@@ -148,48 +193,38 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
     padding: 0 8px !important;
     white-space: nowrap !important;
 }
+.stLinkButton > a[data-testid="stBaseLinkButton-primary"],
 .stLinkButton > a[kind="primary"] {
     background-color: #3182F6 !important;
     color: #FFFFFF !important;
 }
-.stLinkButton > a[kind="primary"]:hover {
-    background-color: #1B64DA !important;
+.stLinkButton > a[data-testid="stBaseLinkButton-primary"] p,
+.stLinkButton > a[kind="primary"] p {
+    color: #FFFFFF !important;
 }
+.stLinkButton > a[data-testid="stBaseLinkButton-secondary"],
 .stLinkButton > a[kind="secondary"] {
     background-color: #E8F3FF !important;
     color: #3182F6 !important;
 }
-.stLinkButton > a[kind="secondary"]:hover {
-    background-color: #D0E6FF !important;
+.stLinkButton > a[data-testid="stBaseLinkButton-secondary"] p,
+.stLinkButton > a[kind="secondary"] p {
+    color: #3182F6 !important;
 }
 
-/* 라디오 버튼 (자동 수집 모드 선택용) */
-div[role="radiogroup"] {
-    background-color: #F2F4F6 !important;
-    padding: 4px !important;
-    border-radius: 12px !important;
-    gap: 4px !important;
+/* 슬라이더 (토스 블루 & 선명한 숫자) */
+div[data-testid="stSlider"] div[role="slider"] {
+    background-color: #3182F6 !important;
+    border: 2px solid #FFFFFF !important;
+    box-shadow: 0 2px 6px rgba(49, 130, 246, 0.4) !important;
 }
-div[role="radiogroup"] > label {
-    background: transparent !important;
-    border-radius: 9px !important;
-    padding: 6px 10px !important;
-}
-div[role="radiogroup"] > label:has(input:checked) {
-    background-color: #FFFFFF !important;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
-}
-div[role="radiogroup"] > label > div:first-child {
-    display: none !important;
-}
-div[role="radiogroup"] > label p {
-    color: #4E5968 !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
-}
-div[role="radiogroup"] > label:has(input:checked) p {
-    color: #191F28 !important;
+div[data-testid="stSliderThumbValue"] {
+    color: #3182F6 !important;
     font-weight: 700 !important;
+}
+div[data-testid="stSliderTickBarMin"],
+div[data-testid="stSliderTickBarMax"] {
+    color: #8B95A1 !important;
 }
 
 /* 커스텀 앱 텍스트 & 카드 내부 요소 */
@@ -259,11 +294,17 @@ div[role="radiogroup"] > label:has(input:checked) p {
     font-size: 11.5px;
     color: #8B95A1;
 }
+.field-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #4E5968;
+    margin: 12px 0 6px 2px;
+}
 .item-meta {
     font-size: 12px;
     font-weight: 600;
     color: #8B95A1;
-    padding-top: 2px;
+    padding-top: 4px;
 }
 .item-row {
     display: flex;
@@ -663,7 +704,7 @@ def analyze_batch_with_gemini(bundles):
 def render_toss_card(item, idx):
     icon, bg_color = pick_icon_style(item.get("name", ""), item.get("keyword", ""))
     with st.container(border=True):
-        top_l, top_r = st.columns([7, 1])
+        top_l, top_r = st.columns([6.5, 1])
         with top_l:
             st.markdown(f"<div class='item-meta'>{item['youtuber']} · {item['timestamp']} 등장</div>", unsafe_allow_html=True)
         with top_r:
@@ -699,10 +740,10 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# === 상단 요약 대시보드 카드 ===
+# === 상단 요약 대시보드 카드 (겹침 없는 순수 HTML 카드) ===
 fill_pct = min(100, int((len(db) / 100) * 100)) if db else 0
-with st.container(border=True):
-    st.markdown(f"""
+st.markdown(f"""
+<div class="hero-card">
     <div class="hero-label">모아둔 유튜버 추천 꿀템</div>
     <div class="hero-big">{len(db):,}개</div>
     <div class="hero-dots">
@@ -719,9 +760,10 @@ with st.container(border=True):
         </div>
         <div class="hero-bar-sub">버튼을 누르면 네이버·쿠팡 낮은가격순으로 바로 연결돼요</div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
-# === 깔끔한 세그먼트 탭 (라디오 점 제거) ===
+# === 상단 3개 탭 버튼 ===
 t1, t2, t3 = st.columns(3)
 for col, label in zip([t1, t2, t3], ["꿀템 홈", "자동 수집", "설정"]):
     is_active = (st.session_state.nav == label)
@@ -729,7 +771,7 @@ for col, label in zip([t1, t2, t3], ["꿀템 홈", "자동 수집", "설정"]):
         st.session_state.nav = label
         st.rerun()
 
-st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
 if st.session_state.nav == "꿀템 홈":
     yts = ["전체 유튜버"] + sorted(list({i.get("youtuber", "") for i in db if i.get("youtuber")}))
@@ -755,16 +797,23 @@ if st.session_state.nav == "꿀템 홈":
 
 elif st.session_state.nav == "자동 수집":
     with st.container(border=True):
-        st.markdown("<div class='item-name' style='margin-bottom:10px;'>🤖 유튜브 추천템 자동 수집</div>", unsafe_allow_html=True)
-        mode = st.radio(
-            "수집 방식",
-            ["⚡ 무제한 로컬 추출", "🤖 Gemini AI 분석"],
-            horizontal=True,
-            label_visibility="collapsed"
-        )
-        q_in = st.text_input("키워드", placeholder="유튜브 검색어 입력 (예: 잇섭 추천템, 내돈내산)", label_visibility="collapsed")
-        lim = st.slider("분석할 최신 영상 수", 1, 8, 5)
+        st.markdown("<div class='item-name' style='margin-bottom:12px;'>🤖 유튜브 추천템 자동 수집</div>", unsafe_allow_html=True)
 
+        m1, m2 = st.columns(2)
+        if m1.button("⚡ 무제한 로컬 추출", key="mode_local", type="primary" if st.session_state.collect_mode == "local" else "secondary", use_container_width=True):
+            st.session_state.collect_mode = "local"
+            st.rerun()
+        if m2.button("🤖 Gemini AI 분석", key="mode_ai", type="primary" if st.session_state.collect_mode == "ai" else "secondary", use_container_width=True):
+            st.session_state.collect_mode = "ai"
+            st.rerun()
+
+        st.markdown("<div class='field-label'>유튜브 검색 키워드</div>", unsafe_allow_html=True)
+        q_in = st.text_input("키워드", placeholder="예: 잇섭 추천템, 가전주부 추천템, 내돈내산", label_visibility="collapsed")
+
+        st.markdown("<div class='field-label'>분석할 최신 영상 수</div>", unsafe_allow_html=True)
+        lim = st.slider("영상 수", 1, 8, 5, label_visibility="collapsed")
+
+        st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
         if st.button("🚀 자동 수집 시작하기", type="primary", use_container_width=True) and q_in:
             status = st.empty()
             try:
@@ -777,7 +826,7 @@ elif st.session_state.nav == "자동 수집":
                     st.info("이미 모두 수집한 영상들이에요.")
                 else:
                     bundles = [fetch_video_bundle(v["video_id"], v["youtuber"], v["title"]) for v in targets]
-                    if "무제한" in mode:
+                    if st.session_state.collect_mode == "local":
                         status.info("2/2 설명란에서 실제 구매 제품만 추려내고 있어요...")
                         items = extract_products_locally(bundles)
                     else:
