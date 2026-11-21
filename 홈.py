@@ -1171,6 +1171,157 @@ div[data-baseweb="popover"], div[data-baseweb="popover"] * {
   color:inherit !important;
 }
 
+
+/* ===== 2026-11 최종 UI 정리: 검은 외곽선/분할선 제거 ===== */
+
+/* 카드: 검은 1px 테두리 대신 토스형 옅은 경계와 그림자 */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+  background:#FFFFFF !important;
+  border:1px solid #E7EBF0 !important;
+  outline:none !important;
+  border-radius:20px !important;
+  box-shadow:0 3px 14px rgba(25,31,40,.055) !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"] > div {
+  border:none !important;
+  outline:none !important;
+  box-shadow:none !important;
+}
+
+/* 검색창: 외곽선은 부모 하나에만 두고 내부 선을 모두 제거 */
+[data-testid="stTextInput"] div[data-baseweb="input"] {
+  background:#FFFFFF !important;
+  border:1px solid #DDE2E8 !important;
+  outline:none !important;
+  border-radius:14px !important;
+  box-shadow:0 1px 3px rgba(25,31,40,.035) !important;
+  overflow:hidden !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"] > div,
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stTextInput"] input,
+[data-testid="stTextInput"] button {
+  background:#FFFFFF !important;
+  border:none !important;
+  outline:none !important;
+  box-shadow:none !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
+  border-color:#8EB8FF !important;
+  box-shadow:0 0 0 3px rgba(49,130,246,.12) !important;
+}
+
+/* 비밀번호 눈 아이콘: 별도 검은 상자처럼 보이지 않게 */
+[data-testid="stTextInput"] button {
+  min-width:42px !important;
+  border-left:none !important;
+  border-radius:0 14px 14px 0 !important;
+  color:#6B7684 !important;
+}
+[data-testid="stTextInput"] button:hover {
+  background:#F6F8FA !important;
+}
+
+/* 셀렉트박스: 오른쪽 검은 화살표 칸과 분할선 제거 */
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[role="combobox"] {
+  background:#FFFFFF !important;
+  border:none !important;
+  outline:none !important;
+  box-shadow:none !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"] {
+  background:#FFFFFF !important;
+  border:1px solid #DDE2E8 !important;
+  outline:none !important;
+  border-radius:14px !important;
+  box-shadow:0 1px 3px rgba(25,31,40,.035) !important;
+  overflow:hidden !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within {
+  border-color:#8EB8FF !important;
+  box-shadow:0 0 0 3px rgba(49,130,246,.12) !important;
+}
+[data-testid="stSelectbox"] div[role="combobox"] > div,
+[data-testid="stSelectbox"] div[role="combobox"] > div:last-child {
+  background:#FFFFFF !important;
+  border:none !important;
+  outline:none !important;
+  box-shadow:none !important;
+}
+
+/* textarea: 검은 상단선/옆선 제거, 하나의 부드러운 테두리만 유지 */
+[data-testid="stTextArea"] div[data-baseweb="textarea"] {
+  background:#FFFFFF !important;
+  border:1px solid #DDE2E8 !important;
+  outline:none !important;
+  border-radius:14px !important;
+  box-shadow:0 1px 3px rgba(25,31,40,.035) !important;
+  overflow:hidden !important;
+}
+[data-testid="stTextArea"] div[data-baseweb="textarea"] > div,
+[data-testid="stTextArea"] div[data-baseweb="base-input"],
+[data-testid="stTextArea"] textarea {
+  background:#FFFFFF !important;
+  border:none !important;
+  outline:none !important;
+  box-shadow:none !important;
+}
+[data-testid="stTextArea"] div[data-baseweb="textarea"]:focus-within {
+  border-color:#8EB8FF !important;
+  box-shadow:0 0 0 3px rgba(49,130,246,.12) !important;
+}
+
+/* 버튼: 검은 테두리 제거 및 일관된 높이 */
+.stButton > button,
+.stDownloadButton > button,
+.stLinkButton > a {
+  border:1px solid transparent !important;
+  outline:none !important;
+  box-shadow:none !important;
+  border-radius:14px !important;
+  min-height:46px !important;
+}
+button[kind="primary"],
+button[data-testid="stBaseButton-primary"],
+.stLinkButton > a[kind="primary"],
+.stLinkButton > a[data-testid="stBaseLinkButton-primary"] {
+  background:#4C82EE !important;
+  border-color:#4C82EE !important;
+}
+button[kind="secondary"],
+button[data-testid="stBaseButton-secondary"],
+.stDownloadButton > button {
+  background:#F2F4F6 !important;
+  border-color:#F2F4F6 !important;
+}
+.stLinkButton > a[kind="secondary"],
+.stLinkButton > a[data-testid="stBaseLinkButton-secondary"] {
+  background:#E8F3FF !important;
+  border-color:#E8F3FF !important;
+}
+
+/* 토글 주변의 불필요한 테두리 제거 */
+[data-testid="stToggle"], [data-testid="stCheckbox"] {
+  background:transparent !important;
+  border:none !important;
+  outline:none !important;
+  box-shadow:none !important;
+}
+
+/* expander도 검은 외곽선 대신 연한 경계 */
+[data-testid="stExpander"] details {
+  border:1px solid #E7EBF0 !important;
+  border-radius:14px !important;
+  box-shadow:none !important;
+  overflow:hidden !important;
+}
+[data-testid="stExpander"] summary {
+  border:none !important;
+  outline:none !important;
+  box-shadow:none !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
