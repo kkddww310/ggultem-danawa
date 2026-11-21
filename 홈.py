@@ -8,7 +8,6 @@ DEFAULT_OPENROUTER_KEY = ""
 DB_FILE = "items.json"
 KEY_FILE = "openrouter_key.txt"
 
-# === 기본 탑재 대형 유튜버 15인 목록 ===
 DEFAULT_YOUTUBER_LIST = [
     "ITSub잇섭",
     "테크몽 Techmong",
@@ -27,7 +26,6 @@ DEFAULT_YOUTUBER_LIST = [
     "지냐",
 ]
 
-# === 유튜버 이름을 적지 않고 유튜브 전체에서 자동 발굴할 핵심 키워드 ===
 AUTO_DISCOVERY_QUERIES = [
     "유튜버 내돈내산 추천템",
     "삶의 질 수직상승 꿀템 추천",
@@ -43,6 +41,7 @@ INITIAL_SEED_DB = [
     {"name": "삼성전자 포터블 SSD T7 Shield 2TB", "keyword": "외장SSD", "youtuber": "ITSub잇섭", "reason": "고화질 영상 데이터도 빠르게 전송하고 충격·방수에 강한 실사용 외장 SSD", "timestamp": "07:42", "youtube_url": "https://www.youtube.com/results?search_query=잇섭+삼성+T7+Shield"},
     {"name": "로지텍 MX Master 3S 무선 마우스", "keyword": "마우스", "youtuber": "테크몽 Techmong", "reason": "저소음 클릭과 초고속 무한 휠로 장시간 편집·업무 피로도를 줄여주는 마우스", "timestamp": "05:40", "youtube_url": "https://www.youtube.com/results?search_query=테크몽+MX+Master+3S"},
     {"name": "포터 탱커 숄더백 블랙", "keyword": "가방", "youtuber": "오늘의 주우재", "reason": "가벼운 나일론 소재와 넉넉한 수납 포켓으로 데일리 캐주얼 룩에 잘 어울리는 가방", "timestamp": "05:07", "youtube_url": "https://www.youtube.com/results?search_query=주우재+포터+탱커+숄더백"},
+    {"name": "무인양품 발이 편한 발수 스니커즈", "keyword": "스니커즈", "youtuber": "오늘의 주우재", "reason": "어떤 바지에도 무난하게 어울리고 인솔 쿠션감이 좋아 매일 손이 가는 기본 운동화", "timestamp": "06:54", "youtube_url": "https://www.youtube.com/results?search_query=주우재+무인양품+스니커즈"},
     {"name": "정샘물 에센셜 스킨 누더 쿠션", "keyword": "쿠션", "youtuber": "이사배 RISABAE", "reason": "피부 본연의 윤기를 살리면서 자연스럽고 화사하게 밀착되는 베이스 쿠션", "timestamp": "03:40", "youtube_url": "https://www.youtube.com/results?search_query=이사배+정샘물+스킨+누더+쿠션"},
     {"name": "더샘 커버 퍼펙션 트리플 팟 컨실러", "keyword": "컨실러", "youtuber": "레오제이 LeoJ Makeup", "reason": "홍조 커버부터 다크서클·잡티 보정까지 3가지 컬러로 해결하는 올리브영 1등 컨실러", "timestamp": "04:10", "youtube_url": "https://www.youtube.com/results?search_query=레오제이+더샘+트리플+팟+컨실러"},
     {"name": "매직캔 히포 크롬 냄새차단 쓰레기통 27L", "keyword": "쓰레기통", "youtuber": "귀곰", "reason": "이중 밀폐 구조로 여름철 음식물·기저귀 냄새까지 완벽하게 막아주는 휴지통", "timestamp": "02:39", "youtube_url": "https://www.youtube.com/results?search_query=귀곰+매직캔+쓰레기통"},
@@ -65,7 +64,6 @@ def get_openrouter_key():
 if "nav" not in st.session_state:
     st.session_state.nav = "꿀템 홈"
 
-# === 토스 스타일 라이트 앱 UI (textarea 검은 배경 완벽 차단) ===
 st.markdown("""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -124,7 +122,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     margin-bottom: 12px !important;
 }
 
-/* 모든 입력창(한줄/여러줄/드롭다운) 흰색 배경 + 검정 글씨 강제 */
 div[data-testid="stTextInputRootElement"],
 div[data-testid="stTextInputRootElement"] > div,
 div[data-baseweb="input"],
@@ -622,7 +619,6 @@ def _extract_items_from_yt_data(data, default_youtuber="유튜버", default_chan
     walk(data)
     return items
 
-# === 고속 유튜브 검색 (불필요한 4중 왕복 제거 -> 1회 검색으로 속도 4배 향상) ===
 def search_youtube_videos(query, limit=4, only_official=True):
     search_query = f"{query} 추천템" if only_official else query
     search_data = _innertube_post("search", {"query": search_query})
@@ -631,13 +627,15 @@ def search_youtube_videos(query, limit=4, only_official=True):
 
     raw_items = _extract_items_from_yt_data(search_data)
     if not only_official:
-        return raw_items[:limit]
+        # 일반 영상(자막/설명란 풍부)을 먼저 배치하고 쇼츠는 뒤에 배치
+        longs = [x for x in raw_items if not x.get("is_shorts")]
+        shorts = [x for x in raw_items if x.get("is_shorts")]
+        return (longs + shorts)[:limit]
 
     matched = [x for x in raw_items if _is_channel_match(query, x["youtuber"])]
     if len(matched) >= limit:
         return matched[:limit]
 
-    # 추천템 검색 결과가 부족할 때 채널명 자체로 한 번만 보완
     extra_data = _innertube_post("search", {"query": query})
     extra_items = _extract_items_from_yt_data(extra_data)
     seen_ids = {x["video_id"] for x in matched}
@@ -649,27 +647,6 @@ def search_youtube_videos(query, limit=4, only_official=True):
                 break
 
     return matched[:limit]
-
-def _find_desc_in_json(node):
-    if isinstance(node, dict):
-        if "attributedDescriptionBodyText" in node:
-            c = node["attributedDescriptionBodyText"].get("content", "")
-            if c:
-                return c
-        if "descriptionBodyText" in node:
-            runs = node["descriptionBodyText"].get("runs", [])
-            if runs:
-                return "".join(r.get("text", "") for r in runs)
-        for v in node.values():
-            found = _find_desc_in_json(v)
-            if found:
-                return found
-    elif isinstance(node, list):
-        for item in node:
-            found = _find_desc_in_json(item)
-            if found:
-                return found
-    return ""
 
 def _parse_caption_xml(base_url):
     try:
@@ -751,10 +728,11 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint="", is_sh
         "channel_id": channel_id,
         "title": title,
         "desc": desc,
-        "transcript": transcript[:2800],
+        "transcript": transcript[:2200],
         "is_shorts": is_shorts,
     }
 
+# === 3개 영상씩 가볍고 정확하게 추출 ===
 def analyze_batch_with_openrouter(bundles):
     api_key = get_openrouter_key()
     if not api_key or not api_key.isascii():
@@ -763,15 +741,14 @@ def analyze_batch_with_openrouter(bundles):
     shorts_map = {b["video_id"]: b.get("is_shorts", False) for b in bundles}
     blocks = []
     for b in bundles:
-        kind = "Shorts" if b.get("is_shorts") else "일반영상"
         blocks.append(
-            f"=== VIDEO_ID: {b['video_id']} | TYPE: {kind} | YOUTUBER: {b['youtuber']} ===\n"
+            f"=== VIDEO_ID: {b['video_id']} | YOUTUBER: {b['youtuber']} ===\n"
             f"[제목] {b['title']}\n"
-            f"[설명란]\n{b['desc'][:1400]}\n"
+            f"[설명란]\n{b['desc'][:1200]}\n"
             f"[자막]\n{b['transcript']}"
         )
 
-    prompt = f"""너는 유튜브 쇼핑 큐레이터야. 아래 영상들의 [설명란]과 [자막]을 읽고, 실제로 네이버 쇼핑이나 쿠팡에서 구매 가능한 **'진짜 제품명(브랜드명 + 정확한 상품명)'**만 골라 아래 JSON 형식으로만 답해줘. 다른 설명은 쓰지 마.
+    prompt = f"""너는 유튜브 쇼핑 큐레이터야. 아래 영상들의 [제목], [설명란], [자막]을 읽고 실제로 네이버 쇼핑이나 쿠팡에서 구매 가능한 **'진짜 제품명(브랜드명 + 정확한 상품명)'**만 골라 JSON 형식으로만 답해줘.
 
 {{"items": [
   {{"video_id": "영상ID", "youtuber": "유튜버명", "name": "브랜드명 + 정확한 제품명", "keyword": "품목명", "reason": "추천 이유 한 줄 요약", "start_sec": 0}}
@@ -779,8 +756,8 @@ def analyze_batch_with_openrouter(bundles):
 
 규칙:
 1. 이벤트·챌린지·프로모션·배송안내 문구("11초 장바구니 챌린지", "신규회원 전용 1000원딜", "배송 10-14일 소요", "Free Download")는 절대 제외해.
-2. 자막과 설명란을 대조해 실제 소개된 브랜드와 정확한 제품명만 적어줘. 브랜드·모델명이 불분명하면 버려.
-3. 구매 가능한 상품이 없으면 {{"items": []}} 만 반환해.
+2. 자막과 설명란을 대조해 실제 소개된 브랜드와 정확한 제품명만 적어줘.
+3. 상품이 없으면 {{"items": []}} 만 반환해.
 
 {chr(10).join(blocks)}"""
 
@@ -847,7 +824,6 @@ def analyze_batch_with_openrouter(bundles):
             })
     return out
 
-# === 병렬 수집 + 8개 영상씩 묶음 AI 호출 (속도 5배 단축) ===
 def collect_parallel_batch(queries, per_query_limit=3, only_official=True, status_box=None, prog_bar=None):
     analyzed = {extract_video_id(i.get("youtube_url", "")) for i in load_items()}
     video_targets = []
@@ -876,10 +852,10 @@ def collect_parallel_batch(queries, per_query_limit=3, only_official=True, statu
     if not video_targets:
         if prog_bar:
             prog_bar.progress(100)
-        return [], 0
+        return [], 0, None
 
     if status_box:
-        render_banner(status_box, f"2/3 새 영상·숏츠 {len(video_targets)}개의 자막과 설명란을 병렬로 가져오는 중...", "info")
+        render_banner(status_box, f"2/3 새 영상 {len(video_targets)}개의 자막과 설명란을 병렬로 가져오는 중...", "info")
     if prog_bar:
         prog_bar.progress(45)
 
@@ -891,31 +867,41 @@ def collect_parallel_batch(queries, per_query_limit=3, only_official=True, statu
         ]
         for fut in as_completed(futures):
             try:
-                bundles.append(fut.result())
+                b = fut.result()
+                # 설명란이나 자막 중 하나라도 텍스트가 있는 영상만 분석 대상에 포함
+                if len(b.get("desc", "").strip()) > 20 or len(b.get("transcript", "").strip()) > 20:
+                    bundles.append(b)
             except Exception:
                 pass
 
-    if prog_bar:
-        prog_bar.progress(70)
+    if not bundles:
+        if prog_bar:
+            prog_bar.progress(100)
+        return [], 0, "가져온 영상들에 분석할 자막이나 설명란 텍스트가 없었습니다."
 
-    # 영상 8개씩 하나의 묶음으로 AI 호출 (15명 기준 호출 3~4번으로 종료)
-    chunk_size = 8
+    if prog_bar:
+        prog_bar.progress(65)
+
+    # 무료 모델 토큰/길이 초과 방지를 위해 3개씩 작게 묶어 호출
+    chunk_size = 3
     chunks = [bundles[i:i + chunk_size] for i in range(0, len(bundles), chunk_size)]
     all_extracted = []
+    last_error_msg = None
+
     for idx_c, ch in enumerate(chunks, start=1):
         if status_box:
-            render_banner(status_box, f"3/3 AI 정밀 분석 중 ({idx_c}/{len(chunks)} 묶음 · 영상 {len(bundles)}개 처리 중)...", "info")
+            render_banner(status_box, f"3/3 AI 정밀 분석 중 ({idx_c}/{len(chunks)} 묶음 · 자막 확보 영상 {len(bundles)}개 처리 중)...", "info")
         if prog_bar:
-            prog_bar.progress(70 + int((idx_c / len(chunks)) * 28))
+            prog_bar.progress(65 + int((idx_c / len(chunks)) * 33))
         try:
             all_extracted.extend(analyze_batch_with_openrouter(ch))
-        except Exception:
-            pass
+        except Exception as e:
+            last_error_msg = str(e)
 
     added = add_unique_items(all_extracted)
     if prog_bar:
         prog_bar.progress(100)
-    return added, len(bundles)
+    return added, len(bundles), last_error_msg
 
 def render_toss_card(item, idx):
     icon, bg_color = pick_icon_style(item.get("name", ""), item.get("keyword", ""))
@@ -960,7 +946,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# === 상단 요약 대시보드 카드 ===
 fill_pct = min(100, int((len(db) / 200) * 100)) if db else 0
 st.markdown(f"""
 <div class="hero-card">
@@ -983,7 +968,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# === 상단 3개 탭 버튼 ===
 t1, t2, t3 = st.columns(3)
 for col, label in zip([t1, t2, t3], ["꿀템 홈", "자동 수집", "설정"]):
     is_active = (st.session_state.nav == label)
@@ -1019,29 +1003,30 @@ elif st.session_state.nav == "자동 수집":
     if not get_openrouter_key():
         render_banner(None, "💡 [설정] 탭에 OpenRouter API 키(sk-or-v1-...)를 먼저 저장해 주세요.", "warning")
 
-    # 1) 유튜버 이름을 일일이 넣지 않고 유튜브 전체에서 자동 발굴하는 카드
     with st.container(border=True):
         st.markdown("<div class='item-name' style='margin-bottom:4px;'>🔥 이름 입력 없이 유튜브 전체 인기 추천템 자동 발굴</div>", unsafe_allow_html=True)
         st.markdown("<div class='item-reason' style='margin-bottom:12px;'>유튜버를 일일이 추가하지 않아도 내돈내산·올리브영·쿠팡·IT 추천템 인기 영상을 자동으로 찾아내서 아이템만 뽑아와요.</div>", unsafe_allow_html=True)
 
-        if st.button("🚀 유튜브 전체 추천템 자동 발굴 실행 (약 30초)", type="primary", use_container_width=True):
+        if st.button("🚀 유튜브 전체 추천템 자동 발굴 실행", type="primary", use_container_width=True):
             st_auto = st.empty()
             pb_auto = st.progress(0)
             if not get_openrouter_key():
                 render_banner(st_auto, "⚠️ OpenRouter API 키가 설정되지 않았습니다. [설정] 탭에서 sk-or-v1- 키를 먼저 입력해 주세요.", "error")
             else:
-                added, checked_cnt = collect_parallel_batch(
+                added, checked_cnt, err_msg = collect_parallel_batch(
                     AUTO_DISCOVERY_QUERIES,
-                    per_query_limit=5,
+                    per_query_limit=3,
                     only_official=False,
                     status_box=st_auto,
                     prog_bar=pb_auto,
                 )
-                render_banner(st_auto, f"완료! 인기 추천 영상 {checked_cnt}개에서 실제 제품 {len(added)}개가 새로 추가되었어요.", "success")
-                for a in added:
-                    st.write(f"• **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`)")
+                if err_msg and not added:
+                    render_banner(st_auto, f"⚠️ 발굴 중 안내: {err_msg}", "error")
+                else:
+                    render_banner(st_auto, f"완료! 자막 확보 영상 {checked_cnt}개에서 실제 제품 {len(added)}개가 새로 추가되었어요.", "success")
+                    for a in added:
+                        st.write(f"• **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`)")
 
-    # 2) 대형 유튜버 15인 고속 병렬 일괄 수집 카드
     with st.container(border=True):
         st.markdown("<div class='item-name' style='margin-bottom:4px;'>🌐 대표 유튜버 15인 고속 일괄 수집</div>", unsafe_allow_html=True)
         st.markdown("<div class='item-reason' style='margin-bottom:10px;'>아래 명단의 공식 채널 추천 영상을 병렬로 한 번에 수집합니다. (줄바꿈으로 추가 가능)</div>", unsafe_allow_html=True)
@@ -1052,7 +1037,7 @@ elif st.session_state.nav == "자동 수집":
             height=140,
             label_visibility="collapsed",
         )
-        per_yt_lim = st.slider("유튜버당 분석할 추천 영상·숏츠 수", 2, 6, 3)
+        per_yt_lim = st.slider("유튜버당 분석할 추천 영상·숏츠 수", 2, 5, 2)
 
         if st.button("✨ 리스트 유튜버 전체 고속 일괄 수집", type="primary", use_container_width=True):
             status_all = st.empty()
@@ -1062,23 +1047,25 @@ elif st.session_state.nav == "자동 수집":
                 render_banner(status_all, "⚠️ OpenRouter API 키가 설정되지 않았습니다. [설정] 탭에서 sk-or-v1- 키를 먼저 입력해 주세요.", "error")
             else:
                 yt_targets = [line.strip() for line in yt_list_text.splitlines() if line.strip()]
-                added, checked_cnt = collect_parallel_batch(
+                added, checked_cnt, err_msg = collect_parallel_batch(
                     yt_targets,
                     per_query_limit=per_yt_lim,
                     only_official=True,
                     status_box=status_all,
                     prog_bar=prog_bar,
                 )
-                render_banner(status_all, f"전체 일괄 수집 완료! 새 영상 {checked_cnt}개에서 실제 제품 {len(added)}개가 추가되었어요.", "success")
-                for a in added:
-                    st.write(f"• **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`)")
+                if err_msg and not added:
+                    render_banner(status_all, f"⚠️ 일괄 수집 중 안내: {err_msg}", "error")
+                else:
+                    render_banner(status_all, f"전체 일괄 수집 완료! 자막 확보 영상 {checked_cnt}개에서 실제 제품 {len(added)}개가 추가되었어요.", "success")
+                    for a in added:
+                        st.write(f"• **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`)")
 
-    # 3) 특정 유튜버 1명만 빠르게 추가 수집하는 카드
     with st.container(border=True):
         st.markdown("<div class='item-name' style='margin-bottom:6px;'>🔍 특정 유튜버·키워드 1건 빠르게 수집</div>", unsafe_allow_html=True)
         q_in = st.text_input("키워드", placeholder="예: 지냐, 곽튜브, 오늘의 주우재", label_visibility="collapsed")
         only_official = st.checkbox("🎯 유튜버 공식 채널만 수집 (타 채널·클립 제외)", value=True)
-        lim = st.slider("분석할 최신 영상·숏츠 수", 2, 10, 6)
+        lim = st.slider("분석할 최신 영상·숏츠 수", 2, 8, 4)
 
         if st.button("선택한 유튜버 수집 시작", type="primary", use_container_width=True) and q_in:
             status = st.empty()
@@ -1086,17 +1073,19 @@ elif st.session_state.nav == "자동 수집":
             if not get_openrouter_key():
                 render_banner(status, "⚠️ OpenRouter API 키가 설정되지 않았습니다. [설정] 탭에서 sk-or-v1- 키를 먼저 입력해 주세요.", "error")
             else:
-                added, checked_cnt = collect_parallel_batch(
+                added, checked_cnt, err_msg = collect_parallel_batch(
                     [q_in.strip()],
                     per_query_limit=int(lim),
                     only_official=only_official,
                     status_box=status,
                     prog_bar=pb_one,
                 )
-                if checked_cnt == 0:
+                if err_msg and not added:
+                    render_banner(status, f"⚠️ 수집 중 안내: {err_msg}", "error")
+                elif checked_cnt == 0:
                     render_banner(status, "이미 모두 수집한 영상들이거나 일치하는 새 추천 영상이 없어요.", "info")
                 else:
-                    render_banner(status, f"완료! 영상·숏츠 {checked_cnt}개에서 실제 제품 {len(added)}개가 추가되었어요.", "success")
+                    render_banner(status, f"완료! 영상 {checked_cnt}개에서 실제 제품 {len(added)}개가 추가되었어요.", "success")
                     for a in added:
                         st.write(f"• **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`)")
 
@@ -1122,4 +1111,3 @@ elif st.session_state.nav == "설정":
         if st.button("기본 샘플 DB로 초기화", use_container_width=True):
             save_items(list(INITIAL_SEED_DB))
             st.rerun()
-# === 여기까지 복사되면 끝 ===
