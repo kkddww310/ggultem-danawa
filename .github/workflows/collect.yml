@@ -1,0 +1,41 @@
+name: Collect YouTube channels and videos
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 17 * * *"
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MIN_SUBSCRIBERS: "1000000"
+      DISCOVERY_QUERY_LIMIT: "12"
+      VIDEOS_PER_CHANNEL: "20"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Discover 1M+ channels
+        run: python -m collector.discover_channels
+
+      - name: Sync recent videos
+        run: python -m collector.sync_videos
+
+      - name: Score product candidates
+        run: python -m collector.score_videos
