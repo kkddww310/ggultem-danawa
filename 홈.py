@@ -9,9 +9,252 @@ DEFAULT_API_KEY = ""
 DB_FILE = "items.json"
 KEY_FILE = "api_key.txt"
 
-st.set_page_config(page_title="꿀템 다나와", layout="wide")
-st.title("🔍 유튜버 꿀템 & 최저가 한눈에 비교")
-st.caption("유튜버가 추천한 진짜 꿀템과 실시간 최저가 비교 페이지로 바로 연결해 줍니다.")
+st.set_page_config(page_title="꿀템 다나와", page_icon="🛍️", layout="centered")
+
+# === 토스 스타일 모바일 앱 UI 커스텀 CSS (라이트 모드 고정) ===
+st.markdown("""
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+:root {
+    color-scheme: light !important;
+}
+
+html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+    background-color: #F2F4F6 !important;
+    color: #191F28 !important;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
+}
+
+[data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer {
+    background: transparent !important;
+    visibility: hidden;
+}
+
+.block-container {
+    max-width: 500px !important;
+    padding-top: 1.2rem !important;
+    padding-bottom: 4rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
+
+/* 흰색 둥근 카드 스타일 */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: #FFFFFF !important;
+    border-radius: 22px !important;
+    border: none !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+    padding: 18px 20px !important;
+    margin-bottom: 12px !important;
+}
+
+/* 알약형 세그먼트 탭 (전체 | 지출 | 수입 스타일) */
+div[role="radiogroup"] {
+    background-color: #E5E8EB !important;
+    padding: 4px !important;
+    border-radius: 14px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
+    width: 100% !important;
+}
+div[role="radiogroup"] > label {
+    flex: 1 !important;
+    background: transparent !important;
+    border-radius: 11px !important;
+    padding: 8px 6px !important;
+    margin: 0 !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+}
+div[role="radiogroup"] > label:has(input:checked) {
+    background-color: #FFFFFF !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+div[role="radiogroup"] > label > div:first-child {
+    display: none !important;
+}
+div[role="radiogroup"] > label p {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #4E5968 !important;
+    margin: 0 !important;
+    text-align: center !important;
+}
+div[role="radiogroup"] > label:has(input:checked) p {
+    color: #191F28 !important;
+    font-weight: 700 !important;
+}
+
+/* 검색창 & 입력 필드 */
+div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
+    background-color: #FFFFFF !important;
+    border-radius: 14px !important;
+    border: 1px solid #E5E8EB !important;
+    color: #191F28 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+}
+input, textarea {
+    color: #191F28 !important;
+    font-size: 14px !important;
+}
+
+/* 기본 버튼 (토스 블루 & 소프트 틴트) */
+.stButton > button {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    border: none !important;
+    padding: 0.45rem 0.9rem !important;
+    transition: all 0.15s ease !important;
+}
+.stButton > button[kind="primary"] {
+    background-color: #3182F6 !important;
+    color: #FFFFFF !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background-color: #1B64DA !important;
+}
+.stButton > button[kind="secondary"] {
+    background-color: #F2F4F6 !important;
+    color: #4E5968 !important;
+}
+
+/* 링크 버튼 (네이버/쿠팡/유튜브) */
+.stLinkButton > a {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    text-decoration: none !important;
+    border: none !important;
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.45rem 0.6rem !important;
+}
+.stLinkButton > a[kind="primary"] {
+    background-color: #3182F6 !important;
+    color: #FFFFFF !important;
+}
+.stLinkButton > a[kind="secondary"] {
+    background-color: #E8F3FF !important;
+    color: #3182F6 !important;
+}
+
+/* 커스텀 앱 컴포넌트 클래스 */
+.app-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 4px 14px 4px;
+}
+.app-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #191F28;
+    letter-spacing: -0.4px;
+}
+.hero-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #8B95A1;
+    margin-bottom: 4px;
+}
+.hero-big {
+    font-size: 30px;
+    font-weight: 800;
+    color: #191F28;
+    letter-spacing: -0.8px;
+    line-height: 1.2;
+    margin-bottom: 10px;
+}
+.hero-dots {
+    display: flex;
+    gap: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4E5968;
+    margin-bottom: 14px;
+}
+.dot-blue { color: #3182F6; margin-right: 4px; }
+.dot-green { color: #00C471; margin-right: 4px; }
+.hero-bar-box {
+    background-color: #F4F6F8;
+    border-radius: 14px;
+    padding: 12px 14px;
+}
+.hero-bar-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4E5968;
+    margin-bottom: 7px;
+}
+.hero-bar-track {
+    width: 100%;
+    height: 7px;
+    background-color: #E5E8EB;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+.hero-bar-fill {
+    height: 100%;
+    background-color: #3182F6;
+    border-radius: 99px;
+}
+.hero-bar-sub {
+    font-size: 11.5px;
+    color: #8B95A1;
+}
+
+.item-meta {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8B95A1;
+    margin-bottom: 10px;
+}
+.item-row {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin-bottom: 12px;
+}
+.item-icon {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+}
+.item-info {
+    flex: 1;
+    min-width: 0;
+}
+.item-name {
+    font-size: 15.5px;
+    font-weight: 700;
+    color: #191F28;
+    line-height: 1.35;
+    margin-bottom: 3px;
+    word-break: keep-all;
+}
+.item-reason {
+    font-size: 12.5px;
+    color: #6B7684;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+</style>
+""", unsafe_allow_html=True)
 
 NOISE_WORDS = (
     "인트로", "오프닝", "시작", "마무리", "아웃트로", "총평", "결론",
@@ -20,6 +263,22 @@ NOISE_WORDS = (
     "등장", "브이로그", "일상", "주부", "추천", "꿀템", "문의", "비즈니스",
     "협찬", "광고", "인스타", "유튜브", "채널", "타임라인", "챕터"
 )
+
+def pick_icon_style(name, keyword):
+    text = f"{name} {keyword}".lower()
+    if any(k in text for k in ("헤드폰", "이어폰", "airpods", "스피커", "오디오", "마이크")):
+        return "🎧", "#EEF4FF"
+    if any(k in text for k in ("배터리", "충전", "케이블", "어댑터", "멀티탭")):
+        return "🔋", "#E8F8F0"
+    if any(k in text for k in ("키보드", "마우스", "노트북", "모니터", "태블릿", "맥북", "거치대", "책상", "데스크")):
+        return "💻", "#F3EEFF"
+    if any(k in text for k in ("카메라", "액션캠", "고프로", "삼각대", "조명")):
+        return "📷", "#FFF4E5"
+    if any(k in text for k in ("크림", "선크림", "클렌징", "멀티밤", "가습", "청소기", "매트", "담요", "난로", "양말")):
+        return "🏠", "#FFEFF4"
+    if any(k in text for k in ("지갑", "케이스", "백팩", "가방", "트렁크", "여행")):
+        return "🎒", "#EBF8FF"
+    return "🛍️", "#F2F4F6"
 
 def get_api_key():
     try:
@@ -132,7 +391,6 @@ def _find_desc_in_json(node):
 def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
     title, desc, youtuber = title_hint, "", youtuber_hint
 
-    # 1순위: YouTube 웹 설명란 전용 API (youtubei/v1/next - 해외 서버 차단 우회)
     try:
         payload = json.dumps({
             "context": {
@@ -160,7 +418,6 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
     except Exception:
         pass
 
-    # 2순위: YouTube iOS 클라이언트 player API
     if not desc:
         try:
             payload = json.dumps({
@@ -195,7 +452,6 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
         except Exception:
             pass
 
-    # 3순위: 일반 웹 HTML 파싱 보조
     if not desc:
         try:
             req = urllib.request.Request(
@@ -355,101 +611,149 @@ def analyze_batch_with_gemini(bundles):
             })
     return out
 
-def render_card(item, idx):
+def render_toss_card(item, idx):
+    icon, bg_color = pick_icon_style(item.get("name", ""), item.get("keyword", ""))
     with st.container(border=True):
-        c1, c2 = st.columns([1.6, 1])
-        with c1:
-            st.markdown(f"### 🏆 {item['name']}")
-            st.write(f"**추천 유튜버:** {item['youtuber']} · `{item['timestamp']}` 등장")
-            st.info(f"💡 **추천 이유:** {item['reason']}")
-            b_yt, b_del = st.columns([3, 1])
-            b_yt.link_button("▶️ 유튜버 영상 해당 구간 바로보기", item["youtube_url"])
-            if b_del.button("🗑️ 삭제", key=f"del_{idx}_{item['name']}"):
+        top_l, top_r = st.columns([5, 1])
+        with top_l:
+            st.markdown(f"<div class='item-meta'>{item['youtuber']} · {item['timestamp']} 등장</div>", unsafe_allow_html=True)
+        with top_r:
+            if st.button("✕", key=f"del_{idx}_{item['name']}", help="목록에서 삭제"):
                 db = [x for x in load_items() if not (x.get("name") == item.get("name") and x.get("youtuber") == item.get("youtuber"))]
                 save_items(db)
                 st.rerun()
-        with c2:
-            st.markdown("### 💰 실시간 최저가 비교")
-            q = quote(item["name"])
-            st.link_button("🟢 네이버 쇼핑 낮은가격순 보기", f"https://search.shopping.naver.com/search/all?query={q}&sort=price_asc", type="primary")
-            st.link_button("🚀 쿠팡 낮은가격순 보기", f"https://www.coupang.com/np/search?q={q}&sorter=salePriceAsc")
 
-tab1, tab2 = st.tabs(["🔎 꿀템 검색하기", "🤖 유튜브 자동 수집기 (DB 채우기)"])
+        st.markdown(f"""
+        <div class="item-row">
+            <div class="item-icon" style="background-color: {bg_color};">{icon}</div>
+            <div class="item-info">
+                <div class="item-name">{item['name']}</div>
+                <div class="item-reason">{item['reason']}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-with tab1:
-    db = load_items()
+        q = quote(item["name"])
+        b1, b2, b3 = st.columns([1.25, 1.15, 1])
+        b1.link_button("네이버 최저가", f"https://search.shopping.naver.com/search/all?query={q}&sort=price_asc", type="primary")
+        b2.link_button("쿠팡 최저가", f"https://www.coupang.com/np/search?q={q}&sorter=salePriceAsc")
+        b3.link_button("▶️ 영상보기", item["youtube_url"])
+
+# === 상단 앱 헤더 ===
+db = load_items()
+yt_count = len({i.get("youtuber", "") for i in db if i.get("youtuber")})
+
+st.markdown("""
+<div class="app-topbar">
+    <div class="app-title">‹ &nbsp; 꿀템 다나와</div>
+    <div style="font-size:13px; font-weight:600; color:#8B95A1;">유튜버 추천템</div>
+</div>
+""", unsafe_allow_html=True)
+
+# === 상단 요약 대시보드 카드 (가계부 앱 상단 카드 스타일) ===
+fill_pct = min(100, int((len(db) / 100) * 100)) if db else 0
+with st.container(border=True):
+    st.markdown(f"""
+    <div class="hero-label">모아둔 유튜버 추천 꿀템</div>
+    <div class="hero-big">{len(db):,}개</div>
+    <div class="hero-dots">
+        <div><span class="dot-blue">●</span>유튜버 <b>{yt_count}명</b></div>
+        <div><span class="dot-green">●</span>최저가 비교 <b style="color:#3182F6;">실시간 연동</b></div>
+    </div>
+    <div class="hero-bar-box">
+        <div class="hero-bar-top">
+            <span>목표 DB 100개</span>
+            <span style="color:#3182F6;">{fill_pct}%</span>
+        </div>
+        <div class="hero-bar-track">
+            <div class="hero-bar-fill" style="width: {fill_pct}%;"></div>
+        </div>
+        <div class="hero-bar-sub">제품명을 누르면 네이버·쿠팡 낮은가격순으로 바로 연결돼요</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# === 알약형 네비게이션 탭 ===
+nav = st.radio("메뉴", ["꿀템 홈", "자동 수집", "설정"], horizontal=True, label_visibility="collapsed")
+
+if nav == "꿀템 홈":
     yts = ["전체 유튜버"] + sorted(list({i.get("youtuber", "") for i in db if i.get("youtuber")}))
-    c1, c2 = st.columns([3, 1])
-    kw = c1.text_input(f"찾으시는 물건을 입력하세요 (저장된 추천템: {len(db)}개)", placeholder="예: 헤드폰, 마우스, 보조배터리, 충전기")
-    sel_yt = c2.selectbox("유튜버 필터", yts)
+    c_search, c_filter = st.columns([1.6, 1])
+    kw = c_search.text_input("검색", placeholder="🔍 찾는 물건 입력 (예: 보조배터리)", label_visibility="collapsed")
+    sel_yt = c_filter.selectbox("유튜버", yts, label_visibility="collapsed")
 
     filtered = [i for i in db if sel_yt == "전체 유튜버" or i.get("youtuber") == sel_yt]
     if kw:
         filtered = [i for i in filtered if kw.lower() in (i.get("name", "") + i.get("keyword", "") + i.get("reason", "")).lower()]
 
     if filtered:
-        st.subheader(f"'{kw}' 검색 결과 ({len(filtered)}건)" if kw else f"🔥 최신 등록된 유튜버 추천 꿀템 ({len(filtered)}건)")
+        st.markdown(f"<div style='font-size:13px; font-weight:700; color:#4E5968; margin: 10px 4px;'>추천템 목록 ({len(filtered)}건)</div>", unsafe_allow_html=True)
         for idx, item in enumerate(reversed(filtered)):
-            render_card(item, idx)
+            render_toss_card(item, idx)
     elif kw:
-        st.warning(f"아직 DB에 '{kw}' 관련 추천템이 없습니다.")
-        st.link_button(f"🟢 네이버 쇼핑에서 '{kw}' 최저가 바로 보기", f"https://search.shopping.naver.com/search/all?query={quote(kw)}&sort=price_asc")
+        with st.container(border=True):
+            st.markdown(f"<div class='item-name'>'{kw}' 추천템이 아직 없어요</div><div class='item-reason' style='margin:6px 0 12px 0;'>네이버 쇼핑에서 바로 최저가를 확인해 보세요.</div>", unsafe_allow_html=True)
+            st.link_button(f"네이버 쇼핑에서 '{kw}' 최저가 보기", f"https://search.shopping.naver.com/search/all?query={quote(kw)}&sort=price_asc", type="primary")
     else:
-        st.info("아직 저장된 추천템이 없습니다. 위쪽 **'🤖 유튜브 자동 수집기'** 탭에서 키워드를 입력해 꿀템을 모아보세요!")
+        with st.container(border=True):
+            st.markdown("<div class='item-name'>아직 저장된 추천템이 없어요</div><div class='item-reason'>위쪽 '자동 수집' 탭에서 유튜버 키워드를 입력해 꿀템을 모아보세요.</div>", unsafe_allow_html=True)
 
-with tab2:
-    mode = st.radio(
-        "수집 방식",
-        ["⚡ 무제한 로컬 추출 (AI 한도 소모 0회)", "🤖 Gemini AI 정밀 분석 (API 키 사용)"],
-        horizontal=True
-    )
-    c1, c2 = st.columns([3, 1])
-    q_in = c1.text_input("유튜브 검색 키워드", placeholder="예: 잇섭 추천템, 가전주부 추천템, 내돈내산")
-    lim = c2.number_input("분석할 영상 수", 1, 8, 5)
+elif nav == "자동 수집":
+    with st.container(border=True):
+        st.markdown("<div class='item-name' style='margin-bottom:8px;'>🤖 유튜브 추천템 자동 수집</div>", unsafe_allow_html=True)
+        mode = st.radio(
+            "수집 방식",
+            ["⚡ 무제한 로컬 추출", "🤖 Gemini AI 분석"],
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+        q_in = st.text_input("키워드", placeholder="유튜브 검색어 입력 (예: 잇섭 추천템, 내돈내산)", label_visibility="collapsed")
+        lim = st.slider("분석할 최신 영상 수", 1, 8, 5)
 
-    if st.button("🚀 자동 수집 시작하기", type="primary") and q_in:
-        status = st.empty()
-        try:
-            status.info("1/2 유튜브 영상 목록과 설명란 수집 중...")
-            videos = search_youtube_videos(q_in, limit=int(lim))
-            analyzed = {extract_video_id(i.get("youtube_url", "")) for i in load_items()}
-            targets = [v for v in videos if v["video_id"] not in analyzed]
-            if not targets:
-                status.empty()
-                st.info("이미 모두 수집한 영상들입니다.")
-            else:
-                bundles = [fetch_video_bundle(v["video_id"], v["youtuber"], v["title"]) for v in targets]
-                if "무제한 로컬 추출" in mode:
-                    status.info("2/2 설명란에서 실제 구매 제품만 무제한 추출 중...")
-                    items = extract_products_locally(bundles)
+        if st.button("🚀 자동 수집 시작하기", type="primary", use_container_width=True) and q_in:
+            status = st.empty()
+            try:
+                status.info("1/2 유튜브 영상 목록과 설명란을 불러오고 있어요...")
+                videos = search_youtube_videos(q_in, limit=int(lim))
+                analyzed = {extract_video_id(i.get("youtube_url", "")) for i in load_items()}
+                targets = [v for v in videos if v["video_id"] not in analyzed]
+                if not targets:
+                    status.empty()
+                    st.info("이미 모두 수집한 영상들이에요.")
                 else:
-                    status.info("2/2 Gemini AI 정밀 분석 중...")
-                    try:
-                        items = analyze_batch_with_gemini(bundles)
-                    except Exception:
-                        status.info("2/2 AI 한도 초과 -> 무제한 로컬 추출로 자동 전환 중...")
+                    bundles = [fetch_video_bundle(v["video_id"], v["youtuber"], v["title"]) for v in targets]
+                    if "무제한" in mode:
+                        status.info("2/2 설명란에서 실제 구매 제품만 추려내고 있어요...")
                         items = extract_products_locally(bundles)
+                    else:
+                        status.info("2/2 Gemini AI가 영상을 정밀 분석하고 있어요...")
+                        try:
+                            items = analyze_batch_with_gemini(bundles)
+                        except Exception:
+                            status.info("2/2 AI 한도 초과 → 무제한 로컬 추출로 전환 중...")
+                            items = extract_products_locally(bundles)
 
-                added = add_unique_items(items)
+                    added = add_unique_items(items)
+                    status.empty()
+                    st.success(f"완료! 총 {len(added)}개의 제품이 추가되었어요.")
+                    if not added:
+                        st.caption(f"확인한 영상 {len(bundles)}개 중 설명란 수집: {sum(1 for b in bundles if b['desc'])}개")
+                    for a in added:
+                        st.write(f"• **{a['name']}** ({a['youtuber']})")
+            except Exception as e:
                 status.empty()
-                st.success(f"🎉 완료! 총 {len(added)}개의 제품이 저장되었습니다.")
-                if not added:
-                    st.caption(f"확인한 영상 {len(bundles)}개 중 설명란이 수집된 영상: {sum(1 for b in bundles if b['desc'])}개 (설명란에 제품 목록이 없는 영상일 수 있습니다.)")
-                for a in added:
-                    st.write(f"- **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`): {a['reason']}")
-        except Exception as e:
-            status.empty()
-            st.error(f"수집 중 오류: {e}")
+                st.error(f"수집 중 오류가 발생했어요: {e}")
 
-    with st.expander("⚙️ API 키 변경 / 저장된 DB 관리"):
-        new_key = st.text_input("새 Gemini API 키 입력", type="password")
-        if st.button("API 키 저장") and new_key.strip():
+elif nav == "설정":
+    with st.container(border=True):
+        st.markdown("<div class='item-name' style='margin-bottom:6px;'>🔑 Gemini API 키 설정</div><div class='item-reason' style='margin-bottom:12px;'>AI 정밀 분석 기능을 쓸 때만 필요해요.</div>", unsafe_allow_html=True)
+        new_key = st.text_input("API 키", type="password", placeholder="AIzaSy...", label_visibility="collapsed")
+        if st.button("API 키 저장", type="primary", use_container_width=True) and new_key.strip():
             open(KEY_FILE, "w", encoding="utf-8").write(new_key.strip())
-            st.success("새 API 키가 저장되었습니다!")
-        st.divider()
-        db_now = load_items()
-        st.write(f"현재 저장된 추천템: **{len(db_now)}개**")
-        if db_now and st.button("모든 데이터 초기화"):
+            st.success("새 API 키가 저장되었어요!")
+
+    with st.container(border=True):
+        st.markdown(f"<div class='item-name' style='margin-bottom:6px;'>🗂️ 데이터 관리</div><div class='item-reason' style='margin-bottom:12px;'>현재 저장된 추천템은 총 <b>{len(db)}개</b>입니다.</div>", unsafe_allow_html=True)
+        if db and st.button("모든 데이터 초기화", use_container_width=True):
             save_items([])
             st.rerun()
 # === 여기까지 복사되면 끝 ===
