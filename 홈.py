@@ -335,34 +335,53 @@ div[data-testid="stSliderTickBarMax"] {
 </style>
 """, unsafe_allow_html=True)
 
-# === 비상품(공지/이벤트/챕터 요약) 차단 키워드 대폭 강화 ===
+# === 비상품(가격 단독 표기 / 프로모션 안내문 / 공지 / 영상 챕터) 차단 ===
 NOISE_WORDS = (
     "인트로", "오프닝", "시작", "마무리", "아웃트로", "총평", "결론",
     "구독", "이벤트", "당첨", "발표", "공지", "커뮤니티", "종료", "마감",
     "쿠키", "예고", "목차", "근황", "달라졌어요", "소감", "질문", "후기",
     "원칙", "고능", "PD", "피디", "출연", "등장", "브이로그", "일상",
-    "주부", "추천", "꿀템", "필수템", "모아옴", "모음", "총정리", "하이라이트",
+    "주부", "추천", "꿀템", "필수템", "가성비템", "모아옴", "모음", "총정리", "하이라이트",
     "문의", "비즈니스", "협찬", "광고", "인스타", "유튜브", "채널",
-    "타임라인", "챕터", "링크", "바로가기", "프로필", "멤버십", "할인코드", "쿠폰"
+    "타임라인", "챕터", "링크", "바로가기", "프로필", "멤버십",
+    "할인코드", "쿠폰", "최종가", "할인가", "혜택가", "정상가", "체감가",
+    "해외직구", "직구", "로컬", "카테고리", "적용", "카드", "결제",
+    "무료배송", "관부가세", "프로모션", "기획전", "특가", "사은품", "증정", "선착순"
+)
+
+SENTENCE_ENDINGS = (
+    "합니다", "입니다", "됩니다", "있습니다", "없습니다", "하세요", "주세요",
+    "바랍니다", "해요", "예요", "이에요", "가요", "네요", "같아요", "가능", "불가", "제외"
 )
 
 def is_non_product(text, youtuber=""):
     t = (text or "").strip()
-    if not t or len(t) < 2 or len(t) > 65:
+    if not t or len(t) < 2 or len(t) > 60:
         return True
-    # "(종료)", "[마감]" 등 괄호로만 이루어진 상태 표시 차단
+    # 기호로 시작하는 계산식/안내문 차단 (예: "=최종가", "👉 ...")
+    if t[0] in ("=", "👉", "※", "→", "▶", "|"):
+        return True
+    # 괄호로만 감싸인 상태 표시 차단 (예: "(종료)")
     if re.fullmatch(r"[\(\[\{〈《「『].*[\)\]\}\〉》」』]", t):
+        return True
+    # 괄호 짝이 맞지 않고 중간에 잘린 문구 차단 (예: "해외직구, 로컬 전부 적용 가능합니다 (일부 카테고리")
+    if t.count("(") != t.count(")") or t.count("[") != t.count("]"):
+        return True
+    # 가격/금액만 적힌 경우 차단 (예: "약 $71.77", "$78.77", "39,000원", "50%")
+    if re.fullmatch(r"(?:약\s*)?(?:USD|KRW|US\$|\$|₩)?\s*[\d,\.]+\s*(?:원|달러|불|USD|KRW|%)?", t, re.IGNORECASE):
+        return True
+    if re.match(r"^(?:약\s*)?[\$\₩]\s*\d", t):
         return True
     # 한글/영문/숫자가 2글자 미만이면 차단
     if len(re.findall(r"[가-힣A-Za-z0-9]", t)) < 2:
         return True
-    # 숫자/기호만으로 이루어진 경우 차단
-    if re.fullmatch(r"[\d\s\:\.\-\~\!\?]+", t):
+    # 문장형 어미 포함 시 차단
+    if any(w in t for w in SENTENCE_ENDINGS):
         return True
-    # 공지/이벤트/영상 요약 단어 포함 시 차단
+    # 공지/프로모션/할인 안내 단어 포함 시 차단
     if any(w in t for w in NOISE_WORDS):
         return True
-    # 유튜버 채널명 자체(예: "테크몽 유튜브 커뮤니티 공지")가 들어간 문구 차단
+    # 유튜버 채널명과 공지성 단어가 결합된 문구 차단
     yt_clean = re.sub(r"\s+", "", youtuber).lower()
     if yt_clean and len(yt_clean) >= 2 and yt_clean in re.sub(r"\s+", "", t).lower():
         if any(k in t for k in ("공지", "커뮤니티", "이벤트", "구독", "채널", "영상", "모아옴")):
@@ -605,11 +624,11 @@ def extract_products_locally(bundles):
                     ts_list.append((sec_val, label))
 
         for raw_ln in raw_lines:
-            if "@" in raw_ln or raw_ln.startswith("#"):
+            if "@" in raw_ln or raw_ln.startswith("#") or raw_ln.startswith("="):
                 continue
 
-            # 줄 전체에 이벤트/당첨/공지 단어가 들어있으면 즉시 건너뜀
-            if any(w in raw_ln for w in ("이벤트", "당첨", "발표", "공지", "커뮤니티", "멤버십", "할인코드")):
+            # 프로모션/할인/공지 문구 줄 전체 스킵
+            if any(w in raw_ln for w in ("이벤트", "당첨", "발표", "공지", "커뮤니티", "멤버십", "할인코드", "최종가", "결제 시", "적용 가능", "해외직구")):
                 continue
 
             has_url = "http" in raw_ln
@@ -622,13 +641,12 @@ def extract_products_locally(bundles):
             category = ""
             sec = 0
 
-            # 1순위: 타임스탬프 줄 ("01:55 제품명") -> 콜론(:) 패턴보다 먼저 검사해야 00:00 착각 방지
+            # 1순위: 타임스탬프 줄 ("01:55 제품명")
             m_line_ts = re.match(r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)$", ln)
             if m_line_ts:
                 hh = int(m_line_ts.group(1) or 0)
                 mm, ss = int(m_line_ts.group(2)), int(m_line_ts.group(3))
                 sec = hh * 3600 + mm * 60 + ss
-                # 00:00은 항상 영상 오프닝/제목 요약이므로 제외
                 if sec == 0:
                     continue
                 body = m_line_ts.group(4).strip()
@@ -644,7 +662,7 @@ def extract_products_locally(bundles):
                 if m_colon and not re.match(r"^\d{1,2}$", m_colon.group(1).strip()):
                     left = m_colon.group(1).strip()
                     right = m_colon.group(2).strip()
-                    if any(w in left for w in NOISE_WORDS):
+                    if left.startswith(("=", "👉", "※")) or any(w in left for w in NOISE_WORDS):
                         continue
                     if has_url and not right:
                         candidate = left
@@ -655,7 +673,10 @@ def extract_products_locally(bundles):
                     # 3순위: 번호/기호 목록 줄 ("1. 제품명", "- 제품명", "• 제품명")
                     m_list = re.match(r"^(?:[\-\•\*\▶\▸\✔\✓]|\d{1,2}[\.\)\]])\s*(.+)$", ln)
                     if m_list:
-                        candidate = m_list.group(1).strip()
+                        body = m_list.group(1).strip()
+                        # 불릿 목록 안에 쉼표(,)로 이어진 안내 문장은 제외
+                        if "," not in body:
+                            candidate = body
 
             if not candidate:
                 continue
@@ -699,7 +720,7 @@ def analyze_batch_with_gemini(bundles):
 
     prompt = f"""아래 유튜브 영상들에서 실제로 쇼핑몰에서 구매할 수 있는 '구체적인 제품(브랜드+제품명)'만 골라 JSON 배열로만 답해줘.
 규칙:
-1. PD/출연진 이름, 코너명, 인트로/아웃트로, 이벤트/당첨자 공지, 추상적 주제는 절대 넣지 마.
+1. PD/출연진 이름, 코너명, 인트로/아웃트로, 이벤트/당첨자 공지, 할인 가격 숫자, 추상적 주제는 절대 넣지 마.
 2. 실제 구매 가능한 상품이 없으면 [] 만 반환해.
 3. 키 이름: "video_id", "youtuber", "name"(쇼핑몰 검색용 정확한 제품명), "keyword"(핵심 품목명), "reason"(추천 이유 한 줄), "start_sec"(등장 시작 초 정수, 모르면 0)
 
