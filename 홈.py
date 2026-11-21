@@ -229,6 +229,10 @@ def migrate_item(item):
     x["normalized_name"] = normalize_product_name(x["name"])
     x["confidence"] = float(x.get("confidence", 1.0 if str(x.get("id", "")).startswith("seed-") else 0.8))
     x["evidence"] = str(x.get("evidence", "")).strip()
+    x["pros"] = [str(v).strip() for v in x.get("pros", []) if str(v).strip()][:3]
+    x["cons"] = [str(v).strip() for v in x.get("cons", []) if str(v).strip()][:3]
+    x["purchase_type"] = str(x.get("purchase_type", "확인되지 않음")).strip() or "확인되지 않음"
+    x["use_case"] = str(x.get("use_case", "")).strip()
     x["created_at"] = str(x.get("created_at", "")) or now_iso()
     x["id"] = str(x.get("id", "")) or stable_id(x["normalized_name"], x["youtuber"], x["video_id"])
     return x
@@ -629,7 +633,7 @@ def analyze_batch_with_openrouter(bundles):
 브랜드나 모델명이 근거에 없으면 절대 추측하거나 보완하지 마라.
 
 반드시 아래 JSON 객체 하나만 반환한다.
-{{"items":[{{"video_id":"영상ID","youtuber":"채널명","name":"브랜드 + 정확한 제품명","keyword":"일반 품목명","reason":"영상에서 언급된 추천 이유 한 줄","start_sec":0,"evidence":"입력에서 확인되는 짧은 근거 문구","confidence":0.0}}]}}
+{{"items":[{{"video_id":"영상ID","youtuber":"채널명","name":"브랜드 + 정확한 제품명","keyword":"일반 품목명","reason":"영상에서 언급된 추천 이유 한 줄","start_sec":0,"evidence":"입력에서 확인되는 짧은 근거 문구","confidence":0.0,"pros":["장점"],"cons":["단점"],"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음","use_case":"추천 사용 상황"}}]}}
 
 검증 규칙:
 1. 이벤트, 챌린지, 프로모션, 배송, 할인, 쿠폰, 숙박, 항공권, 음악 다운로드 문구는 제외한다.
@@ -638,7 +642,10 @@ def analyze_batch_with_openrouter(bundles):
 4. evidence에는 입력에 실제 존재하는 80자 이하 근거만 쓴다.
 5. start_sec는 자막 타임스탬프가 확인될 때만 초 단위로 쓰고, 확인되지 않으면 0이다.
 6. 같은 영상의 같은 제품은 한 번만 반환한다.
-7. 제품이 없으면 {{"items":[]}}만 반환한다.
+7. pros와 cons는 영상에 명시된 내용만 각각 최대 3개까지 쓴다. 근거가 없으면 빈 배열로 둔다.
+8. purchase_type은 직접 구매, 제품 제공, 유료 광고, 확인되지 않음 중 하나만 쓴다. 명시적 근거가 없으면 확인되지 않음이다.
+9. use_case는 영상 근거에 맞는 짧은 사용 상황이며, 추측하지 않는다.
+10. 제품이 없으면 {{"items":[]}}만 반환한다.
 
 {chr(10).join(blocks)}"""
 
@@ -712,6 +719,10 @@ def analyze_batch_with_openrouter(bundles):
             "is_shorts": is_shorts,
             "evidence": str(raw.get("evidence", "")).strip()[:160],
             "confidence": confidence,
+            "pros": [str(v).strip() for v in raw.get("pros", []) if str(v).strip()][:3],
+            "cons": [str(v).strip() for v in raw.get("cons", []) if str(v).strip()][:3],
+            "purchase_type": str(raw.get("purchase_type", "확인되지 않음")).strip(),
+            "use_case": str(raw.get("use_case", "")).strip()[:80],
             "created_at": now_iso(),
         })
     return results
@@ -848,6 +859,47 @@ def collect_parallel_batch(queries, per_query_limit=3, only_official=True, statu
         progress_bar.progress(100)
     return added, stats, errors, ""
 
+def product_group_key(item):
+    """동일 상품으로 볼 수 있는 항목을 보수적으로 묶는다."""
+    normalized = item.get("normalized_name") or normalize_product_name(item.get("name", ""))
+    # 품목 일반어만 남은 데이터가 과도하게 합쳐지지 않도록 6자 미만은 고유 ID 사용
+    if len(normalized) < 6:
+        return item.get("id") or stable_id(item.get("name"), item.get("youtuber"))
+    return normalized
+
+
+def group_products(items):
+    groups = {}
+    for item in items:
+        key = product_group_key(item)
+        groups.setdefault(key, []).append(item)
+    result = []
+    for key, recommendations in groups.items():
+        recommendations.sort(key=lambda x: (x.get("confidence", 0), x.get("created_at", "")), reverse=True)
+        representative = recommendations[0]
+        youtubers = sorted({x.get("youtuber", "") for x in recommendations if x.get("youtuber")})
+        videos = {x.get("video_id") or x.get("youtube_url") for x in recommendations if x.get("video_id") or x.get("youtube_url")}
+        result.append({
+            "key": key,
+            "representative": representative,
+            "recommendations": recommendations,
+            "youtubers": youtubers,
+            "youtuber_count": len(youtubers),
+            "video_count": len(videos),
+            "max_confidence": max(float(x.get("confidence", 0)) for x in recommendations),
+        })
+    result.sort(key=lambda g: (g["youtuber_count"], g["video_count"], g["max_confidence"]), reverse=True)
+    return result
+
+
+def purchase_badge(value):
+    return {
+        "직접 구매": "💳 직접 구매",
+        "제품 제공": "🎁 제품 제공",
+        "유료 광고": "📢 유료 광고",
+        "확인되지 않음": "❓ 구매 형태 미확인",
+    }.get(value, "❓ 구매 형태 미확인")
+
 # =========================================================
 # UI
 # =========================================================
@@ -969,27 +1021,182 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 button[kind="primary"], a[kind="primary"] { background:#3182F6 !important; color:#fff !important; border:none !important; }
 button[kind="secondary"] { background:#E5E8EB !important; color:#4E5968 !important; border:none !important; }
 .stLinkButton > a { width:100% !important; display:flex !important; align-items:center !important; justify-content:center !important; font-size:12px !important; white-space:nowrap !important; }
+
+/* ===== 최종 라이트 테마 오버라이드: 반드시 style 맨 마지막에 유지 ===== */
+:root, html, body, [data-testid="stAppViewContainer"] {
+  color-scheme: light !important;
+}
+
+/* 일반 글자와 버튼 글자 */
+.stButton button, .stButton button *,
+.stDownloadButton button, .stDownloadButton button * {
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+}
+button[kind="primary"], button[data-testid="stBaseButton-primary"] {
+  background:#4C82EE !important;
+  border:1px solid #4C82EE !important;
+  color:#FFFFFF !important;
+}
+button[kind="primary"] *, button[data-testid="stBaseButton-primary"] * {
+  color:#FFFFFF !important;
+  -webkit-text-fill-color:#FFFFFF !important;
+}
+button[kind="secondary"], button[data-testid="stBaseButton-secondary"],
+.stDownloadButton button {
+  background:#E9EDF2 !important;
+  border:1px solid #E9EDF2 !important;
+  color:#191F28 !important;
+}
+
+/* 링크 버튼: 쿠팡, 영상보기까지 검은색 제거 */
+.stLinkButton > a,
+a[data-testid="stBaseLinkButton-secondary"],
+a[kind="secondary"] {
+  background:#E8F3FF !important;
+  border:1px solid #D4E6FF !important;
+  color:#2F6FD6 !important;
+}
+.stLinkButton > a *,
+a[data-testid="stBaseLinkButton-secondary"] *,
+a[kind="secondary"] * {
+  color:#2F6FD6 !important;
+  -webkit-text-fill-color:#2F6FD6 !important;
+}
+.stLinkButton > a[data-testid="stBaseLinkButton-primary"],
+.stLinkButton > a[kind="primary"] {
+  background:#4C82EE !important;
+  border-color:#4C82EE !important;
+  color:#FFFFFF !important;
+}
+.stLinkButton > a[data-testid="stBaseLinkButton-primary"] *,
+.stLinkButton > a[kind="primary"] * {
+  color:#FFFFFF !important;
+  -webkit-text-fill-color:#FFFFFF !important;
+}
+
+/* 검색창 */
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stTextInput"] input {
+  background:#FFFFFF !important;
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+  caret-color:#191F28 !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"] {
+  border:1px solid #AEB6BF !important;
+  border-radius:11px !important;
+}
+[data-testid="stTextInput"] input::placeholder {
+  color:#8B95A1 !important;
+  -webkit-text-fill-color:#8B95A1 !important;
+  opacity:1 !important;
+}
+/* 검색 아이콘이 들어 있는 입력창 내부 장식 */
+[data-testid="stTextInput"] div[data-baseweb="input"] > div,
+[data-testid="stTextInput"] div[data-baseweb="input"] svg {
+  background:#FFFFFF !important;
+  color:#4E5968 !important;
+  fill:#4E5968 !important;
+}
+
+/* 셀렉트박스 전체와 오른쪽 화살표 칸 */
+[data-testid="stSelectbox"] div[data-baseweb="select"],
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[role="combobox"],
+[data-testid="stSelectbox"] div[role="combobox"] > div,
+[data-testid="stSelectbox"] div[role="combobox"] > div:last-child {
+  background:#FFFFFF !important;
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+  border:1px solid #AEB6BF !important;
+  border-radius:11px !important;
+  overflow:hidden !important;
+}
+[data-testid="stSelectbox"] svg,
+[data-testid="stSelectbox"] div[role="combobox"] svg {
+  color:#4E5968 !important;
+  fill:#4E5968 !important;
+}
+
+/* 비밀번호 눈 아이콘 오른쪽 칸 */
+[data-testid="stTextInput"] button,
+[data-testid="stTextInput"] button * {
+  background:#FFFFFF !important;
+  color:#4E5968 !important;
+  fill:#4E5968 !important;
+  -webkit-text-fill-color:#4E5968 !important;
+}
+
+/* textarea */
+[data-testid="stTextArea"] div[data-baseweb="textarea"],
+[data-testid="stTextArea"] div[data-baseweb="base-input"],
+[data-testid="stTextArea"] textarea {
+  background:#FFFFFF !important;
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+  caret-color:#191F28 !important;
+}
+[data-testid="stTextArea"] div[data-baseweb="textarea"] {
+  border:1px solid #AEB6BF !important;
+  border-radius:11px !important;
+}
+
+/* Expander와 드롭다운 */
+[data-testid="stExpander"],
+[data-testid="stExpander"] details,
+[data-testid="stExpander"] summary {
+  background:#FFFFFF !important;
+  color:#191F28 !important;
+}
+[data-testid="stExpander"] summary *,
+[data-testid="stExpander"] details * {
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+}
+ul[data-baseweb="menu"], ul[data-baseweb="menu"] li,
+div[data-baseweb="popover"], div[data-baseweb="popover"] * {
+  background:#FFFFFF !important;
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+}
+
+/* hover 상태에서도 검은색으로 돌아가지 않게 */
+.stLinkButton > a:hover, .stButton button:hover,
+.stDownloadButton button:hover {
+  filter:brightness(.98) !important;
+  color:inherit !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 
-def render_toss_card(item):
+def render_product_group(group):
+    item = group["representative"]
     icon, bg = pick_icon_style(item["name"], item.get("keyword", ""))
-    badge = '<span class="shorts-badge">Shorts</span>' if item.get("is_shorts") else ""
-    meta = f"{safe_text(item['youtuber'])} · {'쇼츠 추천' if item.get('is_shorts') else safe_text(item['timestamp']) + ' 추천'}"
+    strong = group["youtuber_count"] >= 2
+    badge = "🔥 교차 추천" if strong else "✅ 영상 근거 확인"
     with st.container(border=True):
-        left, right = st.columns([7, 1])
-        left.markdown(f'<div class="item-meta">{meta}{badge}</div>', unsafe_allow_html=True)
-        if right.button("✕", key=f"delete_{item['id']}", help="목록에서 삭제"):
-            st.session_state["pending_delete"] = item["id"]
-        if st.session_state.get("pending_delete") == item["id"]:
+        top_left, top_right = st.columns([7, 1])
+        top_left.markdown(
+            f'<div class="item-meta">{badge} · 유튜버 {group["youtuber_count"]}명 · 영상 {group["video_count"]}개</div>',
+            unsafe_allow_html=True,
+        )
+        if top_right.button("✕", key=f'delete_group_{group["key"]}', help="이 상품의 추천 기록 전체 삭제"):
+            st.session_state["pending_delete_group"] = group["key"]
+        if st.session_state.get("pending_delete_group") == group["key"]:
             c1, c2 = st.columns(2)
-            if c1.button("삭제 확인", key=f"confirm_{item['id']}", type="primary", use_container_width=True):
-                save_items([x for x in load_items() if x["id"] != item["id"]])
-                st.session_state.pop("pending_delete", None)
+            if c1.button("전체 삭제", key=f'confirm_group_{group["key"]}', type="primary", use_container_width=True):
+                delete_ids = {x["id"] for x in group["recommendations"]}
+                save_items([x for x in load_items() if x["id"] not in delete_ids])
+                st.session_state.pop("pending_delete_group", None)
                 st.rerun()
-            if c2.button("취소", key=f"cancel_{item['id']}", use_container_width=True):
-                st.session_state.pop("pending_delete", None)
+            if c2.button("취소", key=f'cancel_group_{group["key"]}', use_container_width=True):
+                st.session_state.pop("pending_delete_group", None)
                 st.rerun()
 
         st.markdown(
@@ -998,14 +1205,39 @@ def render_toss_card(item):
             f'<div class="item-reason">{safe_text(item.get("reason", ""))}</div></div></div>',
             unsafe_allow_html=True,
         )
+        st.caption("추천: " + " · ".join(group["youtubers"][:5]) + (" 외" if len(group["youtubers"]) > 5 else ""))
+        chips = [purchase_badge(x.get("purchase_type", "확인되지 않음")) for x in group["recommendations"]]
+        st.caption(" · ".join(dict.fromkeys(chips)))
+
         query = quote(item["name"])
-        b1, b2, b3 = st.columns(3)
-        b1.link_button("네이버 최저가", f"https://search.shopping.naver.com/search/all?query={query}&sort=price_asc", type="primary", use_container_width=True)
-        b2.link_button("쿠팡 최저가", f"https://www.coupang.com/np/search?q={query}&sorter=salePriceAsc", use_container_width=True)
-        b3.link_button("▶ 영상보기", item["youtube_url"], use_container_width=True)
-        if item.get("evidence"):
-            with st.expander("AI 추출 근거"):
-                st.caption(f"신뢰도 {item.get('confidence', 0):.0%} · {item['evidence']}")
+        b1, b2 = st.columns(2)
+        b1.link_button("네이버 가격 비교", f"https://search.shopping.naver.com/search/all?query={query}&sort=price_asc", type="primary", use_container_width=True)
+        b2.link_button("쿠팡 가격 확인", f"https://www.coupang.com/np/search?q={query}&sorter=salePriceAsc", use_container_width=True)
+
+        with st.expander(f"추천 근거·영상 {len(group['recommendations'])}건 보기"):
+            pros = list(dict.fromkeys(v for x in group["recommendations"] for v in x.get("pros", [])))[:4]
+            cons = list(dict.fromkeys(v for x in group["recommendations"] for v in x.get("cons", [])))[:4]
+            if pros:
+                st.markdown("**좋았던 점**")
+                for value in pros:
+                    st.write(f"• {value}")
+            if cons:
+                st.markdown("**아쉬운 점**")
+                for value in cons:
+                    st.write(f"• {value}")
+            if not pros and not cons:
+                st.caption("기존 데이터에는 장단점 정보가 없습니다. 새로 수집되는 상품부터 표시됩니다.")
+            for index, rec in enumerate(group["recommendations"], 1):
+                evidence_label = "근거 확실" if rec.get("confidence", 0) >= 0.85 else "확인 필요"
+                st.markdown(f"**{index}. {safe_text(rec['youtuber'])}** · {evidence_label} · {rec.get('confidence', 0):.0%}")
+                if rec.get("evidence"):
+                    st.caption(rec["evidence"])
+                st.link_button(
+                    f"{rec.get('timestamp', '00:00')}부터 영상 보기",
+                    rec["youtube_url"],
+                    key=f'video_{group["key"]}_{rec["id"]}',
+                    use_container_width=True,
+                )
 
 
 def render_collection_result(status_box, added, stats, errors, empty_message=""):
@@ -1070,10 +1302,14 @@ if st.session_state.nav == "꿀템 홈":
     if keyword:
         needle = keyword.lower()
         filtered = [x for x in filtered if needle in f"{x['name']} {x['keyword']} {x['reason']} {x['youtuber']}".lower()]
-    st.caption(f"추천템 목록 {len(filtered)}건")
-    for item in reversed(filtered):
-        render_toss_card(item)
-    if not filtered:
+    groups = group_products(filtered)
+    only_cross = st.toggle("🔥 여러 유튜버가 추천한 검증템만 보기", value=False)
+    if only_cross:
+        groups = [g for g in groups if g["youtuber_count"] >= 2]
+    st.caption(f"상품 {len(groups)}개 · 추천 기록 {len(filtered)}건")
+    for group in groups:
+        render_product_group(group)
+    if not groups:
         with st.container(border=True):
             st.markdown('<div class="item-name">조건에 맞는 추천템이 아직 없어요.</div>', unsafe_allow_html=True)
 
