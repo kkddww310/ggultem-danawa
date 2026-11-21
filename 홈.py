@@ -1,5 +1,5 @@
 import streamlit as st
-import json, os, re, time, urllib.request
+import json, os, re, urllib.request
 from urllib.parse import urlparse, parse_qs, quote
 from youtube_transcript_api import YouTubeTranscriptApi
 from google import genai
@@ -17,10 +17,16 @@ NOISE_WORDS = (
     "인트로", "오프닝", "시작", "마무리", "아웃트로", "총평", "결론",
     "구독", "이벤트", "쿠키", "예고", "목차", "근황", "달라졌어요",
     "소감", "질문", "후기", "원칙", "고능", "PD", "피디", "출연",
-    "등장", "브이로그", "일상", "주부", "추천", "꿀템"
+    "등장", "브이로그", "일상", "주부", "추천", "꿀템", "문의", "비즈니스",
+    "협찬", "광고", "인스타", "유튜브", "채널", "타임라인", "챕터"
 )
 
 def get_api_key():
+    try:
+        if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"].strip():
+            return st.secrets["GEMINI_API_KEY"].strip()
+    except Exception:
+        pass
     if os.path.exists(KEY_FILE):
         saved = open(KEY_FILE, "r", encoding="utf-8").read().strip()
         if saved:
@@ -104,17 +110,50 @@ def search_youtube_videos(query, limit=5):
 
 def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
     title, desc, youtuber = title_hint, "", youtuber_hint
+
+    # 1순위: YouTube Innertube API (해외 클라우드 서버에서도 설명란 정상 수집)
     try:
-        req = urllib.request.Request(f"https://www.youtube.com/watch?v={video_id}", headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "ko-KR,ko;q=0.9"})
-        html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
-        m = re.search(r"var ytInitialPlayerResponse = (\{.*?\});</script>", html)
-        if m:
-            details = json.loads(m.group(1)).get("videoDetails", {})
+        payload = json.dumps({
+            "context": {
+                "client": {
+                    "clientName": "ANDROID",
+                    "clientVersion": "19.09.37",
+                    "hl": "ko",
+                    "gl": "KR"
+                }
+            },
+            "videoId": video_id
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://www.youtube.com/youtubei/v1/player",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "com.google.android.youtube/19.09.37"}
+        )
+        res_data = json.loads(urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore"))
+        details = res_data.get("videoDetails", {})
+        if details:
             title = details.get("title", title)
             desc = details.get("shortDescription", "")
             youtuber = details.get("author", youtuber)
     except Exception:
         pass
+
+    # 2순위: 웹 페이지 HTML 파싱 보조
+    if not desc:
+        try:
+            req = urllib.request.Request(
+                f"https://www.youtube.com/watch?v={video_id}",
+                headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "ko-KR,ko;q=0.9"}
+            )
+            html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
+            m = re.search(r"var ytInitialPlayerResponse = (\{.*?\});</script>", html)
+            if m:
+                details = json.loads(m.group(1)).get("videoDetails", {})
+                title = details.get("title", title)
+                desc = details.get("shortDescription", "")
+                youtuber = details.get("author", youtuber)
+        except Exception:
+            pass
 
     transcript = ""
     if len(desc) < 150:
@@ -129,17 +168,15 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
     return {"video_id": video_id, "youtuber": youtuber, "title": title, "desc": desc, "transcript": transcript[:1200]}
 
 def extract_products_locally(bundles):
-    """AI 호출 없이 설명란의 '항목 : 제품명' 및 타임스탬프에서 구매 가능한 제품을 정밀 추출"""
     extracted = []
     for b in bundles:
         vid = b["video_id"]
         yt = b["youtuber"]
         title = b["title"]
-        lines = [ln.strip() for ln in b["desc"].splitlines() if ln.strip()]
+        raw_lines = [ln.strip() for ln in b["desc"].splitlines() if ln.strip()]
 
-        # 타임스탬프 맵 생성 (제품명과 가장 가까운 시간 매칭용)
         ts_list = []
-        for ln in lines:
+        for ln in raw_lines:
             m_ts = re.match(r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)$", ln)
             if m_ts:
                 hh = int(m_ts.group(1) or 0)
@@ -147,21 +184,32 @@ def extract_products_locally(bundles):
                 label = re.sub(r"^[\-\•\*\d\.\)\]]+\s*", "", m_ts.group(4)).strip()
                 ts_list.append((hh * 3600 + mm * 60 + ss, label))
 
-        for ln in lines:
-            if "http" in ln or "@" in ln or "#" in ln:
+        for raw_ln in raw_lines:
+            if "@" in raw_ln or raw_ln.startswith("#"):
+                continue
+
+            has_url = "http" in raw_ln
+            ln = re.sub(r"https?://\S+", "", raw_ln).strip()
+            ln = re.sub(r"[\(\[\{]\s*[\)\]\}]", "", ln).strip()
+            if not ln or len(ln) < 2:
                 continue
 
             candidate = None
             category = ""
             sec = 0
 
-            # 1) "카메라 : Insta360 루나 울트라" 형태 추출
-            m_colon = re.match(r"^([가-힣A-Za-z0-9\s]{1,12})\s*[:：]\s*(.+)$", ln)
+            # 1) "카메라 : Insta360..." 또는 "다이슨 에어랩 : https://..." 형태
+            m_colon = re.match(r"^([^:：]{1,35})\s*[:：]\s*(.*)$", ln)
             if m_colon:
-                category = m_colon.group(1).strip()
-                candidate = m_colon.group(2).strip()
+                left = m_colon.group(1).strip()
+                right = m_colon.group(2).strip()
+                if has_url and not right:
+                    candidate = left
+                elif right:
+                    category = left
+                    candidate = right
             else:
-                # 2) 타임스탬프 줄에서 "유희왕 PD - 크리에이티브 PEBBLE V3" 형태 추출
+                # 2) 타임스탬프 줄: "01:55 제품명" 또는 "01:55 항목 - 제품명"
                 m_line_ts = re.match(r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)$", ln)
                 if m_line_ts:
                     hh = int(m_line_ts.group(1) or 0)
@@ -174,24 +222,28 @@ def extract_products_locally(bundles):
                         candidate = parts[1].strip()
                     else:
                         candidate = body
+                else:
+                    # 3) 번호/기호 목록 줄: "1. 제품명", "- 제품명", "• 제품명", "▶ 제품명"
+                    m_list = re.match(r"^(?:[\-\•\*\▶\▸\✔\✓]|\d{1,2}[\.\)\]])\s*(.+)$", ln)
+                    if m_list:
+                        candidate = m_list.group(1).strip()
 
             if not candidate:
                 continue
 
-            candidate = re.sub(r"^[\-\•\*\d\.\)\]]+\s*", "", candidate).strip()
+            candidate = re.sub(r"^[\-\•\*\▶\▸\d\.\)\]]+\s*", "", candidate).strip()
+            candidate = re.split(r"\s*(?:👉|▶|→|\|)\s*", candidate)[0].strip()
             if len(candidate) < 2 or len(candidate) > 70:
                 continue
             if any(w in candidate for w in NOISE_WORDS) and not re.search(r"[A-Za-z0-9]{2,}", candidate):
                 continue
 
-            # 시간 매칭
             if sec == 0 and ts_list:
                 for t_sec, t_label in ts_list:
                     if any(tok and tok in t_label for tok in candidate.split()[:2]):
                         sec = t_sec
                         break
 
-            # '&' 또는 '/'로 묶인 복수 제품 분리
             split_names = [s.strip() for s in re.split(r"\s*(?:&|/)\s*", candidate) if len(s.strip()) >= 2]
             for pname in split_names:
                 mm, ss = divmod(sec, 60)
@@ -327,6 +379,8 @@ with tab2:
                 added = add_unique_items(items)
                 status.empty()
                 st.success(f"🎉 완료! 총 {len(added)}개의 제품이 저장되었습니다.")
+                if not added:
+                    st.caption(f"확인한 영상 {len(bundles)}개 중 설명란이 수집된 영상: {sum(1 for b in bundles if b['desc'])}개 (설명란에 제품 목록이 없는 영상일 수 있습니다.)")
                 for a in added:
                     st.write(f"- **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`): {a['reason']}")
         except Exception as e:
