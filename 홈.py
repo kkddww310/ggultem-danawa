@@ -913,8 +913,58 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
 .item-reason { font-size:12.5px; color:#6B7684; line-height:1.45; }
 .shorts-badge { display:inline-block; background:#FFEFEF; color:#E11D48; font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:6px; margin-left:5px; }
 div[data-testid="stVerticalBlockBorderWrapper"] { background:#fff !important; border:none !important; border-radius:22px !important; box-shadow:0 2px 14px rgba(0,0,0,.04) !important; padding:18px 20px !important; margin-bottom:12px !important; }
-div[data-baseweb="input"], div[data-baseweb="textarea"], div[data-testid="stSelectbox"] div[data-baseweb="select"] > div { background:#fff !important; color:#191F28 !important; border-color:#E5E8EB !important; }
-input, textarea { color:#191F28 !important; -webkit-text-fill-color:#191F28 !important; }
+/* Streamlit/BaseWeb 입력 위젯을 강제로 라이트 테마로 고정 */
+[data-testid="stTextInput"], [data-testid="stTextArea"], [data-testid="stSelectbox"] { color:#191F28 !important; }
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stTextArea"] div[data-baseweb="textarea"],
+[data-testid="stTextArea"] div[data-baseweb="base-input"],
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[role="combobox"] {
+  background-color:#FFFFFF !important;
+  color:#191F28 !important;
+  border-color:#D1D6DB !important;
+  box-shadow:none !important;
+}
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stSelectbox"] input,
+[data-testid="stSelectbox"] span,
+[data-testid="stSelectbox"] div[role="combobox"],
+[data-testid="stSelectbox"] div[role="combobox"] * {
+  background-color:#FFFFFF !important;
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+  caret-color:#191F28 !important;
+  opacity:1 !important;
+}
+[data-testid="stTextInput"] input::placeholder,
+[data-testid="stTextArea"] textarea::placeholder {
+  color:#8B95A1 !important;
+  -webkit-text-fill-color:#8B95A1 !important;
+  opacity:1 !important;
+}
+[data-testid="stSelectbox"] svg { fill:#4E5968 !important; color:#4E5968 !important; }
+ul[data-baseweb="menu"], ul[data-baseweb="menu"] li,
+div[data-baseweb="popover"], div[data-baseweb="popover"] * {
+  background-color:#FFFFFF !important;
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+}
+/* 브라우저 자동완성도 흰색으로 유지 */
+input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+  -webkit-box-shadow:0 0 0 1000px #FFFFFF inset !important;
+  -webkit-text-fill-color:#191F28 !important;
+}
+/* 라벨, 체크박스, 슬라이더 숫자 가독성 */
+[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] p,
+[data-testid="stCheckbox"] label, [data-testid="stCheckbox"] span,
+[data-testid="stSlider"] p, [data-testid="stSlider"] span,
+[data-testid="stMarkdownContainer"] p { color:#191F28 !important; }
+[data-testid="stSlider"] [data-testid="stThumbValue"],
+[data-testid="stSlider"] div[data-testid="stSliderThumbValue"] {
+  color:#C94F5D !important; -webkit-text-fill-color:#C94F5D !important; font-weight:700 !important;
+}
 .stButton > button, .stDownloadButton > button, .stLinkButton > a { border-radius:13px !important; font-weight:700 !important; min-height:40px !important; }
 button[kind="primary"], a[kind="primary"] { background:#3182F6 !important; color:#fff !important; border:none !important; }
 button[kind="secondary"] { background:#E5E8EB !important; color:#4E5968 !important; border:none !important; }
