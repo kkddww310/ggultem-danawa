@@ -16,7 +16,7 @@ if "nav" not in st.session_state:
 if "collect_mode" not in st.session_state:
     st.session_state.collect_mode = "local"
 
-# === 토스 스타일 라이트 앱 UI (다크모드 위젯 완전 화이트화) ===
+# === 토스 스타일 라이트 앱 UI ===
 st.markdown("""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -47,14 +47,12 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
     padding-right: 1rem !important;
 }
 
-/* 기본 텍스트 색상 고정 (흰색 묻힘 방지) */
 [data-testid="stMarkdownContainer"] p,
 [data-testid="stWidgetLabel"] p,
 [data-testid="stWidgetLabel"] label {
     color: #191F28 !important;
 }
 
-/* 상단 요약 카드 (순수 HTML 카드로 겹침/테두리 완전 제거) */
 .hero-card {
     background-color: #FFFFFF;
     border-radius: 24px;
@@ -63,7 +61,6 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
     margin-bottom: 16px;
 }
 
-/* Streamlit 카드 컨테이너 (검은 테두리 제거 + 부드러운 그림자) */
 div[data-testid="stVerticalBlockBorderWrapper"],
 div[data-testid="stVerticalBlockBorderWrapper"] > div {
     background-color: #FFFFFF !important;
@@ -77,7 +74,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     margin-bottom: 12px !important;
 }
 
-/* 검색창 & 드롭다운: Streamlit 다크모드 배경 완전 제거 */
 div[data-testid="stTextInputRootElement"],
 div[data-testid="stTextInputRootElement"] > div,
 div[data-baseweb="input"],
@@ -115,7 +111,6 @@ ul[data-baseweb="menu"] li {
     color: #191F28 !important;
 }
 
-/* 버튼 스타일 (Streamlit 1.40+ data-testid 대응) */
 .stButton > button {
     border-radius: 13px !important;
     font-weight: 600 !important;
@@ -125,7 +120,6 @@ ul[data-baseweb="menu"] li {
     transition: all 0.15s ease !important;
 }
 
-/* 바깥쪽 상단 탭 버튼 */
 button[data-testid="stBaseButton-primary"],
 button[data-testid="baseButton-primary"],
 button[kind="primary"] {
@@ -151,7 +145,6 @@ button[kind="secondary"] p {
     color: #6B7684 !important;
 }
 
-/* 카드 내부 주요 실행 버튼 (자동 수집 시작, API 키 저장 등) -> 토스 블루 */
 div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton-primary"],
 div[data-testid="stVerticalBlockBorderWrapper"] button[kind="primary"] {
     background-color: #3182F6 !important;
@@ -166,7 +159,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton
     background-color: #1B64DA !important;
 }
 
-/* 카드 내부 보조 버튼 (삭제 ✕, 수집 모드 비선택 버튼) */
 div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton-secondary"],
 div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"] {
     background-color: #F2F4F6 !important;
@@ -178,7 +170,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton
     color: #6B7684 !important;
 }
 
-/* 최저가 / 영상보기 링크 버튼 */
 .stLinkButton > a {
     border-radius: 12px !important;
     font-weight: 600 !important;
@@ -212,7 +203,6 @@ div[data-testid="stVerticalBlockBorderWrapper"] button[data-testid="stBaseButton
     color: #3182F6 !important;
 }
 
-/* 슬라이더 (토스 블루 & 선명한 숫자) */
 div[data-testid="stSlider"] div[role="slider"] {
     background-color: #3182F6 !important;
     border: 2px solid #FFFFFF !important;
@@ -227,7 +217,6 @@ div[data-testid="stSliderTickBarMax"] {
     color: #8B95A1 !important;
 }
 
-/* 커스텀 앱 텍스트 & 카드 내부 요소 */
 .app-topbar {
     display: flex;
     justify-content: space-between;
@@ -346,13 +335,39 @@ div[data-testid="stSliderTickBarMax"] {
 </style>
 """, unsafe_allow_html=True)
 
+# === 비상품(공지/이벤트/챕터 요약) 차단 키워드 대폭 강화 ===
 NOISE_WORDS = (
     "인트로", "오프닝", "시작", "마무리", "아웃트로", "총평", "결론",
-    "구독", "이벤트", "쿠키", "예고", "목차", "근황", "달라졌어요",
-    "소감", "질문", "후기", "원칙", "고능", "PD", "피디", "출연",
-    "등장", "브이로그", "일상", "주부", "추천", "꿀템", "문의", "비즈니스",
-    "협찬", "광고", "인스타", "유튜브", "채널", "타임라인", "챕터"
+    "구독", "이벤트", "당첨", "발표", "공지", "커뮤니티", "종료", "마감",
+    "쿠키", "예고", "목차", "근황", "달라졌어요", "소감", "질문", "후기",
+    "원칙", "고능", "PD", "피디", "출연", "등장", "브이로그", "일상",
+    "주부", "추천", "꿀템", "필수템", "모아옴", "모음", "총정리", "하이라이트",
+    "문의", "비즈니스", "협찬", "광고", "인스타", "유튜브", "채널",
+    "타임라인", "챕터", "링크", "바로가기", "프로필", "멤버십", "할인코드", "쿠폰"
 )
+
+def is_non_product(text, youtuber=""):
+    t = (text or "").strip()
+    if not t or len(t) < 2 or len(t) > 65:
+        return True
+    # "(종료)", "[마감]" 등 괄호로만 이루어진 상태 표시 차단
+    if re.fullmatch(r"[\(\[\{〈《「『].*[\)\]\}\〉》」』]", t):
+        return True
+    # 한글/영문/숫자가 2글자 미만이면 차단
+    if len(re.findall(r"[가-힣A-Za-z0-9]", t)) < 2:
+        return True
+    # 숫자/기호만으로 이루어진 경우 차단
+    if re.fullmatch(r"[\d\s\:\.\-\~\!\?]+", t):
+        return True
+    # 공지/이벤트/영상 요약 단어 포함 시 차단
+    if any(w in t for w in NOISE_WORDS):
+        return True
+    # 유튜버 채널명 자체(예: "테크몽 유튜브 커뮤니티 공지")가 들어간 문구 차단
+    yt_clean = re.sub(r"\s+", "", youtuber).lower()
+    if yt_clean and len(yt_clean) >= 2 and yt_clean in re.sub(r"\s+", "", t).lower():
+        if any(k in t for k in ("공지", "커뮤니티", "이벤트", "구독", "채널", "영상", "모아옴")):
+            return True
+    return False
 
 def pick_icon_style(name, keyword):
     text = f"{name} {keyword}".lower()
@@ -364,7 +379,7 @@ def pick_icon_style(name, keyword):
         return "💻", "#F3EEFF"
     if any(k in text for k in ("카메라", "액션캠", "고프로", "삼각대", "조명")):
         return "📷", "#FFF4E5"
-    if any(k in text for k in ("크림", "선크림", "클렌징", "멀티밤", "가습", "청소기", "매트", "담요", "난로", "양말")):
+    if any(k in text for k in ("크림", "선크림", "클렌징", "멀티밤", "가습", "청소기", "매트", "담요", "난로", "양말", "히터")):
         return "🏠", "#FFEFF4"
     if any(k in text for k in ("지갑", "케이스", "백팩", "가방", "트렁크", "여행")):
         return "🎒", "#EBF8FF"
@@ -584,11 +599,17 @@ def extract_products_locally(bundles):
             if m_ts:
                 hh = int(m_ts.group(1) or 0)
                 mm, ss = int(m_ts.group(2)), int(m_ts.group(3))
+                sec_val = hh * 3600 + mm * 60 + ss
                 label = re.sub(r"^[\-\•\*\d\.\)\]]+\s*", "", m_ts.group(4)).strip()
-                ts_list.append((hh * 3600 + mm * 60 + ss, label))
+                if sec_val > 0 and not is_non_product(label, yt):
+                    ts_list.append((sec_val, label))
 
         for raw_ln in raw_lines:
             if "@" in raw_ln or raw_ln.startswith("#"):
+                continue
+
+            # 줄 전체에 이벤트/당첨/공지 단어가 들어있으면 즉시 건너뜀
+            if any(w in raw_ln for w in ("이벤트", "당첨", "발표", "공지", "커뮤니티", "멤버십", "할인코드")):
                 continue
 
             has_url = "http" in raw_ln
@@ -601,29 +622,37 @@ def extract_products_locally(bundles):
             category = ""
             sec = 0
 
-            m_colon = re.match(r"^([^:：]{1,35})\s*[:：]\s*(.*)$", ln)
-            if m_colon:
-                left = m_colon.group(1).strip()
-                right = m_colon.group(2).strip()
-                if has_url and not right:
-                    candidate = left
-                elif right:
-                    category = left
-                    candidate = right
-            else:
-                m_line_ts = re.match(r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)$", ln)
-                if m_line_ts:
-                    hh = int(m_line_ts.group(1) or 0)
-                    mm, ss = int(m_line_ts.group(2)), int(m_line_ts.group(3))
-                    sec = hh * 3600 + mm * 60 + ss
-                    body = m_line_ts.group(4).strip()
-                    if " - " in body:
-                        parts = body.split(" - ", 1)
-                        category = parts[0].strip()
-                        candidate = parts[1].strip()
-                    else:
-                        candidate = body
+            # 1순위: 타임스탬프 줄 ("01:55 제품명") -> 콜론(:) 패턴보다 먼저 검사해야 00:00 착각 방지
+            m_line_ts = re.match(r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)$", ln)
+            if m_line_ts:
+                hh = int(m_line_ts.group(1) or 0)
+                mm, ss = int(m_line_ts.group(2)), int(m_line_ts.group(3))
+                sec = hh * 3600 + mm * 60 + ss
+                # 00:00은 항상 영상 오프닝/제목 요약이므로 제외
+                if sec == 0:
+                    continue
+                body = m_line_ts.group(4).strip()
+                if " - " in body:
+                    parts = body.split(" - ", 1)
+                    category = parts[0].strip()
+                    candidate = parts[1].strip()
                 else:
+                    candidate = body
+            else:
+                # 2순위: "카메라 : Insta360..." 또는 "다이슨 에어랩 : https://..." 형태
+                m_colon = re.match(r"^([^:：]{1,35})\s*[:：]\s*(.*)$", ln)
+                if m_colon and not re.match(r"^\d{1,2}$", m_colon.group(1).strip()):
+                    left = m_colon.group(1).strip()
+                    right = m_colon.group(2).strip()
+                    if any(w in left for w in NOISE_WORDS):
+                        continue
+                    if has_url and not right:
+                        candidate = left
+                    elif right:
+                        category = left
+                        candidate = right
+                else:
+                    # 3순위: 번호/기호 목록 줄 ("1. 제품명", "- 제품명", "• 제품명")
                     m_list = re.match(r"^(?:[\-\•\*\▶\▸\✔\✓]|\d{1,2}[\.\)\]])\s*(.+)$", ln)
                     if m_list:
                         candidate = m_list.group(1).strip()
@@ -633,9 +662,8 @@ def extract_products_locally(bundles):
 
             candidate = re.sub(r"^[\-\•\*\▶\▸\d\.\)\]]+\s*", "", candidate).strip()
             candidate = re.split(r"\s*(?:👉|▶|→|\|)\s*", candidate)[0].strip()
-            if len(candidate) < 2 or len(candidate) > 70:
-                continue
-            if any(w in candidate for w in NOISE_WORDS) and not re.search(r"[A-Za-z0-9]{2,}", candidate):
+
+            if is_non_product(candidate, yt):
                 continue
 
             if sec == 0 and ts_list:
@@ -644,13 +672,14 @@ def extract_products_locally(bundles):
                         sec = t_sec
                         break
 
-            split_names = [s.strip() for s in re.split(r"\s*(?:&|/)\s*", candidate) if len(s.strip()) >= 2]
+            split_names = [s.strip() for s in re.split(r"\s*(?:&|/)\s*", candidate) if not is_non_product(s.strip(), yt)]
             for pname in split_names:
                 mm, ss = divmod(sec, 60)
-                reason = f"'{title}'에서 {yt}가 소개한 {category or '추천'} 제품"
+                cat_label = category if (category and not category.isdigit()) else "추천"
+                reason = f"'{title}'에서 {yt}가 소개한 {cat_label} 제품"
                 extracted.append({
                     "name": pname,
-                    "keyword": category or pname.split()[0],
+                    "keyword": cat_label if cat_label != "추천" else pname.split()[0],
                     "youtuber": yt,
                     "reason": reason,
                     "timestamp": f"{mm:02d}:{ss:02d}",
@@ -670,7 +699,7 @@ def analyze_batch_with_gemini(bundles):
 
     prompt = f"""아래 유튜브 영상들에서 실제로 쇼핑몰에서 구매할 수 있는 '구체적인 제품(브랜드+제품명)'만 골라 JSON 배열로만 답해줘.
 규칙:
-1. PD/출연진 이름, 코너명, 인트로/아웃트로, 추상적 주제는 절대 넣지 마.
+1. PD/출연진 이름, 코너명, 인트로/아웃트로, 이벤트/당첨자 공지, 추상적 주제는 절대 넣지 마.
 2. 실제 구매 가능한 상품이 없으면 [] 만 반환해.
 3. 키 이름: "video_id", "youtuber", "name"(쇼핑몰 검색용 정확한 제품명), "keyword"(핵심 품목명), "reason"(추천 이유 한 줄), "start_sec"(등장 시작 초 정수, 모르면 0)
 
@@ -690,11 +719,12 @@ def analyze_batch_with_gemini(bundles):
         sec = int(item.get("start_sec", 0))
         mm, ss = divmod(sec, 60)
         name = item.get("name", "").strip()
-        if name:
+        yt = item.get("youtuber", bundles[0]["youtuber"]).strip()
+        if name and not is_non_product(name, yt):
             out.append({
                 "name": name,
                 "keyword": item.get("keyword", "").strip(),
-                "youtuber": item.get("youtuber", bundles[0]["youtuber"]).strip(),
+                "youtuber": yt,
                 "reason": item.get("reason", "").strip(),
                 "timestamp": f"{mm:02d}:{ss:02d}",
                 "youtube_url": f"https://youtu.be/{vid}?t={sec}",
@@ -740,7 +770,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# === 상단 요약 대시보드 카드 (겹침 없는 순수 HTML 카드) ===
+# === 상단 요약 대시보드 카드 ===
 fill_pct = min(100, int((len(db) / 100) * 100)) if db else 0
 st.markdown(f"""
 <div class="hero-card">
@@ -858,7 +888,14 @@ elif st.session_state.nav == "설정":
 
     with st.container(border=True):
         st.markdown(f"<div class='item-name' style='margin-bottom:6px;'>🗂️ 데이터 관리</div><div class='item-reason' style='margin-bottom:12px;'>현재 저장된 추천템은 총 <b>{len(db)}개</b>입니다.</div>", unsafe_allow_html=True)
-        if db and st.button("모든 데이터 초기화", type="primary", use_container_width=True):
+        if db and st.button("🧹 공지·오류 항목 자동 정리", type="primary", use_container_width=True):
+            cleaned_db = [x for x in db if not is_non_product(x.get("name", ""), x.get("youtuber", ""))]
+            removed = len(db) - len(cleaned_db)
+            save_items(cleaned_db)
+            st.success(f"공지·오류 항목 {removed}개를 깔끔하게 지웠어요!")
+            st.rerun()
+        st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+        if db and st.button("모든 데이터 초기화", use_container_width=True):
             save_items([])
             st.rerun()
 # === 여기까지 복사되면 끝 ===
