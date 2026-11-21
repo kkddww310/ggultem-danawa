@@ -8,7 +8,7 @@ on:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -39,3 +39,6 @@ jobs:
 
       - name: Score product candidates
         run: python -m collector.score_videos
+
+      - name: Extract products with OpenRouter
+        run: python -m collector.extract_products
