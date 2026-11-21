@@ -14,7 +14,7 @@ st.set_page_config(page_title="꿀템 다나와", page_icon="🛍️", layout="c
 if "nav" not in st.session_state:
     st.session_state.nav = "꿀템 홈"
 if "collect_mode" not in st.session_state:
-    st.session_state.collect_mode = "local"
+    st.session_state.collect_mode = "ai" if get_api_key() else "local"
 
 # === 토스 스타일 라이트 앱 UI ===
 st.markdown("""
@@ -335,7 +335,7 @@ div[data-testid="stSliderTickBarMax"] {
 </style>
 """, unsafe_allow_html=True)
 
-# === 비상품(가격 단독 표기 / 프로모션 안내문 / 공지 / 영상 챕터) 차단 ===
+# === 비상품(어그로 챕터 문장 / 행사 기간 / 가격 / 공지) 철저 차단 ===
 NOISE_WORDS = (
     "인트로", "오프닝", "시작", "마무리", "아웃트로", "총평", "결론",
     "구독", "이벤트", "당첨", "발표", "공지", "커뮤니티", "종료", "마감",
@@ -346,28 +346,38 @@ NOISE_WORDS = (
     "타임라인", "챕터", "링크", "바로가기", "프로필", "멤버십",
     "할인코드", "쿠폰", "최종가", "할인가", "혜택가", "정상가", "체감가",
     "해외직구", "직구", "로컬", "카테고리", "적용", "카드", "결제",
-    "무료배송", "관부가세", "프로모션", "기획전", "특가", "사은품", "증정", "선착순"
+    "무료배송", "관부가세", "프로모션", "기획전", "특가", "사은품", "증정", "선착순",
+    "진행기간", "한국시간", "항공권", "숙박", "예약", "만원도"
 )
 
-SENTENCE_ENDINGS = (
+SENTENCE_PATTERNS = (
     "합니다", "입니다", "됩니다", "있습니다", "없습니다", "하세요", "주세요",
-    "바랍니다", "해요", "예요", "이에요", "가요", "네요", "같아요", "가능", "불가", "제외"
+    "바랍니다", "해요", "예요", "이에요", "가요", "네요", "같아요", "되네",
+    "안해", "가능", "불가", "제외", "ㄷㄷ", "ㅋㅋ", "ㅎㅎ", "ㅠㅠ", "기본!"
 )
 
 def is_non_product(text, youtuber=""):
     t = (text or "").strip()
-    if not t or len(t) < 2 or len(t) > 60:
+    if not t or len(t) < 2 or len(t) > 45:
         return True
-    # 기호로 시작하는 계산식/안내문 차단 (예: "=최종가", "👉 ...")
-    if t[0] in ("=", "👉", "※", "→", "▶", "|"):
+    # 기호로 시작하는 계산식/안내문 차단
+    if t[0] in ("=", "👉", "※", "→", "▶", "|", "-", "•"):
+        return True
+    # 감탄문/의문문/어그로 챕터 제목 차단 ("~안해?", "~기본!", "~ㄷㄷ")
+    if "?" in t or "!" in t:
+        return True
+    if any(p in t for p in SENTENCE_PATTERNS):
+        return True
+    # 날짜·시간 표기 차단 ("월 16일(월) 00시...", "11월 16일", "23시 59분")
+    if re.search(r"\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일\s*\([월화수목금토일]\)|\d{1,2}\s*시\s*\d{0,2}", t):
         return True
     # 괄호로만 감싸인 상태 표시 차단 (예: "(종료)")
     if re.fullmatch(r"[\(\[\{〈《「『].*[\)\]\}\〉》」』]", t):
         return True
-    # 괄호 짝이 맞지 않고 중간에 잘린 문구 차단 (예: "해외직구, 로컬 전부 적용 가능합니다 (일부 카테고리")
+    # 괄호 짝이 맞지 않고 중간에 잘린 문구 차단
     if t.count("(") != t.count(")") or t.count("[") != t.count("]"):
         return True
-    # 가격/금액만 적힌 경우 차단 (예: "약 $71.77", "$78.77", "39,000원", "50%")
+    # 가격/금액만 적힌 경우 차단 (예: "약 $71.77", "$78.77", "39,000원")
     if re.fullmatch(r"(?:약\s*)?(?:USD|KRW|US\$|\$|₩)?\s*[\d,\.]+\s*(?:원|달러|불|USD|KRW|%)?", t, re.IGNORECASE):
         return True
     if re.match(r"^(?:약\s*)?[\$\₩]\s*\d", t):
@@ -375,10 +385,7 @@ def is_non_product(text, youtuber=""):
     # 한글/영문/숫자가 2글자 미만이면 차단
     if len(re.findall(r"[가-힣A-Za-z0-9]", t)) < 2:
         return True
-    # 문장형 어미 포함 시 차단
-    if any(w in t for w in SENTENCE_ENDINGS):
-        return True
-    # 공지/프로모션/할인 안내 단어 포함 시 차단
+    # 공지/프로모션/비상품 단어 포함 시 차단
     if any(w in t for w in NOISE_WORDS):
         return True
     # 유튜버 채널명과 공지성 단어가 결합된 문구 차단
@@ -512,7 +519,21 @@ def _find_desc_in_json(node):
                 return found
     return ""
 
-def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
+def fetch_transcript_text(video_id):
+    try:
+        ytt = YouTubeTranscriptApi()
+        if hasattr(ytt, "fetch"):
+            fetched = ytt.fetch(video_id, languages=["ko", "en"])
+            return "\n".join([f"[{int(s.start)//60:02d}:{int(s.start)%60:02d}] {s.text}" for s in fetched])
+    except Exception:
+        pass
+    try:
+        raw = YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en"])
+        return "\n".join([f"[{int(s['start'])//60:02d}:{int(s['start'])%60:02d}] {s['text']}" for s in raw])
+    except Exception:
+        return ""
+
+def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint="", need_transcript=True):
     title, desc, youtuber = title_hint, "", youtuber_hint
 
     try:
@@ -592,17 +613,9 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
         except Exception:
             pass
 
-    transcript = ""
-    if len(desc) < 150:
-        try:
-            ytt = YouTubeTranscriptApi()
-            if hasattr(ytt, "fetch"):
-                fetched = ytt.fetch(video_id, languages=["ko", "en"])
-                transcript = "\n".join([f"[{int(s.start)}초] {s.text}" for s in fetched])
-        except Exception:
-            pass
+    transcript = fetch_transcript_text(video_id) if (need_transcript or len(desc) < 150) else ""
 
-    return {"video_id": video_id, "youtuber": youtuber, "title": title, "desc": desc, "transcript": transcript[:1200]}
+    return {"video_id": video_id, "youtuber": youtuber, "title": title, "desc": desc, "transcript": transcript[:3500]}
 
 def extract_products_locally(bundles):
     extracted = []
@@ -627,8 +640,7 @@ def extract_products_locally(bundles):
             if "@" in raw_ln or raw_ln.startswith("#") or raw_ln.startswith("="):
                 continue
 
-            # 프로모션/할인/공지 문구 줄 전체 스킵
-            if any(w in raw_ln for w in ("이벤트", "당첨", "발표", "공지", "커뮤니티", "멤버십", "할인코드", "최종가", "결제 시", "적용 가능", "해외직구")):
+            if any(w in raw_ln for w in ("이벤트", "당첨", "발표", "공지", "커뮤니티", "멤버십", "할인코드", "최종가", "결제 시", "적용 가능", "해외직구", "진행기간", "한국시간")):
                 continue
 
             has_url = "http" in raw_ln
@@ -641,7 +653,7 @@ def extract_products_locally(bundles):
             category = ""
             sec = 0
 
-            # 1순위: 타임스탬프 줄 ("01:55 제품명")
+            # 1순위: 타임스탬프 줄 ("01:55 제품명") -> 어그로성 문장은 is_non_product에서 차단
             m_line_ts = re.match(r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)$", ln)
             if m_line_ts:
                 hh = int(m_line_ts.group(1) or 0)
@@ -657,7 +669,7 @@ def extract_products_locally(bundles):
                 else:
                     candidate = body
             else:
-                # 2순위: "카메라 : Insta360..." 또는 "다이슨 에어랩 : https://..." 형태
+                # 2순위: "카메라 : Insta360..." 또는 "다이슨 에어랩 : https://..."
                 m_colon = re.match(r"^([^:：]{1,35})\s*[:：]\s*(.*)$", ln)
                 if m_colon and not re.match(r"^\d{1,2}$", m_colon.group(1).strip()):
                     left = m_colon.group(1).strip()
@@ -674,7 +686,6 @@ def extract_products_locally(bundles):
                     m_list = re.match(r"^(?:[\-\•\*\▶\▸\✔\✓]|\d{1,2}[\.\)\]])\s*(.+)$", ln)
                     if m_list:
                         body = m_list.group(1).strip()
-                        # 불릿 목록 안에 쉼표(,)로 이어진 안내 문장은 제외
                         if "," not in body:
                             candidate = body
 
@@ -712,26 +723,43 @@ def extract_products_locally(bundles):
 def analyze_batch_with_gemini(bundles):
     api_key = get_api_key()
     if not api_key or not api_key.isascii():
-        raise RuntimeError("API 키가 설정되지 않았습니다.")
+        raise RuntimeError("API 키가 설정되지 않았습니다. [설정] 탭에서 Gemini API 키를 먼저 저장해 주세요.")
 
     blocks = []
     for b in bundles:
-        blocks.append(f"=== VIDEO_ID: {b['video_id']} | YOUTUBER: {b['youtuber']} ===\n[제목] {b['title']}\n[설명란]\n{b['desc'][:1500]}\n[자막]\n{b['transcript']}")
+        blocks.append(
+            f"=== VIDEO_ID: {b['video_id']} | YOUTUBER: {b['youtuber']} ===\n"
+            f"[영상 제목] {b['title']}\n"
+            f"[설명란]\n{b['desc'][:2000]}\n"
+            f"[영상 자막(대본)]\n{b['transcript']}"
+        )
 
-    prompt = f"""아래 유튜브 영상들에서 실제로 쇼핑몰에서 구매할 수 있는 '구체적인 제품(브랜드+제품명)'만 골라 JSON 배열로만 답해줘.
-규칙:
-1. PD/출연진 이름, 코너명, 인트로/아웃트로, 이벤트/당첨자 공지, 할인 가격 숫자, 추상적 주제는 절대 넣지 마.
-2. 실제 구매 가능한 상품이 없으면 [] 만 반환해.
-3. 키 이름: "video_id", "youtuber", "name"(쇼핑몰 검색용 정확한 제품명), "keyword"(핵심 품목명), "reason"(추천 이유 한 줄), "start_sec"(등장 시작 초 정수, 모르면 0)
+    prompt = f"""너는 유튜브 쇼핑 큐레이터야. 아래 영상의 [설명란]과 [영상 자막]을 모두 읽고, 실제로 네이버 쇼핑이나 쿠팡에서 검색해 구매할 수 있는 **'진짜 제품명(브랜드명 + 정확한 상품명)'**만 뽑아서 JSON 배열로 반환해줘.
+
+중요 규칙:
+1. 설명란 목차에 유튜버가 적어둔 어그로성 문구(예: "뚜껑까지 닫아주는 청소기가 10만원도 안해?", "이제 알리에서 항공권 예약까지 되네")는 절대 그대로 넣지 마! 반드시 해당 시간대의 [영상 자막]을 확인해서 실제 소개된 브랜드와 정확한 제품명(예: "샤오미 미지아 무선 청소기")으로 바꿔서 적어줘.
+2. 자막에도 정확한 제품명이 안 나와서 쇼핑몰 검색이 불가능한 항목, 이벤트/행사 기간, 할인 금액, 코너명은 절대 포함하지 마.
+3. 실제 구매 가능한 상품이 없으면 [] 만 반환해.
+4. 키 이름: "video_id", "youtuber", "name"(쇼핑몰 최저가 검색용 정확한 브랜드+제품명), "keyword"(품목명), "reason"(추천 이유 한 줄 요약), "start_sec"(등장 시작 초 정수, 모르면 0)
 
 {chr(10).join(blocks)}"""
 
-    client = genai.Client(api_key=api_key, http_options={"timeout": 20000})
-    res = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json"),
-    )
+    client = genai.Client(api_key=api_key, http_options={"timeout": 25000})
+    last_err = None
+    res = None
+    for model_name in ("gemini-2.5-flash", "gemini-2.0-flash"):
+        try:
+            res = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json"),
+            )
+            break
+        except Exception as e:
+            last_err = e
+
+    if res is None:
+        raise RuntimeError(f"Gemini API 호출 실패: {last_err}")
 
     cleaned = re.sub(r"^```json|```$", "", res.text.strip()).strip()
     out = []
@@ -851,12 +879,15 @@ elif st.session_state.nav == "자동 수집":
         st.markdown("<div class='item-name' style='margin-bottom:12px;'>🤖 유튜브 추천템 자동 수집</div>", unsafe_allow_html=True)
 
         m1, m2 = st.columns(2)
-        if m1.button("⚡ 무제한 로컬 추출", key="mode_local", type="primary" if st.session_state.collect_mode == "local" else "secondary", use_container_width=True):
-            st.session_state.collect_mode = "local"
-            st.rerun()
-        if m2.button("🤖 Gemini AI 분석", key="mode_ai", type="primary" if st.session_state.collect_mode == "ai" else "secondary", use_container_width=True):
+        if m1.button("🤖 AI 정밀 분석 (자막+설명란)", key="mode_ai", type="primary" if st.session_state.collect_mode == "ai" else "secondary", use_container_width=True):
             st.session_state.collect_mode = "ai"
             st.rerun()
+        if m2.button("⚡ 빠른 설명란 추출", key="mode_local", type="primary" if st.session_state.collect_mode == "local" else "secondary", use_container_width=True):
+            st.session_state.collect_mode = "local"
+            st.rerun()
+
+        if st.session_state.collect_mode == "ai" and not get_api_key():
+            st.caption("💡 영상 속 대화(자막)까지 읽어 진짜 제품명만 뽑으려면 [설정] 탭에 Gemini API 키를 넣어주세요.")
 
         st.markdown("<div class='field-label'>유튜브 검색 키워드</div>", unsafe_allow_html=True)
         q_in = st.text_input("키워드", placeholder="예: 잇섭 추천템, 가전주부 추천템, 내돈내산", label_visibility="collapsed")
@@ -868,7 +899,8 @@ elif st.session_state.nav == "자동 수집":
         if st.button("🚀 자동 수집 시작하기", type="primary", use_container_width=True) and q_in:
             status = st.empty()
             try:
-                status.info("1/2 유튜브 영상 목록과 설명란을 불러오고 있어요...")
+                use_ai = (st.session_state.collect_mode == "ai")
+                status.info("1/2 유튜브 영상 목록과 자막·설명란을 불러오고 있어요...")
                 videos = search_youtube_videos(q_in, limit=int(lim))
                 analyzed = {extract_video_id(i.get("youtube_url", "")) for i in load_items()}
                 targets = [v for v in videos if v["video_id"] not in analyzed]
@@ -876,32 +908,31 @@ elif st.session_state.nav == "자동 수집":
                     status.empty()
                     st.info("이미 모두 수집한 영상들이에요.")
                 else:
-                    bundles = [fetch_video_bundle(v["video_id"], v["youtuber"], v["title"]) for v in targets]
-                    if st.session_state.collect_mode == "local":
-                        status.info("2/2 설명란에서 실제 구매 제품만 추려내고 있어요...")
-                        items = extract_products_locally(bundles)
-                    else:
-                        status.info("2/2 Gemini AI가 영상을 정밀 분석하고 있어요...")
+                    bundles = [fetch_video_bundle(v["video_id"], v["youtuber"], v["title"], need_transcript=use_ai) for v in targets]
+                    if use_ai:
+                        status.info("2/2 AI가 자막과 설명란을 대조해 정확한 제품명만 추려내고 있어요...")
                         try:
                             items = analyze_batch_with_gemini(bundles)
-                        except Exception:
-                            status.info("2/2 AI 한도 초과 → 무제한 로컬 추출로 전환 중...")
+                        except Exception as ai_err:
+                            status.empty()
+                            st.warning(f"AI 분석을 사용할 수 없어 설명란 추출로 전환했어요 ({ai_err})")
                             items = extract_products_locally(bundles)
+                    else:
+                        status.info("2/2 설명란에서 제품명만 추려내고 있어요...")
+                        items = extract_products_locally(bundles)
 
                     added = add_unique_items(items)
                     status.empty()
-                    st.success(f"완료! 총 {len(added)}개의 제품이 추가되었어요.")
-                    if not added:
-                        st.caption(f"확인한 영상 {len(bundles)}개 중 설명란 수집: {sum(1 for b in bundles if b['desc'])}개")
+                    st.success(f"완료! 총 {len(added)}개의 진짜 제품이 추가되었어요.")
                     for a in added:
-                        st.write(f"• **{a['name']}** ({a['youtuber']})")
+                        st.write(f"• **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`)")
             except Exception as e:
                 status.empty()
                 st.error(f"수집 중 오류가 발생했어요: {e}")
 
 elif st.session_state.nav == "설정":
     with st.container(border=True):
-        st.markdown("<div class='item-name' style='margin-bottom:6px;'>🔑 Gemini API 키 설정</div><div class='item-reason' style='margin-bottom:12px;'>AI 정밀 분석 기능을 쓸 때만 필요해요.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='item-name' style='margin-bottom:6px;'>🔑 Gemini API 키 설정</div><div class='item-reason' style='margin-bottom:12px;'>영상 자막까지 읽어 정확한 브랜드·제품명을 뽑을 때 사용해요.</div>", unsafe_allow_html=True)
         new_key = st.text_input("API 키", type="password", placeholder="AIzaSy...", label_visibility="collapsed")
         if st.button("API 키 저장", type="primary", use_container_width=True) and new_key.strip():
             open(KEY_FILE, "w", encoding="utf-8").write(new_key.strip())
@@ -909,11 +940,11 @@ elif st.session_state.nav == "설정":
 
     with st.container(border=True):
         st.markdown(f"<div class='item-name' style='margin-bottom:6px;'>🗂️ 데이터 관리</div><div class='item-reason' style='margin-bottom:12px;'>현재 저장된 추천템은 총 <b>{len(db)}개</b>입니다.</div>", unsafe_allow_html=True)
-        if db and st.button("🧹 공지·오류 항목 자동 정리", type="primary", use_container_width=True):
+        if db and st.button("🧹 공지·문장·날짜 오류 항목 자동 정리", type="primary", use_container_width=True):
             cleaned_db = [x for x in db if not is_non_product(x.get("name", ""), x.get("youtuber", ""))]
             removed = len(db) - len(cleaned_db)
             save_items(cleaned_db)
-            st.success(f"공지·오류 항목 {removed}개를 깔끔하게 지웠어요!")
+            st.success(f"제품이 아닌 항목 {removed}개를 깔끔하게 지웠어요!")
             st.rerun()
         st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
         if db and st.button("모든 데이터 초기화", use_container_width=True):
