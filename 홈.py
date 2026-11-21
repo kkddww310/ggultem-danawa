@@ -24,6 +24,7 @@ APP_NAME = "꿀템 다나와"
 DB_FILE = "items.json"
 HISTORY_FILE = "visited_history.json"
 VIDEO_CACHE_FILE = "video_cache.json"
+CHANNELS_FILE = "channels.json"
 DEFAULT_OPENROUTER_KEY = ""
 KST = timezone(timedelta(hours=9))
 FILE_LOCK = threading.RLock()
@@ -40,6 +41,8 @@ DEFAULT_YOUTUBER_LIST = [
     "오늘의 주우재", "짱구대디", "이사배 RISABAE", "레오제이 LeoJ Makeup",
     "디렉터 파이", "원지의하루", "귀곰", "자취남", "승우아빠", "지냐",
 ]
+
+OFFICIAL_QUERY_SUFFIXES = ["추천 내돈내산", "리뷰 사용기", "필수템 가성비", "구매 하울"]
 
 AUTO_DISCOVERY_QUERIES = [
     "유튜버 내돈내산 추천템",
@@ -387,6 +390,58 @@ def request_json(url, payload, headers, timeout=10, retries=2):
             time.sleep(0.8 * (2 ** attempt))
     raise last_error or RuntimeError("HTTP 요청 실패")
 
+def load_channels():
+    data = load_json(CHANNELS_FILE, {"channels": {}})
+    data.setdefault("channels", {})
+    return data
+
+
+def save_channels(data):
+    atomic_write_json(CHANNELS_FILE, data)
+
+
+def extract_channel_candidates(data):
+    candidates, seen = [], set()
+    def text_of(obj):
+        if not isinstance(obj, dict):
+            return ""
+        if obj.get("simpleText"):
+            return obj["simpleText"]
+        return "".join(x.get("text", "") for x in obj.get("runs", []))
+    def walk(node):
+        if isinstance(node, dict):
+            cr = node.get("channelRenderer")
+            if cr:
+                channel_id = cr.get("channelId", "")
+                name = text_of(cr.get("title", {}))
+                handle = text_of(cr.get("subscriberCountText", {}))
+                if channel_id.startswith("UC") and channel_id not in seen:
+                    seen.add(channel_id)
+                    candidates.append({"name": name, "channel_id": channel_id, "meta": handle})
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+    walk(data)
+    return candidates
+
+
+def find_channel_candidates(name, limit=5):
+    data = innertube_post("search", {"query": name})
+    candidates = extract_channel_candidates(data)
+    # 정확 이름 후보를 먼저 보여주되 자동 확정은 하지 않는다.
+    target = normalize_channel_name(name)
+    candidates.sort(key=lambda x: (normalize_channel_name(x["name"]) == target, target in normalize_channel_name(x["name"])), reverse=True)
+    return candidates[:limit]
+
+
+def registered_target(name):
+    rec = load_channels()["channels"].get(name)
+    if not rec or not rec.get("confirmed") or not rec.get("channel_id"):
+        return None
+    return {"name": name, "channel_id": rec["channel_id"]}
+
 # =========================================================
 # YouTube InnerTube
 # =========================================================
@@ -486,25 +541,31 @@ def extract_videos_from_data(data, default_youtuber="유튜버", default_channel
     return found
 
 
-def search_youtube_videos(query, limit=4, only_official=True):
-    search_query = f"{query} 추천템" if only_official else query
-    raw = extract_videos_from_data(innertube_post("search", {"query": search_query}))
+def search_youtube_videos(query, limit=4, only_official=True, channel_id=""):
     if not only_official:
+        raw = extract_videos_from_data(innertube_post("search", {"query": query}))
         long_videos = [x for x in raw if not x["is_shorts"]]
         shorts = [x for x in raw if x["is_shorts"]]
         return (long_videos + shorts)[:limit]
 
-    matched = [x for x in raw if is_channel_match(query, x["youtuber"])]
-    if len(matched) < limit:
-        extra = extract_videos_from_data(innertube_post("search", {"query": query}))
-        seen = {x["video_id"] for x in matched}
-        for item in extra:
-            if item["video_id"] not in seen and is_channel_match(query, item["youtuber"]):
-                matched.append(item)
-                seen.add(item["video_id"])
-                if len(matched) >= limit:
-                    break
-    return matched[:limit]
+    # 공식 모드는 채널 ID가 없으면 절대 이름 유사도로 대신 통과시키지 않는다.
+    if not channel_id:
+        raise RuntimeError(f"공식 채널 ID 미등록: {query}")
+
+    collected, seen = [], set()
+    for suffix in OFFICIAL_QUERY_SUFFIXES:
+        data = innertube_post("search", {"query": f"{query} {suffix}"})
+        for item in extract_videos_from_data(data):
+            # 업로더의 browseId가 등록된 공식 channel_id와 완전히 같아야 한다.
+            if item.get("channel_id") != channel_id:
+                continue
+            if item["video_id"] in seen:
+                continue
+            seen.add(item["video_id"])
+            collected.append(item)
+            if len(collected) >= limit:
+                return collected
+    return collected
 
 
 def parse_caption_xml(base_url):
@@ -766,14 +827,16 @@ def collect_parallel_batch(queries, per_query_limit=3, only_official=True, statu
     if progress_bar is not None:
         progress_bar.progress(10)
 
-    def search_task(query):
+    def search_task(target):
+        name = target.get("name", "") if isinstance(target, dict) else str(target)
+        channel_id = target.get("channel_id", "") if isinstance(target, dict) else ""
         try:
-            videos = search_youtube_videos(query, limit=per_query_limit, only_official=only_official)
-            update_query_history(query, len(videos))
-            return query, videos, ""
+            videos = search_youtube_videos(name, limit=per_query_limit, only_official=only_official, channel_id=channel_id)
+            update_query_history(name, len(videos))
+            return name, videos, ""
         except Exception as error:
-            update_query_history(query, 0, str(error))
-            return query, [], str(error)
+            update_query_history(name, 0, str(error))
+            return name, [], str(error)
 
     workers = min(4, max(1, len(queries)))
     with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -1498,16 +1561,21 @@ elif st.session_state.nav == "자동 수집":
                 render_collection_result(status_box, added, stats, errors, empty_message)
 
     with st.container(border=True):
-        st.markdown('<div class="item-name">🌐 대표 유튜버 고속 일괄 수집</div><div class="item-reason">공식 채널명과 일치하는 검색 결과만 우선 분석해요.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="item-name">🌐 대표 유튜버 고속 일괄 수집</div><div class="item-reason">설정에서 확정한 채널 ID와 정확히 같은 영상만 분석해요.</div>', unsafe_allow_html=True)
         list_text = st.text_area("수집할 유튜버", value="\n".join(DEFAULT_YOUTUBER_LIST), height=150, label_visibility="collapsed")
         per_limit = st.slider("유튜버당 검색 영상 수", 2, 5, 2)
         if st.button("✨ 리스트 전체 수집", type="primary", use_container_width=True):
             status_box, bar = st.empty(), st.progress(0)
-            targets = [x.strip() for x in list_text.splitlines() if x.strip()]
+            requested_names = [x.strip() for x in list_text.splitlines() if x.strip()]
+            targets = [registered_target(name) for name in requested_names]
+            missing_channels = [name for name, target in zip(requested_names, targets) if target is None]
+            targets = [target for target in targets if target is not None]
             if not get_openrouter_key():
                 render_banner(status_box, "OpenRouter API 키가 없습니다.", "error")
-            elif not targets:
+            elif not requested_names:
                 render_banner(status_box, "수집할 유튜버를 한 명 이상 입력해 주세요.", "warning")
+            elif missing_channels:
+                render_banner(status_box, "공식 채널 ID가 등록되지 않았어요: " + ", ".join(missing_channels) + " · 설정 탭에서 먼저 등록하세요.", "warning")
             else:
                 added, stats, errors, empty_message = collect_parallel_batch(targets, per_limit, True, status_box, bar)
                 render_collection_result(status_box, added, stats, errors, empty_message)
@@ -1524,10 +1592,47 @@ elif st.session_state.nav == "자동 수집":
             elif not get_openrouter_key():
                 render_banner(status_box, "OpenRouter API 키가 없습니다.", "error")
             else:
-                added, stats, errors, empty_message = collect_parallel_batch([query.strip()], limit, official, status_box, bar)
+                added, stats, errors, empty_message = collect_parallel_batch([registered_target(query.strip()) or {"name": query.strip(), "channel_id": ""}] if official else [query.strip()], limit, official, status_box, bar)
                 render_collection_result(status_box, added, stats, errors, empty_message)
 
 elif st.session_state.nav == "설정":
+    with st.container(border=True):
+        st.markdown('<div class="item-name">🎯 공식 유튜버 채널 ID 등록</div><div class="item-reason">이름이 들어간 타 채널 영상을 막기 위해 한 번만 공식 채널을 확인합니다. 등록 후에는 채널 ID가 정확히 같은 영상만 수집합니다.</div>', unsafe_allow_html=True)
+        channel_name = st.selectbox("등록할 유튜버", DEFAULT_YOUTUBER_LIST)
+        registry = load_channels()
+        current = registry["channels"].get(channel_name)
+        if current:
+            st.caption(f"현재 등록: {current.get('channel_name', channel_name)} · {current.get('channel_id', '')}")
+        if st.button("공식 채널 후보 찾기", use_container_width=True):
+            try:
+                st.session_state.channel_candidates = find_channel_candidates(channel_name)
+                st.session_state.channel_candidate_for = channel_name
+            except Exception as error:
+                render_banner(None, f"채널 후보 검색 실패: {error}", "error")
+        if st.session_state.get("channel_candidate_for") == channel_name:
+            candidates = st.session_state.get("channel_candidates", [])
+            if candidates:
+                labels = [f"{x['name']} · {x['channel_id']} · {x['meta']}" for x in candidates]
+                chosen_label = st.radio("검색 결과에서 공식 채널 선택", labels)
+                chosen = candidates[labels.index(chosen_label)]
+                st.link_button("선택한 채널 YouTube에서 확인", f"https://www.youtube.com/channel/{chosen['channel_id']}", use_container_width=True)
+                if st.button("이 채널을 공식 채널로 확정", type="primary", use_container_width=True):
+                    registry = load_channels()
+                    registry["channels"][channel_name] = {
+                        "channel_name": chosen["name"],
+                        "channel_id": chosen["channel_id"],
+                        "confirmed": True,
+                        "confirmed_at": now_iso(),
+                    }
+                    save_channels(registry)
+                    render_banner(None, f"{channel_name} 공식 채널을 등록했어요.", "success")
+                    st.rerun()
+            else:
+                st.caption("채널 후보를 찾지 못했습니다.")
+        registered_count = sum(1 for x in load_channels()["channels"].values() if x.get("confirmed"))
+        st.caption(f"등록 완료 {registered_count}/{len(DEFAULT_YOUTUBER_LIST)}명")
+        st.download_button("📥 channels.json 다운로드", json.dumps(load_channels(), ensure_ascii=False, indent=2), "channels.json", "application/json", use_container_width=True)
+
     with st.container(border=True):
         st.markdown('<div class="item-name">⚡ OpenRouter API 키</div><div class="item-reason">보안을 위해 입력 키는 서버 파일에 저장하지 않고 현재 Streamlit 세션에서만 사용해요. 운영용 키는 .streamlit/secrets.toml에 넣으세요.</div>', unsafe_allow_html=True)
         new_key = st.text_input("OpenRouter API 키", type="password", placeholder="sk-or-v1-...", label_visibility="collapsed")
