@@ -1,0 +1,698 @@
+[
+  {
+    "name": "디큐브 맥세이프 무선 충전 보조배터리 거치형 유뮤선겸용",
+    "keyword": "맥세이프 보조배터리",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 리뷰를 보고 똥믈리에 PD가 직접 사비로 구매한 거치형 유무선 겸용 보조배터리",
+    "timestamp": "02:33",
+    "youtube_url": "https://youtu.be/A3P86Romx3s?t=153"
+  },
+  {
+    "name": "크리에이티브 PEBBLE V3",
+    "keyword": "PC 스피커",
+    "youtuber": "ITSub잇섭",
+    "reason": "유희왕 PD가 리뷰를 보고 직접 구입해 사용하는 가성비 데스크 스피커",
+    "timestamp": "09:50",
+    "youtube_url": "https://youtu.be/A3P86Romx3s?t=590"
+  },
+  {
+    "name": "ANKER 나노 도킹형 보조배터리 A1653",
+    "keyword": "도킹형 보조배터리",
+    "youtuber": "ITSub잇섭",
+    "reason": "유희왕 PD가 실제 구매해 사용하는 초소형 도킹형 보조배터리",
+    "timestamp": "15:53",
+    "youtube_url": "https://youtu.be/A3P86Romx3s?t=953"
+  },
+  {
+    "name": "삼성 갤럭시 핏 3",
+    "keyword": "스마트밴드",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 리뷰 후 직접 구입해 사용하는 가성비 스마트밴드",
+    "timestamp": "01:56",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=116"
+  },
+  {
+    "name": "삼성 갤럭시 워치7",
+    "keyword": "스마트워치",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 실제 사비로 구매해 사용하는 스마트워치",
+    "timestamp": "01:56",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=116"
+  },
+  {
+    "name": "보스 QC 울트라 헤드폰",
+    "keyword": "노이즈캔슬링 헤드폰",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 직접 구매해 사용하는 노이즈 캔슬링 헤드폰",
+    "timestamp": "04:50",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=290"
+  },
+  {
+    "name": "레노버 P11 플러스",
+    "keyword": "태블릿 PC",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 실제 구입해서 사용하는 가성비 태블릿",
+    "timestamp": "06:35",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=395"
+  },
+  {
+    "name": "독거미 F87 프로",
+    "keyword": "기계식 키보드",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 리뷰를 보고 직접 구매한 기계식 키보드",
+    "timestamp": "08:28",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=508"
+  },
+  {
+    "name": "로지텍 G435 게이밍 헤드폰",
+    "keyword": "게이밍 헤드셋",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 사비로 구입해 사용하는 초경량 무선 게이밍 헤드폰",
+    "timestamp": "10:11",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=611"
+  },
+  {
+    "name": "로캣 퓨어 에어",
+    "keyword": "무선 마우스",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 직접 구입해 사용하는 초경량 무선 마우스",
+    "timestamp": "12:07",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=727"
+  },
+  {
+    "name": "샤오미 모니터 라이트",
+    "keyword": "모니터 조명",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 실제 구매해 데스크에 설치해 쓰는 모니터 조명바",
+    "timestamp": "14:38",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=878"
+  },
+  {
+    "name": "에디파이어 MR3",
+    "keyword": "모니터 스피커",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 직접 구입해 사용하는 데스크테리어 모니터 스피커",
+    "timestamp": "16:07",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=967"
+  },
+  {
+    "name": "에디파이어 MR4",
+    "keyword": "모니터 스피커",
+    "youtuber": "ITSub잇섭",
+    "reason": "잇섭 채널 PD가 리뷰 후 사비로 구매해 사용하는 가성비 모니터 스피커",
+    "timestamp": "16:07",
+    "youtube_url": "https://youtu.be/SDAS5KVUK7c?t=967"
+  },
+  {
+    "name": "Insta360 루나 울트라",
+    "keyword": "액션캠 카메라",
+    "youtuber": "ITSub잇섭",
+    "reason": "현직 테크 유튜버가 출장 및 여행 시 메인 카메라로 챙기는 제품",
+    "timestamp": "08:08",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=488"
+  },
+  {
+    "name": "고프로 MISSION 1",
+    "keyword": "액션캠",
+    "youtuber": "ITSub잇섭",
+    "reason": "출장 및 여행 촬영 장비로 챙기는 서브 액션캠",
+    "timestamp": "03:22",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=202"
+  },
+  {
+    "name": "피지테크 원고 라이트 카메라 백팩",
+    "keyword": "카메라 백팩",
+    "youtuber": "ITSub잇섭",
+    "reason": "테크 유튜버가 출장 갈 때 전자기기를 수납하기 위해 꼭 챙기는 백팩",
+    "timestamp": "01:10",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=70"
+  },
+  {
+    "name": "피지테크 여행용 고속 카드 리더기",
+    "keyword": "메모리 카드 리더기",
+    "youtuber": "ITSub잇섭",
+    "reason": "출장 중 메모리 보관 및 고속 데이터 전송을 위해 챙기는 필수 아이템",
+    "timestamp": "03:22",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=202"
+  },
+  {
+    "name": "APPLE MacBook Pro 16 (M1 Max)",
+    "keyword": "노트북",
+    "youtuber": "ITSub잇섭",
+    "reason": "출장 시 영상 편집 및 업무용으로 챙기는 고성능 노트북",
+    "timestamp": "02:50",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=170"
+  },
+  {
+    "name": "벨킨 울트라차지 케이블 수납형 67W 충전기",
+    "keyword": "고속 충전기",
+    "youtuber": "ITSub잇섭",
+    "reason": "케이블이 내장되어 출장 시 간편하게 휴대할 수 있는 67W 고속 충전기",
+    "timestamp": "10:35",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=635"
+  },
+  {
+    "name": "주파집 여행용 멀티탭 어댑터",
+    "keyword": "여행용 멀티탭",
+    "youtuber": "ITSub잇섭",
+    "reason": "해외 출장 및 여행 시 여러 기기를 동시에 충전하기 위해 챙기는 멀티 어댑터",
+    "timestamp": "10:35",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=635"
+  },
+  {
+    "name": "VisaPro 170W Global Travel Adapter",
+    "keyword": "해외 여행용 어댑터",
+    "youtuber": "ITSub잇섭",
+    "reason": "고출력 노트북과 전자기기를 해외에서 충전하기 위한 170W 글로벌 어댑터",
+    "timestamp": "10:35",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=635"
+  },
+  {
+    "name": "벨킨 부스트차지 프로 Apple Watch 겸용",
+    "keyword": "애플워치 보조배터리",
+    "youtuber": "ITSub잇섭",
+    "reason": "스마트폰과 애플워치를 함께 충전할 수 있어 출장 시 유용한 보조배터리",
+    "timestamp": "09:00",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=540"
+  },
+  {
+    "name": "포터 플럼 카드 케이스",
+    "keyword": "카드지갑",
+    "youtuber": "ITSub잇섭",
+    "reason": "출장 시 가볍게 휴대하기 좋은 카드 케이스",
+    "timestamp": "06:33",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=393"
+  },
+  {
+    "name": "에스트라 아토베리어365 크림",
+    "keyword": "보습 크림",
+    "youtuber": "ITSub잇섭",
+    "reason": "출장 중 건조한 환경에서 피부 보습을 위해 챙기는 생필품",
+    "timestamp": "06:33",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=393"
+  },
+  {
+    "name": "에스트라 더마UV365장벽수분무기자차선크림",
+    "keyword": "선크림",
+    "youtuber": "ITSub잇섭",
+    "reason": "여행 및 출장 시 자외선 차단을 위해 챙기는 무기자차 선크림",
+    "timestamp": "06:33",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=393"
+  },
+  {
+    "name": "빌리프 더 트루 크림 아쿠아밤 & 클렌징폼",
+    "keyword": "수분크림 클렌징폼",
+    "youtuber": "ITSub잇섭",
+    "reason": "출장 시 세안 및 수분 케어를 위해 챙기는 스킨케어 제품",
+    "timestamp": "06:33",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=393"
+  },
+  {
+    "name": "동아제약 듀오버스터 민트볼",
+    "keyword": "구강청결제 민트볼",
+    "youtuber": "ITSub잇섭",
+    "reason": "장거리 비행 및 출장 중 간편하게 입냄새를 제거하기 위한 필수템",
+    "timestamp": "06:33",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=393"
+  },
+  {
+    "name": "AirPods Max 2",
+    "keyword": "무선 헤드폰",
+    "youtuber": "ITSub잇섭",
+    "reason": "출장 및 비행 이동 중 노이즈 캔슬링과 음질 감상을 위해 챙기는 헤드폰",
+    "timestamp": "00:00",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=0"
+  },
+  {
+    "name": "AirPods 4",
+    "keyword": "무선 이어폰",
+    "youtuber": "ITSub잇섭",
+    "reason": "일상 및 출장 중 가볍게 휴대하며 사용하기 좋은 무선 이어폰",
+    "timestamp": "00:00",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=0"
+  },
+  {
+    "name": "메타 오클리 뱅가드",
+    "keyword": "스마트 고글",
+    "youtuber": "ITSub잇섭",
+    "reason": "출장 및 야외 활동 시 활용하는 스마트 아이웨어 고글",
+    "timestamp": "00:00",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=0"
+  },
+  {
+    "name": "갤럭시 S26 울트라",
+    "keyword": "스마트폰",
+    "youtuber": "ITSub잇섭",
+    "reason": "현직 테크 유튜버가 출장 시 메인으로 챙기는 플래그십 스마트폰",
+    "timestamp": "00:00",
+    "youtube_url": "https://youtu.be/t-gOkXYi14I?t=0"
+  },
+  {
+    "name": "충전 스테이션",
+    "keyword": "01",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] IT유튜버 사무실 데스크 꿀템 15가지! (충전셋팅, 케이블, 거치대 추천)'에서 주연 ZUYONI가 소개한 01 제품",
+    "timestamp": "01:55",
+    "youtube_url": "https://youtu.be/5VF2pynWaz4?t=115"
+  },
+  {
+    "name": "충전 케이블",
+    "keyword": "06",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] IT유튜버 사무실 데스크 꿀템 15가지! (충전셋팅, 케이블, 거치대 추천)'에서 주연 ZUYONI가 소개한 06 제품",
+    "timestamp": "01:55",
+    "youtube_url": "https://youtu.be/5VF2pynWaz4?t=115"
+  },
+  {
+    "name": "모니터 받침대",
+    "keyword": "12",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] IT유튜버 사무실 데스크 꿀템 15가지! (충전셋팅, 케이블, 거치대 추천)'에서 주연 ZUYONI가 소개한 12 제품",
+    "timestamp": "12:34",
+    "youtube_url": "https://youtu.be/5VF2pynWaz4?t=754"
+  },
+  {
+    "name": "책상 수납장",
+    "keyword": "13",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] IT유튜버 사무실 데스크 꿀템 15가지! (충전셋팅, 케이블, 거치대 추천)'에서 주연 ZUYONI가 소개한 13 제품",
+    "timestamp": "13:26",
+    "youtube_url": "https://youtu.be/5VF2pynWaz4?t=806"
+  },
+  {
+    "name": "헤드폰 충전 거치대",
+    "keyword": "13",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] IT유튜버 사무실 데스크 꿀템 15가지! (충전셋팅, 케이블, 거치대 추천)'에서 주연 ZUYONI가 소개한 13 제품",
+    "timestamp": "01:55",
+    "youtube_url": "https://youtu.be/5VF2pynWaz4?t=115"
+  },
+  {
+    "name": "3-in-1 고속 충전기",
+    "keyword": "14",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] IT유튜버 사무실 데스크 꿀템 15가지! (충전셋팅, 케이블, 거치대 추천)'에서 주연 ZUYONI가 소개한 14 제품",
+    "timestamp": "14:21",
+    "youtube_url": "https://youtu.be/5VF2pynWaz4?t=861"
+  },
+  {
+    "name": "노트북 거치대",
+    "keyword": "15",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] IT유튜버 사무실 데스크 꿀템 15가지! (충전셋팅, 케이블, 거치대 추천)'에서 주연 ZUYONI가 소개한 15 제품",
+    "timestamp": "13:51",
+    "youtube_url": "https://youtu.be/5VF2pynWaz4?t=831"
+  },
+  {
+    "name": "나리몽 분유포트",
+    "keyword": "00",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템]1~ 15만원대까지, 극락 경험한 겨울 삶의 질 상승템 7가지 모음!!(전기 분유 포트 텀블러, 목도리 핫팩, 가습마스크, 코타츠 양말)'에서 주연 ZUYONI가 소개한 00 제품",
+    "timestamp": "00:43",
+    "youtube_url": "https://youtu.be/GwN7KxlGgcg?t=43"
+  },
+  {
+    "name": "위케어 가습마스크",
+    "keyword": "02",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템]1~ 15만원대까지, 극락 경험한 겨울 삶의 질 상승템 7가지 모음!!(전기 분유 포트 텀블러, 목도리 핫팩, 가습마스크, 코타츠 양말)'에서 주연 ZUYONI가 소개한 02 제품",
+    "timestamp": "02:48",
+    "youtube_url": "https://youtu.be/GwN7KxlGgcg?t=168"
+  },
+  {
+    "name": "오카모토 코타츠 양말",
+    "keyword": "04",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템]1~ 15만원대까지, 극락 경험한 겨울 삶의 질 상승템 7가지 모음!!(전기 분유 포트 텀블러, 목도리 핫팩, 가습마스크, 코타츠 양말)'에서 주연 ZUYONI가 소개한 04 제품",
+    "timestamp": "04:20",
+    "youtube_url": "https://youtu.be/GwN7KxlGgcg?t=260"
+  },
+  {
+    "name": "온감테라피 목마스크",
+    "keyword": "07",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템]1~ 15만원대까지, 극락 경험한 겨울 삶의 질 상승템 7가지 모음!!(전기 분유 포트 텀블러, 목도리 핫팩, 가습마스크, 코타츠 양말)'에서 주연 ZUYONI가 소개한 07 제품",
+    "timestamp": "07:01",
+    "youtube_url": "https://youtu.be/GwN7KxlGgcg?t=421"
+  },
+  {
+    "name": "엔투스 극세사 발열 담요",
+    "keyword": "08",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템]1~ 15만원대까지, 극락 경험한 겨울 삶의 질 상승템 7가지 모음!!(전기 분유 포트 텀블러, 목도리 핫팩, 가습마스크, 코타츠 양말)'에서 주연 ZUYONI가 소개한 08 제품",
+    "timestamp": "08:55",
+    "youtube_url": "https://youtu.be/GwN7KxlGgcg?t=535"
+  },
+  {
+    "name": "로우모 LC99 Heat",
+    "keyword": "10",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템]1~ 15만원대까지, 극락 경험한 겨울 삶의 질 상승템 7가지 모음!!(전기 분유 포트 텀블러, 목도리 핫팩, 가습마스크, 코타츠 양말)'에서 주연 ZUYONI가 소개한 10 제품",
+    "timestamp": "10:15",
+    "youtube_url": "https://youtu.be/GwN7KxlGgcg?t=615"
+  },
+  {
+    "name": "루메나 발난로",
+    "keyword": "11",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템]1~ 15만원대까지, 극락 경험한 겨울 삶의 질 상승템 7가지 모음!!(전기 분유 포트 텀블러, 목도리 핫팩, 가습마스크, 코타츠 양말)'에서 주연 ZUYONI가 소개한 11 제품",
+    "timestamp": "11:51",
+    "youtube_url": "https://youtu.be/GwN7KxlGgcg?t=711"
+  },
+  {
+    "name": "사이즈오브 몰입체어 스틸",
+    "keyword": "01",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 01 제품",
+    "timestamp": "01:37",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=97"
+  },
+  {
+    "name": "이케아 스코디스 페그보드",
+    "keyword": "03",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 03 제품",
+    "timestamp": "03:00",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=180"
+  },
+  {
+    "name": "카멜마운트 파티션 타공판",
+    "keyword": "04",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 04 제품",
+    "timestamp": "04:00",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=240"
+  },
+  {
+    "name": "렉손 미나",
+    "keyword": "04",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 04 제품",
+    "timestamp": "04:28",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=268"
+  },
+  {
+    "name": "유리아쥬 배리어덤 페이스스틱 멀티밤",
+    "keyword": "04",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 04 제품",
+    "timestamp": "04:50",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=290"
+  },
+  {
+    "name": "삼성전자 더 프리스타일",
+    "keyword": "04",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 04 제품",
+    "timestamp": "04:57",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=297"
+  },
+  {
+    "name": "LG전자 하이드로타워(공기청정+가습기)",
+    "keyword": "05",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 05 제품",
+    "timestamp": "05:55",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=355"
+  },
+  {
+    "name": "투명 태블릿 거치대",
+    "keyword": "06",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 06 제품",
+    "timestamp": "06:26",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=386"
+  },
+  {
+    "name": "애플 27인치 스튜디오 디스플레이(스탠다드 글래스)",
+    "keyword": "07",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 07 제품",
+    "timestamp": "07:15",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=435"
+  },
+  {
+    "name": "앤커 프라임 파워뱅크 200W 20000mAh",
+    "keyword": "07",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 07 제품",
+    "timestamp": "07:52",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=472"
+  },
+  {
+    "name": "벨킨 부스트업 프로 3in1 맥세이프 15W 무선 충전 스탠드",
+    "keyword": "08",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 08 제품",
+    "timestamp": "08:57",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=537"
+  },
+  {
+    "name": "앤커 맥고 Qi2 맥세이프 호환 보조배터리",
+    "keyword": "09",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 09 제품",
+    "timestamp": "07:52",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=472"
+  },
+  {
+    "name": "슈피겐 맥세이프 카드지갑 틴탭맥핏플러스",
+    "keyword": "10",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 10 제품",
+    "timestamp": "08:57",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=537"
+  },
+  {
+    "name": "프레임바이 포터블 스탠드",
+    "keyword": "10",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 10 제품",
+    "timestamp": "10:35",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=635"
+  },
+  {
+    "name": "썬플래닛 360도 회전 각도",
+    "keyword": "12",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 12 제품",
+    "timestamp": "12:12",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=732"
+  },
+  {
+    "name": "길이 조절 태블릿 거치대",
+    "keyword": "12",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 12 제품",
+    "timestamp": "12:12",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=732"
+  },
+  {
+    "name": "맥세이프 조명 어퓨쳐 아마란 GO",
+    "keyword": "13",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 13 제품",
+    "timestamp": "08:57",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=537"
+  },
+  {
+    "name": "올모스 맥세이프 삼각대",
+    "keyword": "14",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 14 제품",
+    "timestamp": "08:57",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=537"
+  },
+  {
+    "name": "MOFT 트라이팟 맥세이프 카드지갑",
+    "keyword": "15",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 15 제품",
+    "timestamp": "15:00",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=900"
+  },
+  {
+    "name": "마그네틱 줄꼬임 방지 케이블",
+    "keyword": "15",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 15 제품",
+    "timestamp": "15:34",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=934"
+  },
+  {
+    "name": "맥북용 마그네틱 사생활 보호 필름",
+    "keyword": "16",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'주연의 방 공개! IT유튜버의 책상 & 침실 꿀템 20가지 탈탈 털어드림'에서 주연 ZUYONI가 소개한 16 제품",
+    "timestamp": "15:34",
+    "youtube_url": "https://youtu.be/D7UFZeF0muk?t=934"
+  },
+  {
+    "name": "10번 꿀템",
+    "keyword": "19",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2만원부터 250만원(?)까지 구매하고 극락 경험한 1~2인 가구 삶의 질 상승 가전제품 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 19 제품",
+    "timestamp": "03:03",
+    "youtube_url": "https://youtu.be/Elt37Hptjp8?t=183"
+  },
+  {
+    "name": "11번 꿀템",
+    "keyword": "21",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2만원부터 250만원(?)까지 구매하고 극락 경험한 1~2인 가구 삶의 질 상승 가전제품 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 21 제품",
+    "timestamp": "03:03",
+    "youtube_url": "https://youtu.be/Elt37Hptjp8?t=183"
+  },
+  {
+    "name": "12번 꿀템",
+    "keyword": "23",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2만원부터 250만원(?)까지 구매하고 극락 경험한 1~2인 가구 삶의 질 상승 가전제품 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 23 제품",
+    "timestamp": "03:03",
+    "youtube_url": "https://youtu.be/Elt37Hptjp8?t=183"
+  },
+  {
+    "name": "13번 꿀템",
+    "keyword": "24",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2만원부터 250만원(?)까지 구매하고 극락 경험한 1~2인 가구 삶의 질 상승 가전제품 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 24 제품",
+    "timestamp": "03:03",
+    "youtube_url": "https://youtu.be/Elt37Hptjp8?t=183"
+  },
+  {
+    "name": "14번 꿀템",
+    "keyword": "25",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2만원부터 250만원(?)까지 구매하고 극락 경험한 1~2인 가구 삶의 질 상승 가전제품 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 25 제품",
+    "timestamp": "03:03",
+    "youtube_url": "https://youtu.be/Elt37Hptjp8?t=183"
+  },
+  {
+    "name": "주연집 특이점",
+    "keyword": "27",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2만원부터 250만원(?)까지 구매하고 극락 경험한 1~2인 가구 삶의 질 상승 가전제품 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 27 제품",
+    "timestamp": "27:09",
+    "youtube_url": "https://youtu.be/Elt37Hptjp8?t=1629"
+  },
+  {
+    "name": "주연집 특이점2",
+    "keyword": "27",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2만원부터 250만원(?)까지 구매하고 극락 경험한 1~2인 가구 삶의 질 상승 가전제품 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 27 제품",
+    "timestamp": "27:09",
+    "youtube_url": "https://youtu.be/Elt37Hptjp8?t=1629"
+  },
+  {
+    "name": "트라이팟 맥세이프 지갑",
+    "keyword": "03",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 03 제품",
+    "timestamp": "03:01",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=181"
+  },
+  {
+    "name": "캐논 익서스 285 HS A",
+    "keyword": "03",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 03 제품",
+    "timestamp": "03:40",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=220"
+  },
+  {
+    "name": "바이트 어웨이",
+    "keyword": "04",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 04 제품",
+    "timestamp": "04:45",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=285"
+  },
+  {
+    "name": "드웰러 카본 탄소매트",
+    "keyword": "06",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 06 제품",
+    "timestamp": "06:23",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=383"
+  },
+  {
+    "name": "드웰러 가열식 가습기",
+    "keyword": "08",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 08 제품",
+    "timestamp": "06:23",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=383"
+  },
+  {
+    "name": "쉬프트캠 스튜디오 라이트",
+    "keyword": "10",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 10 제품",
+    "timestamp": "10:17",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=617"
+  },
+  {
+    "name": "콕스 CF75 키보드",
+    "keyword": "11",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 11 제품",
+    "timestamp": "11:39",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=699"
+  },
+  {
+    "name": "키크론 B1 PRO 휴대용 슬림 키보드",
+    "keyword": "14",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 14 제품",
+    "timestamp": "14:24",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=864"
+  },
+  {
+    "name": "애플 에어태그+벨킨 케이스",
+    "keyword": "15",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 15 제품",
+    "timestamp": "15:46",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=946"
+  },
+  {
+    "name": "아크 펄스 아이폰 케이스",
+    "keyword": "16",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 16 제품",
+    "timestamp": "16:53",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=1013"
+  },
+  {
+    "name": "더 이온 Melt 2.0 케이스",
+    "keyword": "18",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 18 제품",
+    "timestamp": "18:11",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=1091"
+  },
+  {
+    "name": "보바 라인프렌즈 보조배터리",
+    "keyword": "18",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 18 제품",
+    "timestamp": "18:39",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=1119"
+  },
+  {
+    "name": "라이프썸 무선 청소기",
+    "keyword": "19",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 19 제품",
+    "timestamp": "19:11",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=1151"
+  },
+  {
+    "name": "RAWROW 알루미늄 트렁크",
+    "keyword": "20",
+    "youtuber": "주연 ZUYONI",
+    "reason": "'[주연꿀템] 2025년 한해동안 잘 쓴 15가지 꿀템들 싹 다 털어드림!'에서 주연 ZUYONI가 소개한 20 제품",
+    "timestamp": "20:13",
+    "youtube_url": "https://youtu.be/x6XsoUPb5HE?t=1213"
+  }
+]
