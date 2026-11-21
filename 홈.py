@@ -14,7 +14,7 @@ st.set_page_config(page_title="꿀템 다나와", page_icon="🛍️", layout="c
 if "nav" not in st.session_state:
     st.session_state.nav = "꿀템 홈"
 if "collect_mode" not in st.session_state:
-    st.session_state.collect_mode = "ai" if get_api_key() else "local"
+st.session_state.collect_mode = "local"
 
 # === 토스 스타일 라이트 앱 UI ===
 st.markdown("""
