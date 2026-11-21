@@ -108,16 +108,37 @@ def search_youtube_videos(query, limit=5):
     walk(data)
     return results
 
+def _find_desc_in_json(node):
+    if isinstance(node, dict):
+        if "attributedDescriptionBodyText" in node:
+            c = node["attributedDescriptionBodyText"].get("content", "")
+            if c:
+                return c
+        if "descriptionBodyText" in node:
+            runs = node["descriptionBodyText"].get("runs", [])
+            if runs:
+                return "".join(r.get("text", "") for r in runs)
+        for v in node.values():
+            found = _find_desc_in_json(v)
+            if found:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_desc_in_json(item)
+            if found:
+                return found
+    return ""
+
 def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
     title, desc, youtuber = title_hint, "", youtuber_hint
 
-    # 1순위: YouTube Innertube API (해외 클라우드 서버에서도 설명란 정상 수집)
+    # 1순위: YouTube 웹 설명란 전용 API (youtubei/v1/next - 해외 서버 차단 우회)
     try:
         payload = json.dumps({
             "context": {
                 "client": {
-                    "clientName": "ANDROID",
-                    "clientVersion": "19.09.37",
+                    "clientName": "WEB",
+                    "clientVersion": "2.20261101.00.00",
                     "hl": "ko",
                     "gl": "KR"
                 }
@@ -125,20 +146,56 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint=""):
             "videoId": video_id
         }).encode("utf-8")
         req = urllib.request.Request(
-            "https://www.youtube.com/youtubei/v1/player",
+            "https://www.youtube.com/youtubei/v1/next",
             data=payload,
-            headers={"Content-Type": "application/json", "User-Agent": "com.google.android.youtube/19.09.37"}
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "X-YouTube-Client-Name": "1",
+                "X-YouTube-Client-Version": "2.20261101.00.00",
+            }
         )
-        res_data = json.loads(urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore"))
-        details = res_data.get("videoDetails", {})
-        if details:
-            title = details.get("title", title)
-            desc = details.get("shortDescription", "")
-            youtuber = details.get("author", youtuber)
+        next_data = json.loads(urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore"))
+        desc = _find_desc_in_json(next_data)
     except Exception:
         pass
 
-    # 2순위: 웹 페이지 HTML 파싱 보조
+    # 2순위: YouTube iOS 클라이언트 player API
+    if not desc:
+        try:
+            payload = json.dumps({
+                "context": {
+                    "client": {
+                        "clientName": "IOS",
+                        "clientVersion": "19.45.4",
+                        "deviceMake": "Apple",
+                        "deviceModel": "iPhone16,2",
+                        "hl": "ko",
+                        "gl": "KR"
+                    }
+                },
+                "videoId": video_id
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://www.youtube.com/youtubei/v1/player",
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1 like Mac OS X)",
+                    "X-YouTube-Client-Name": "5",
+                    "X-YouTube-Client-Version": "19.45.4",
+                }
+            )
+            res_data = json.loads(urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore"))
+            details = res_data.get("videoDetails", {})
+            if details:
+                title = details.get("title", title)
+                desc = details.get("shortDescription", "")
+                youtuber = details.get("author", youtuber)
+        except Exception:
+            pass
+
+    # 3순위: 일반 웹 HTML 파싱 보조
     if not desc:
         try:
             req = urllib.request.Request(
@@ -198,7 +255,6 @@ def extract_products_locally(bundles):
             category = ""
             sec = 0
 
-            # 1) "카메라 : Insta360..." 또는 "다이슨 에어랩 : https://..." 형태
             m_colon = re.match(r"^([^:：]{1,35})\s*[:：]\s*(.*)$", ln)
             if m_colon:
                 left = m_colon.group(1).strip()
@@ -209,7 +265,6 @@ def extract_products_locally(bundles):
                     category = left
                     candidate = right
             else:
-                # 2) 타임스탬프 줄: "01:55 제품명" 또는 "01:55 항목 - 제품명"
                 m_line_ts = re.match(r"^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s+(.+)$", ln)
                 if m_line_ts:
                     hh = int(m_line_ts.group(1) or 0)
@@ -223,7 +278,6 @@ def extract_products_locally(bundles):
                     else:
                         candidate = body
                 else:
-                    # 3) 번호/기호 목록 줄: "1. 제품명", "- 제품명", "• 제품명", "▶ 제품명"
                     m_list = re.match(r"^(?:[\-\•\*\▶\▸\✔\✓]|\d{1,2}[\.\)\]])\s*(.+)$", ln)
                     if m_list:
                         candidate = m_list.group(1).strip()
