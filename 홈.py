@@ -1,5 +1,5 @@
 import streamlit as st
-import json, os, re, urllib.request
+import json, os, re, html, time, urllib.request
 from urllib.parse import urlparse, parse_qs, quote
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -7,46 +7,37 @@ DEFAULT_OPENROUTER_KEY = ""
 DB_FILE = "items.json"
 KEY_FILE = "openrouter_key.txt"
 
-# === 100만+ 대형 유튜버 10인 목록 ===
-FEATURED_1M_YOUTUBERS = [
+# === 기본 탑재 대형 유튜버 전체 리스트 (줄바꿈으로 자유롭게 추가/수정 가능) ===
+DEFAULT_YOUTUBER_LIST = [
     "ITSub잇섭",
     "테크몽 Techmong",
+    "주연 ZUYONI",
+    "뻘짓연구소",
+    "가전주부",
     "오늘의 주우재",
-    "원지의하루",
+    "짱구대디",
     "이사배 RISABAE",
     "레오제이 LeoJ Makeup",
+    "디렉터 파이",
+    "원지의하루",
     "귀곰",
     "자취남",
     "승우아빠",
-    "주연 ZUYONI",
+    "지냐",
 ]
 
-# === 초기 기본 탑재 데이터 (최초 접속 시 즉시 화면 구성용) ===
+# === 초기 기본 샘플 데이터 ===
 INITIAL_SEED_DB = [
     {"name": "앤커 맥고 Qi2 3in1 맥세이프 충전기", "keyword": "충전기", "youtuber": "ITSub잇섭", "reason": "아이폰·애플워치·에어팟을 15W 고속으로 한 번에 정리하는 접이식 충전 스테이션", "timestamp": "03:15", "youtube_url": "https://www.youtube.com/results?search_query=잇섭+앤커+맥고+충전기"},
     {"name": "유그린 넥소드 100W GaN 멀티 고속충전기", "keyword": "충전기", "youtuber": "ITSub잇섭", "reason": "맥북과 스마트폰을 동시에 고속 충전할 수 있는 작고 발열 적은 GaN 충전기", "timestamp": "05:10", "youtube_url": "https://www.youtube.com/results?search_query=잇섭+유그린+100W+충전기"},
     {"name": "삼성전자 포터블 SSD T7 Shield 2TB", "keyword": "외장SSD", "youtuber": "ITSub잇섭", "reason": "고화질 영상 데이터도 빠르게 전송하고 충격·방수에 강한 실사용 외장 SSD", "timestamp": "07:42", "youtube_url": "https://www.youtube.com/results?search_query=잇섭+삼성+T7+Shield"},
     {"name": "로지텍 MX Master 3S 무선 마우스", "keyword": "마우스", "youtuber": "테크몽 Techmong", "reason": "저소음 클릭과 초고속 무한 휠로 장시간 편집·업무 피로도를 줄여주는 마우스", "timestamp": "05:40", "youtube_url": "https://www.youtube.com/results?search_query=테크몽+MX+Master+3S"},
     {"name": "베이스어스 블레이드 100W 슬림 보조배터리", "keyword": "보조배터리", "youtuber": "테크몽 Techmong", "reason": "노트북 파우치에 쏙 들어가는 얇은 두께에 100W 고출력을 지원하는 보조배터리", "timestamp": "02:50", "youtube_url": "https://www.youtube.com/results?search_query=테크몽+베이스어스+블레이드+100W"},
-    {"name": "앤커 사운드코어 리버티 4 NC 무선 이어폰", "keyword": "이어폰", "youtuber": "테크몽 Techmong", "reason": "10만 원 이하 가격대에서 압도적인 노이즈캔슬링 성능을 보여주는 가성비 이어폰", "timestamp": "04:33", "youtube_url": "https://www.youtube.com/results?search_query=테크몽+리버티+4+NC"},
     {"name": "포터 탱커 숄더백 블랙", "keyword": "가방", "youtuber": "오늘의 주우재", "reason": "가벼운 나일론 소재와 넉넉한 수납 포켓으로 데일리 캐주얼 룩에 잘 어울리는 가방", "timestamp": "05:07", "youtube_url": "https://www.youtube.com/results?search_query=주우재+포터+탱커+숄더백"},
     {"name": "무인양품 발이 편한 발수 스니커즈", "keyword": "스니커즈", "youtuber": "오늘의 주우재", "reason": "어떤 바지에도 무난하게 어울리고 인솔 쿠션감이 좋아 매일 손이 가는 기본 운동화", "timestamp": "06:54", "youtube_url": "https://www.youtube.com/results?search_query=주우재+무인양품+스니커즈"},
-    {"name": "아식스 젤 카야노 14 운동화", "keyword": "운동화", "youtuber": "오늘의 주우재", "reason": "메탈릭 실버 포인트와 푹신한 젤 쿠셔닝으로 코디 포인트와 착화감을 잡은 슈즈", "timestamp": "07:15", "youtube_url": "https://www.youtube.com/results?search_query=주우재+젤+카야노+14"},
-    {"name": "홀롤롤로 여행용 카드 동전지갑", "keyword": "지갑", "youtuber": "원지의하루", "reason": "해외여행 시 지폐·동전·카드를 가볍고 직관적으로 분리 수납하는 여행 필수 지갑", "timestamp": "03:10", "youtube_url": "https://www.youtube.com/results?search_query=원지의하루+홀롤롤로+여행지갑"},
-    {"name": "로젤 쿠보 30인치 확장형 캐리어", "keyword": "캐리어", "youtuber": "원지의하루", "reason": "좁은 숙소에서도 세운 채로 앞뚜껑만 열어 짐을 꺼낼 수 있는 수납 천재 캐리어", "timestamp": "04:45", "youtube_url": "https://www.youtube.com/results?search_query=원지의하루+로젤+쿠보+캐리어"},
-    {"name": "DJI 오즈모 포켓 3 크리에이터 콤보", "keyword": "카메라", "youtuber": "원지의하루", "reason": "1인치 센서와 3축 짐벌이 결합되어 흔들림 없는 여행 브이로그를 담아주는 카메라", "timestamp": "08:30", "youtube_url": "https://www.youtube.com/results?search_query=원지의하루+오즈모+포켓+3"},
     {"name": "정샘물 에센셜 스킨 누더 쿠션", "keyword": "쿠션", "youtuber": "이사배 RISABAE", "reason": "피부 본연의 윤기를 살리면서 자연스럽고 화사하게 밀착되는 베이스 쿠션", "timestamp": "03:40", "youtube_url": "https://www.youtube.com/results?search_query=이사배+정샘물+스킨+누더+쿠션"},
-    {"name": "마녀공장 퓨어 클렌징 오일", "keyword": "클렌징오일", "youtuber": "이사배 RISABAE", "reason": "진한 메이크업과 블랙헤드까지 자극 없이 부드럽게 녹여내는 국민 클렌징 오일", "timestamp": "02:30", "youtube_url": "https://www.youtube.com/results?search_query=이사배+마녀공장+클렌징+오일"},
     {"name": "더샘 커버 퍼펙션 트리플 팟 컨실러", "keyword": "컨실러", "youtuber": "레오제이 LeoJ Makeup", "reason": "홍조 커버부터 다크서클·잡티 보정까지 3가지 컬러로 해결하는 올리브영 1등 컨실러", "timestamp": "04:10", "youtube_url": "https://www.youtube.com/results?search_query=레오제이+더샘+트리플+팟+컨실러"},
-    {"name": "힌스 무드인핸서 워터 리퀴드 글로우", "keyword": "틴트", "youtuber": "레오제이 LeoJ Makeup", "reason": "끈적임 없이 투명한 수분 광택이 올라오는 물먹립 대표 리퀴드 틴트", "timestamp": "13:22", "youtube_url": "https://www.youtube.com/results?search_query=레오제이+힌스+틴트"},
     {"name": "매직캔 히포 크롬 냄새차단 쓰레기통 27L", "keyword": "쓰레기통", "youtuber": "귀곰", "reason": "이중 밀폐 구조로 여름철 음식물·기저귀 냄새까지 완벽하게 막아주는 휴지통", "timestamp": "02:39", "youtube_url": "https://www.youtube.com/results?search_query=귀곰+매직캔+쓰레기통"},
-    {"name": "샤오미 미지아 스마트 제습기 22L", "keyword": "제습기", "youtuber": "귀곰", "reason": "가성비와 앱 원격 제어, 조용한 수면 모드를 모두 갖춘 사계절 강력 제습기", "timestamp": "03:15", "youtube_url": "https://www.youtube.com/results?search_query=귀곰+샤오미+제습기"},
-    {"name": "이케아 로스코그 이동식 트롤리 카트", "keyword": "트롤리", "youtuber": "자취남", "reason": "원룸 주방·책상·침대 옆 자투리 공간을 3단 수납장으로 바꿔주는 자취 필수 트롤리", "timestamp": "01:40", "youtube_url": "https://www.youtube.com/results?search_query=자취남+이케아+로스코그"},
-    {"name": "다이슨 에어랩 멀티 스타일러 컴플리트", "keyword": "헤어드라이기", "youtuber": "자취남", "reason": "과도한 열 손상 없이 바람만으로 빠르게 건조와 스타일링을 끝내는 헤어 기기", "timestamp": "04:15", "youtube_url": "https://www.youtube.com/results?search_query=다이슨+에어랩+멀티+스타일러"},
-    {"name": "헹켈 트윈 폴룩스 산도쿠 식칼 18cm", "keyword": "식칼", "youtuber": "승우아빠", "reason": "가벼운 무게와 뛰어난 절삭력으로 집밥 요리 입문자부터 숙련자까지 쓰기 좋은 식칼", "timestamp": "03:10", "youtube_url": "https://www.youtube.com/results?search_query=승우아빠+헹켈+식칼"},
-    {"name": "브리타 마렐라 XL 정수기 3.5L", "keyword": "정수기", "youtuber": "승우아빠", "reason": "생수 페트병 분리수거 번거로움 없이 물맛을 깔끔하게 잡아주는 자연여과 정수기", "timestamp": "02:20", "youtube_url": "https://www.youtube.com/results?search_query=승우아빠+브리타+정수기"},
-    {"name": "애플 에어팟 프로 2세대 USB-C", "keyword": "이어폰", "youtuber": "주연 ZUYONI", "reason": "아이폰·맥북 간 매끄러운 기기 전환과 강력한 적응형 노이즈캔슬링을 지원하는 이어폰", "timestamp": "03:20", "youtube_url": "https://www.youtube.com/results?search_query=주연+에어팟+프로+2"},
-    {"name": "소니 WH-1000XM5 노이즈캔슬링 헤드폰", "keyword": "헤드폰", "youtuber": "주연 ZUYONI", "reason": "가벼운 착용감과 업계 최고 수준의 소음 차단 성능을 보여주는 출퇴근·작업용 헤드폰", "timestamp": "05:18", "youtube_url": "https://www.youtube.com/results?search_query=주연+소니+WH-1000XM5"},
 ]
 
 st.set_page_config(page_title="꿀템 다나와", page_icon="🛍️", layout="centered")
@@ -129,6 +120,7 @@ div[data-testid="stTextInputRootElement"],
 div[data-testid="stTextInputRootElement"] > div,
 div[data-baseweb="input"],
 div[data-baseweb="base-input"],
+div[data-testid="stTextArea"] textarea,
 div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
     background-color: #FFFFFF !important;
     border: 1.5px solid #E5E8EB !important;
@@ -136,11 +128,13 @@ div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
     color: #191F28 !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
 }
-div[data-testid="stTextInputRootElement"]:focus-within {
+div[data-testid="stTextInputRootElement"]:focus-within,
+div[data-testid="stTextArea"] textarea:focus {
     border-color: #3182F6 !important;
 }
 div[data-testid="stTextInputRootElement"] input,
 div[data-baseweb="input"] input,
+div[data-testid="stTextArea"] textarea,
 div[data-testid="stSelectbox"] span,
 div[data-testid="stSelectbox"] div {
     background-color: transparent !important;
@@ -149,7 +143,8 @@ div[data-testid="stSelectbox"] div {
     font-size: 14px !important;
     font-weight: 500 !important;
 }
-div[data-testid="stTextInputRootElement"] input::placeholder {
+div[data-testid="stTextInputRootElement"] input::placeholder,
+div[data-testid="stTextArea"] textarea::placeholder {
     color: #8B95A1 !important;
     -webkit-text-fill-color: #8B95A1 !important;
 }
@@ -407,15 +402,15 @@ def render_banner(target, text, kind="info"):
         "error": ("#FFEFEF", "#C92A2A", "#FFC9C9"),
     }
     bg, fg, bd = palettes.get(kind, palettes["info"])
-    html = (
+    html_box = (
         f'<div style="background-color:{bg}; color:{fg}; border:1px solid {bd}; '
         f'border-radius:14px; padding:13px 15px; margin-top:10px; '
         f'font-size:13.5px; font-weight:700; line-height:1.45;">{text}</div>'
     )
     if target is not None:
-        target.markdown(html, unsafe_allow_html=True)
+        target.markdown(html_box, unsafe_allow_html=True)
     else:
-        st.markdown(html, unsafe_allow_html=True)
+        st.markdown(html_box, unsafe_allow_html=True)
 
 NON_PRODUCT_KEYWORDS = (
     "인트로", "오프닝", "마무리", "아웃트로", "총평", "결론", "구독", "이벤트",
@@ -464,14 +459,22 @@ def save_items(items):
         json.dump(items, f, ensure_ascii=False, indent=2)
 
 def load_items():
-    if not os.path.exists(DB_FILE):
-        save_items(list(INITIAL_SEED_DB))
-        return list(INITIAL_SEED_DB)
-    try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
+    existing = []
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except Exception:
+            existing = []
+
+    # 기존 DB에서 챌린지·프로모션·문장 오류 데이터 자동 제거
+    cleaned = [x for x in existing if not is_non_product(x.get("name", ""))]
+    if not cleaned:
+        cleaned = list(INITIAL_SEED_DB)
+        save_items(cleaned)
+    elif len(cleaned) != len(existing):
+        save_items(cleaned)
+    return cleaned
 
 def add_unique_items(new_items):
     db = load_items()
@@ -500,17 +503,33 @@ def extract_video_id(url):
             return parts[2] if len(parts) > 2 else None
     return None
 
-def _fetch_yt_initial_data(url):
+# === 유튜브 InnerTube JSON POST API (HTTP 302 리다이렉트 루프 완전 해결) ===
+def _innertube_post(endpoint, payload_extra):
+    payload = {
+        "context": {
+            "client": {
+                "clientName": "WEB",
+                "clientVersion": "2.20261101.00.00",
+                "hl": "ko",
+                "gl": "KR",
+            }
+        }
+    }
+    payload.update(payload_extra)
     req = urllib.request.Request(
-        url,
+        f"https://www.youtube.com/youtubei/v1/{endpoint}?prettyPrint=false",
+        data=json.dumps(payload).encode("utf-8"),
         headers={
+            "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Accept-Language": "ko-KR,ko;q=0.9",
+            "X-YouTube-Client-Name": "1",
+            "X-YouTube-Client-Version": "2.20261101.00.00",
+            "Origin": "https://www.youtube.com",
+            "Referer": "https://www.youtube.com/",
         },
     )
-    html = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
-    m = re.search(r"var ytInitialData = (\{.*?\});</script>", html) or re.search(r"ytInitialData\s*=\s*(\{.*?\});", html)
-    return json.loads(m.group(1)) if m else {}
+    raw = urllib.request.urlopen(req, timeout=10).read().decode("utf-8", errors="ignore")
+    return json.loads(raw)
 
 def _normalize_name(s):
     return re.sub(r"[\s\(\)\[\]\-_]+", "", (s or "").lower())
@@ -586,10 +605,11 @@ def _extract_items_from_yt_data(data, default_youtuber="유튜버", default_chan
     return items
 
 def search_youtube_videos(query, limit=6, only_official=True):
-    search_data = _fetch_yt_initial_data(f"https://www.youtube.com/results?search_query={quote(query)}")
+    search_data = _innertube_post("search", {"query": query})
     if not search_data:
         return []
 
+    # 1) 검색 결과에서 대표 공식 채널 ID 추출
     official_channel_id = ""
     official_channel_name = ""
 
@@ -615,23 +635,39 @@ def search_youtube_videos(query, limit=6, only_official=True):
 
     find_channel(search_data)
 
+    # 2) 공식 채널이 확인되면 '추천템' 키워드 검색 결과 + 채널 최신 영상/숏츠 탭을 결합해 본인 채널만 수집
     if only_official and official_channel_id:
         combined = []
         seen_ids = set()
+
+        # 2-1) 공식 채널 내 추천템·꿀템 검색 결과 우선 확보
         try:
-            v_data = _fetch_yt_initial_data(f"https://www.youtube.com/channel/{official_channel_id}/videos")
-            v_list = _extract_items_from_yt_data(v_data, official_channel_name, official_channel_id, force_shorts=False)
+            rec_data = _innertube_post("search", {"query": f"{official_channel_name} 추천템"})
+            rec_raw = _extract_items_from_yt_data(rec_data)
+            rec_list = [
+                x for x in rec_raw
+                if x["channel_id"] == official_channel_id or _is_channel_match(official_channel_name, x["youtuber"])
+            ]
         except Exception:
-            v_list = []
+            rec_list = []
+
+        # 2-2) 공식 채널 Shorts 탭 (InnerTube browse)
         try:
-            s_data = _fetch_yt_initial_data(f"https://www.youtube.com/channel/{official_channel_id}/shorts")
+            s_data = _innertube_post("browse", {"browseId": official_channel_id, "params": "EgZzaG9ydHPyBgUKA5oBAA=="})
             s_list = _extract_items_from_yt_data(s_data, official_channel_name, official_channel_id, force_shorts=True)
         except Exception:
             s_list = []
 
-        max_len = max(len(v_list), len(s_list))
+        # 2-3) 공식 채널 Videos 탭 (InnerTube browse)
+        try:
+            v_data = _innertube_post("browse", {"browseId": official_channel_id, "params": "EgZ2aWRlb3PyBgQKAjoA"})
+            v_list = _extract_items_from_yt_data(v_data, official_channel_name, official_channel_id, force_shorts=False)
+        except Exception:
+            v_list = []
+
+        max_len = max(len(rec_list), len(s_list), len(v_list))
         for idx in range(max_len):
-            for src in (v_list, s_list):
+            for src in (rec_list, s_list, v_list):
                 if idx < len(src) and src[idx]["video_id"] not in seen_ids:
                     seen_ids.add(src[idx]["video_id"])
                     combined.append(src[idx])
@@ -640,6 +676,7 @@ def search_youtube_videos(query, limit=6, only_official=True):
         if combined:
             return combined
 
+    # 3) 일반 검색 결과 fallback
     raw_items = _extract_items_from_yt_data(search_data)
     if only_official:
         matched_cids = {x["channel_id"] for x in raw_items if x["channel_id"] and _is_channel_match(query, x["youtuber"])}
@@ -676,7 +713,39 @@ def _find_desc_in_json(node):
                 return found
     return ""
 
-def fetch_transcript_text(video_id):
+def _parse_caption_xml(base_url):
+    try:
+        req = urllib.request.Request(
+            base_url,
+            headers={"User-Agent": "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1 like Mac OS X)"},
+        )
+        xml_txt = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore")
+        lines = []
+        for m in re.finditer(r'<text[^>]*start="([\d\.]+)"[^>]*>(.*?)</text>', xml_txt, re.DOTALL):
+            sec = int(float(m.group(1)))
+            clean_t = html.unescape(re.sub(r"<[^>]+>", "", m.group(2))).replace("\n", " ").strip()
+            if clean_t:
+                lines.append(f"[{sec//60:02d}:{sec%60:02d}] {clean_t}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+def fetch_transcript_text(video_id, caption_tracks=None):
+    # 1) player API에서 확보한 자막 트랙 URL 우선 사용 (클라우드 차단 우회)
+    if caption_tracks:
+        chosen = None
+        for tr in caption_tracks:
+            if tr.get("languageCode") == "ko":
+                chosen = tr
+                break
+        if not chosen and caption_tracks:
+            chosen = caption_tracks[0]
+        if chosen and chosen.get("baseUrl"):
+            txt = _parse_caption_xml(chosen["baseUrl"])
+            if txt:
+                return txt
+
+    # 2) YouTubeTranscriptApi 보조 호출
     try:
         ytt = YouTubeTranscriptApi()
         if hasattr(ytt, "fetch"):
@@ -692,6 +761,7 @@ def fetch_transcript_text(video_id):
 
 def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint="", is_shorts=False):
     title, desc, youtuber, channel_id = title_hint, "", youtuber_hint, ""
+    caption_tracks = []
 
     try:
         payload = json.dumps({
@@ -708,7 +778,7 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint="", is_sh
             "videoId": video_id,
         }).encode("utf-8")
         req = urllib.request.Request(
-            "https://www.youtube.com/youtubei/v1/player",
+            "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
             data=payload,
             headers={
                 "Content-Type": "application/json",
@@ -724,38 +794,18 @@ def fetch_video_bundle(video_id, youtuber_hint="유튜버", title_hint="", is_sh
             desc = details.get("shortDescription", "") or desc
             youtuber = details.get("author") or youtuber
             channel_id = details.get("channelId", "")
+        caption_tracks = res_data.get("captions", {}).get("playerCaptionsTracklistRenderer", {}).get("captionTracks", [])
     except Exception:
         pass
 
     if not desc:
         try:
-            payload = json.dumps({
-                "context": {
-                    "client": {
-                        "clientName": "WEB",
-                        "clientVersion": "2.20261101.00.00",
-                        "hl": "ko",
-                        "gl": "KR",
-                    }
-                },
-                "videoId": video_id,
-            }).encode("utf-8")
-            req = urllib.request.Request(
-                "https://www.youtube.com/youtubei/v1/next",
-                data=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "X-YouTube-Client-Name": "1",
-                    "X-YouTube-Client-Version": "2.20261101.00.00",
-                },
-            )
-            next_data = json.loads(urllib.request.urlopen(req, timeout=8).read().decode("utf-8", errors="ignore"))
+            next_data = _innertube_post("next", {"videoId": video_id})
             desc = _find_desc_in_json(next_data)
         except Exception:
             pass
 
-    transcript = fetch_transcript_text(video_id)
+    transcript = fetch_transcript_text(video_id, caption_tracks=caption_tracks)
 
     return {
         "video_id": video_id,
@@ -803,6 +853,7 @@ def analyze_batch_with_openrouter(bundles):
         "openrouter/free",
         "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-3-27b-it:free",
+        "qwen/qwen3-coder:free",
         "mistralai/mistral-small-3.1-24b-instruct:free",
     ):
         try:
@@ -984,53 +1035,70 @@ if st.session_state.nav == "꿀템 홈":
             st.link_button(f"네이버 쇼핑에서 '{kw}' 최저가 보기", f"https://search.shopping.naver.com/search/all?query={quote(kw)}&sort=price_asc", type="primary", use_container_width=True)
     else:
         with st.container(border=True):
-            st.markdown("<div class='item-name'>저장된 추천템이 없어요</div><div class='item-reason'>'자동 수집' 탭에서 유튜버 영상을 분석하거나 '설정'에서 기본 DB를 복원해 보세요.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='item-name'>저장된 추천템이 없어요</div><div class='item-reason'>'자동 수집' 탭에서 유튜버 전체 일괄 수집을 실행해 보세요.</div>", unsafe_allow_html=True)
 
 elif st.session_state.nav == "자동 수집":
     if not get_openrouter_key():
-        render_banner(None, "💡 OpenRouter 무료 API 키(깃허브 1초 로그인 발급)를 [설정] 탭에 저장하면 100만+ 유튜버 전체를 한 번에 수집할 수 있어요.", "warning")
+        render_banner(None, "💡 [설정] 탭에 OpenRouter API 키(sk-or-v1-...)를 먼저 저장해 주세요.", "warning")
 
+    # 1) 일일이 검색할 필요 없이 전체 유튜버 명단을 한 번에 돌리는 일괄 수집 카드
     with st.container(border=True):
-        st.markdown("<div class='item-name' style='margin-bottom:4px;'>🌐 100만+ 대형 유튜버 10인 전체 일괄 수집</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='item-reason' style='margin-bottom:12px;'>{', '.join(FEATURED_1M_YOUTUBERS)}의 최신 영상·숏츠를 OpenRouter 무료 AI로 한 번에 추출해요.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='item-name' style='margin-bottom:4px;'>🌐 전체 유튜버 한 번에 자동 수집</div>", unsafe_allow_html=True)
+        st.markdown("<div class='item-reason' style='margin-bottom:10px;'>한 명씩 검색할 필요 없이 아래 명단의 공식 채널 추천템·숏츠를 순서대로 끝까지 자동 수집해요. (줄바꿈으로 유튜버 추가 가능)</div>", unsafe_allow_html=True)
 
-        if st.button("✨ 대형 유튜버 10명 전체 일괄 수집 실행", type="primary", use_container_width=True):
+        yt_list_text = st.text_area(
+            "수집할 유튜버 목록",
+            value="\n".join(DEFAULT_YOUTUBER_LIST),
+            height=150,
+            label_visibility="collapsed",
+        )
+        per_yt_lim = st.slider("유튜버당 분석할 추천 영상·숏츠 수", 2, 8, 4)
+
+        if st.button("✨ 리스트 유튜버 전체 한 번에 자동 수집 실행", type="primary", use_container_width=True):
             status_all = st.empty()
+            prog_bar = st.progress(0)
+            log_box = st.container()
+
             if not get_openrouter_key():
-                render_banner(status_all, "⚠️ OpenRouter API 키가 설정되지 않았습니다. [설정] 탭에서 sk-or- 키를 먼저 입력해 주세요.", "error")
+                render_banner(status_all, "⚠️ OpenRouter API 키가 설정되지 않았습니다. [설정] 탭에서 sk-or-v1- 키를 먼저 입력해 주세요.", "error")
             else:
+                yt_targets = [line.strip() for line in yt_list_text.splitlines() if line.strip()]
                 total_added = []
-                for idx_yt, yt_name in enumerate(FEATURED_1M_YOUTUBERS, start=1):
-                    render_banner(status_all, f"[{idx_yt}/{len(FEATURED_1M_YOUTUBERS)}] '{yt_name}' 공식 채널 영상·숏츠 AI 분석 중...", "info")
+                for idx_yt, yt_name in enumerate(yt_targets, start=1):
+                    prog_bar.progress(int(((idx_yt - 1) / max(1, len(yt_targets))) * 100))
+                    render_banner(status_all, f"[{idx_yt}/{len(yt_targets)}] '{yt_name}' 공식 채널 추천 영상·숏츠 분석 중...", "info")
                     try:
-                        added_yt, _ = collect_for_query(yt_name, limit=4, only_official=True)
+                        added_yt, checked_cnt = collect_for_query(yt_name, limit=per_yt_lim, only_official=True)
                         total_added.extend(added_yt)
-                    except Exception:
-                        pass
-                render_banner(status_all, f"일괄 수집 완료! 실제 제품 {len(total_added)}개가 새로 추가되었어요.", "success")
-                for a in total_added:
-                    st.write(f"• **{a['name']}** ({a['youtuber']} · `{a['timestamp']}`)")
+                        with log_box:
+                            if added_yt:
+                                st.write(f"✅ **{yt_name}**: 새 제품 **{len(added_yt)}개** 추가 ({', '.join(x['name'] for x in added_yt)})")
+                            elif checked_cnt == 0:
+                                st.write(f"⏭️ **{yt_name}**: 이미 수집된 영상이거나 새 추천 영상 없음")
+                            else:
+                                st.write(f"➖ **{yt_name}**: 영상 {checked_cnt}개 확인 (추출된 신규 상품 없음)")
+                    except Exception as e:
+                        with log_box:
+                            st.write(f"⚠️ **{yt_name}**: 오류 ({e})")
+                    time.sleep(1.0)
 
+                prog_bar.progress(100)
+                render_banner(status_all, f"전체 일괄 수집 완료! 총 {len(yt_targets)}명에서 실제 제품 {len(total_added)}개가 새로 추가되었어요.", "success")
+
+    # 2) 특정 유튜버 1명만 빠르게 추가 수집하는 카드
     with st.container(border=True):
-        st.markdown("<div class='item-name' style='margin-bottom:6px;'>🤖 특정 유튜버 최신 영상·숏츠 AI 수집</div>", unsafe_allow_html=True)
-        st.markdown("<div class='item-reason' style='margin-bottom:10px;'>공식 채널의 영상과 숏츠 자막을 분석해 실제 브랜드·제품명만 추출합니다.</div>", unsafe_allow_html=True)
-
-        st.markdown("<div class='field-label'>유튜버 이름</div>", unsafe_allow_html=True)
-        q_in = st.text_input("키워드", placeholder="예: 지냐, 오늘의 주우재, 잇섭, 이사배", label_visibility="collapsed")
-
+        st.markdown("<div class='item-name' style='margin-bottom:6px;'>🔍 특정 유튜버 1명만 빠르게 수집</div>", unsafe_allow_html=True)
+        q_in = st.text_input("키워드", placeholder="예: 지냐, 곽튜브, 오늘의 주우재", label_visibility="collapsed")
         only_official = st.checkbox("🎯 대표 유튜버 공식 채널만 수집 (타 채널·클립 제외)", value=True)
+        lim = st.slider("분석할 최신 영상·숏츠 수", 1, 10, 6)
 
-        st.markdown("<div class='field-label'>분석할 최신 영상·숏츠 수</div>", unsafe_allow_html=True)
-        lim = st.slider("영상 수", 1, 10, 6, label_visibility="collapsed")
-
-        st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-        if st.button("🚀 OpenRouter AI 정밀 수집 시작하기", type="primary", use_container_width=True) and q_in:
+        if st.button("🚀 선택한 유튜버 수집 시작", type="primary", use_container_width=True) and q_in:
             status = st.empty()
             if not get_openrouter_key():
-                render_banner(status, "⚠️ OpenRouter API 키가 설정되지 않았습니다. [설정] 탭에서 sk-or- 키를 먼저 입력해 주세요.", "error")
+                render_banner(status, "⚠️ OpenRouter API 키가 설정되지 않았습니다. [설정] 탭에서 sk-or-v1- 키를 먼저 입력해 주세요.", "error")
             else:
                 try:
-                    render_banner(status, "1/2 공식 채널의 최신 영상·숏츠 자막을 불러오고 있어요...", "info")
+                    render_banner(status, "1/2 공식 채널의 추천 영상·숏츠 자막을 불러오고 있어요...", "info")
                     added, checked_cnt = collect_for_query(q_in, limit=int(lim), only_official=only_official)
                     if checked_cnt == 0:
                         render_banner(status, "이미 모두 수집한 영상들이거나 일치하는 공식 채널 영상이 없어요.", "info")
@@ -1043,7 +1111,7 @@ elif st.session_state.nav == "자동 수집":
 
 elif st.session_state.nav == "설정":
     with st.container(border=True):
-        st.markdown("<div class='item-name' style='margin-bottom:6px;'>⚡ OpenRouter 무료 API 키 설정</div><div class='item-reason' style='margin-bottom:12px;'>openrouter.ai에서 깃허브 로그인 후 발급받은 sk-or- 키를 입력하세요.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='item-name' style='margin-bottom:6px;'>⚡ OpenRouter 무료 API 키 설정</div><div class='item-reason' style='margin-bottom:12px;'>openrouter.ai에서 발급받은 sk-or-v1-... 키를 입력하세요.</div>", unsafe_allow_html=True)
         new_key = st.text_input("OpenRouter API 키", type="password", placeholder="sk-or-v1-...", label_visibility="collapsed")
         if st.button("OpenRouter API 키 저장", type="primary", use_container_width=True) and new_key.strip():
             open(KEY_FILE, "w", encoding="utf-8").write(new_key.strip())
@@ -1060,8 +1128,7 @@ elif st.session_state.nav == "설정":
             use_container_width=True,
         )
         st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-        if st.button("기본 100만+ 유튜버 샘플 DB 복원", use_container_width=True):
-            added = add_unique_items(INITIAL_SEED_DB)
-            render_banner(None, f"샘플 데이터 {len(added)}개가 복원되었어요!", "success")
+        if st.button("기본 샘플 DB로 초기화", use_container_width=True):
+            save_items(list(INITIAL_SEED_DB))
             st.rerun()
 # === 여기까지 복사되면 끝 ===
