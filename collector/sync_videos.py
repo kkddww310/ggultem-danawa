@@ -4,7 +4,7 @@ from collector.config import VIDEOS_PER_CHANNEL
 from collector.database import select, update, upsert
 from collector.youtube_api import get_playlist_videos, get_videos
 
-MAX_CHANNELS_PER_RUN = 100
+MAX_CHANNELS_PER_RUN = 150
 
 
 def now_utc():
@@ -17,7 +17,7 @@ def chunks(values, size=100):
 
 
 def get_due_channels():
-    """다음 확인 시간이 지난 활성 채널을 우선순위 순으로 선택한다."""
+    """다음 확인 시간이 지났거나 미스캔된 활성 채널을 우선순위 순으로 선택한다."""
     rows = select(
         "channels",
         (
@@ -28,10 +28,10 @@ def get_due_channels():
         {
             "status": "eq.active",
             "uploads_playlist_id": "not.is.null",
-            "next_video_scan_at": f"lte.{now_utc().isoformat()}",
+            "or": f"(next_video_scan_at.is.null,next_video_scan_at.lte.{now_utc().isoformat()})",
         },
         limit=MAX_CHANNELS_PER_RUN,
-        order="scan_priority.desc,next_video_scan_at.asc",
+        order="scan_priority.desc,next_video_scan_at.asc.nullsfirst",
     )
     return rows[:MAX_CHANNELS_PER_RUN]
 
