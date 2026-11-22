@@ -270,6 +270,10 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
   }
   .st-key-product_grid .product-title { min-height: 0 !important; }
 }
+
+.card-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:5px 0 8px}.card-meta-row .badge{margin:0!important}.purchase-dot{display:inline-flex;align-items:center;gap:4px;height:23px;padding:0 7px;border-radius:999px;font-size:10px;font-weight:800;line-height:1;border:1px solid transparent}.purchase-dot i{display:inline-block;width:6px;height:6px;border-radius:50%;flex:0 0 6px}.purchase-buy{color:#176B49;background:#EEF8F3;border-color:#CDEBDC}.purchase-buy i{background:#22A06B}.purchase-provided{color:#8A5A00;background:#FFF7DD;border-color:#F4D98A}.purchase-provided i{background:#E9A800}.purchase-ad,.purchase-unknown{color:#B42318;background:#FFF0F0;border-color:#FFD0CC}.purchase-ad i,.purchase-unknown i{background:#E5484D}
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:0 13px 13px!important;overflow:hidden!important}.video-thumbnail-wrap{width:calc(100% + 26px)!important;height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;background:#111827!important;overflow:hidden!important}.video-thumbnail{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center center!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"]{width:calc(100% + 26px)!important;height:190px!important;min-height:190px!important;max-height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;overflow:hidden!important}.st-key-product_grid [data-testid="stImage"] img{width:100%!important;height:190px!important;max-height:190px!important;object-fit:cover!important;object-position:center center!important;padding:0!important;border-radius:18px 18px 0 0!important}.video-thumbnail-label{left:9px!important;bottom:9px!important}
+@media(max-width:900px) and (min-width:601px){.video-thumbnail-wrap,.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:180px!important;min-height:180px!important;max-height:180px!important}}@media(max-width:600px){.video-thumbnail-wrap,.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:215px!important;min-height:215px!important;max-height:215px!important}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -365,14 +369,18 @@ def recommendation_summary(recommendations):
 
 
 def render_purchase_badges(counts):
-    labels = [("직접 구매", "직접 구매"), ("제품 제공", "제품 제공"), ("유료 광고", "유료 광고"), ("확인되지 않음", "미확인")]
+    labels = [
+        ("직접 구매", "직접구매", "purchase-buy"),
+        ("제품 제공", "제품제공", "purchase-provided"),
+        ("유료 광고", "유료광고", "purchase-ad"),
+        ("확인되지 않음", "미확인", "purchase-unknown"),
+    ]
     parts = []
-    for key, label in labels:
+    for key, label, css_class in labels:
         count = int(counts.get(key, 0))
         if count:
-            parts.append(f'<span class="purchase-badge">{label} {count}</span>')
-    if parts:
-        st.markdown("".join(parts), unsafe_allow_html=True)
+            parts.append(f'<span class="purchase-dot {css_class}"><i></i>{label} {count}</span>')
+    return "".join(parts)
 
 
 def render_product_card(product):
@@ -382,11 +390,17 @@ def render_product_card(product):
         st.markdown(f'<div class="product-title">{safe(product.get("canonical_name"))}</div><div class="muted">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</div>', unsafe_allow_html=True)
         channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
         confidence = max([float(r.get("confidence") or 0) for r in recs] or [0])
-        st.markdown(f'<span class="badge">유튜버 {channel_count}명</span><span class="badge">영상 {len(recs)}개</span><span class="badge">신뢰도 {confidence:.0%}</span>', unsafe_allow_html=True)
         summary = recommendation_summary(recs)
-        render_purchase_badges(summary["purchase_counts"])
-        if summary["pros"]:
-            st.markdown(f'<div class="summary-line summary-pro">장점 · {safe(summary["pros"][0])}</div>', unsafe_allow_html=True)
+        purchase_html = render_purchase_badges(summary["purchase_counts"])
+        st.markdown(
+            '<div class="card-meta-row">'
+            f'<span class="badge">유튜버 {channel_count}명</span>'
+            f'<span class="badge">영상 {len(recs)}개</span>'
+            f'<span class="badge">신뢰도 {confidence:.0%}</span>'
+            f'{purchase_html}'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         query_name = quote(str(product.get("canonical_name") or product.get("search_keyword") or ""))
         affiliate = bool(
             product.get("affiliate_verified")
@@ -413,7 +427,8 @@ def render_product_card(product):
             )
         with st.expander(f"상세 비교 · 영상 {len(recs)}개"):
             if summary["pros"] or summary["cons"]:
-                st.markdown("**영상 통합 요약**")
+                st.markdown("**영상에서 추출한 통합 요약**")
+                st.caption("아래 장단점은 연결된 추천 영상의 AI 추출 결과입니다.")
                 if summary["pros"]:
                     st.markdown("**공통 장점**")
                     for value in summary["pros"]:
