@@ -50,7 +50,7 @@ def search_with_retry(query):
     waits = (5, 10, 20)
     for attempt in range(4):
         try:
-            return search_videos(query, max_results=25)
+            return search_videos(query, max_results=50)
         except requests.HTTPError as error:
             status = getattr(error.response, "status_code", None)
             if status != 429:
@@ -157,6 +157,14 @@ def channel_records(items, names, votes):
         hidden = bool(stats.get("hiddenSubscriberCount", False))
         subscribers = int(stats.get("subscriberCount", 0) or 0)
         status = "hidden_subscribers" if hidden else "active" if subscribers >= MIN_SUBSCRIBERS else "below_threshold"
+        if subscribers >= 1_000_000:
+            priority = 5
+        elif subscribers >= 300_000:
+            priority = 4
+        elif subscribers >= 100_000:
+            priority = 3
+        else:
+            priority = 1
         channel_votes = votes.get(channel_id, Counter())
         category = channel_votes.most_common(1)[0][0] if channel_votes else "기타"
         records.append({
@@ -170,6 +178,7 @@ def channel_records(items, names, votes):
             "category_scores": dict(channel_votes),
             "uploads_playlist_id": details.get("relatedPlaylists", {}).get("uploads"),
             "status": status,
+            "scan_priority": priority,
             "last_scanned_at": utcnow().isoformat(),
         })
         statuses[channel_id] = status
@@ -203,7 +212,7 @@ def main():
     print(
         "Secure channel discovery completed | "
         f"queries={len(rows)} | unique_channels={len(records)} | "
-        f"active_1m_plus={active_total} | query_errors={len(errors)} | deferred_queries={len(deferred)}"
+        f"active_channels={active_total} | query_errors={len(errors)} | deferred_queries={len(deferred)}"
     )
 
 
