@@ -237,16 +237,73 @@ def render_home():
             url = product.get("coupang_url") if affiliate else f"https://www.coupang.com/np/search?q={query_name}"
             c2.link_button("쿠팡 파트너스 구매" if affiliate else "쿠팡에서 검색", url, use_container_width=True)
             with st.expander(f"추천 근거와 영상 {len(recs)}건"):
+                # 동일 채널의 여러 추천 영상을 한 묶음으로 표시한다.
+                channel_groups = {}
                 for rec in recs:
                     channel = rec.get("channel", {})
-                    video = rec.get("video", {})
-                    st.markdown(f"**{safe(channel.get('channel_name') or '알 수 없는 채널')}** · 구독자 {number(channel.get('subscriber_count'))}")
-                    if video.get("title"):
-                        st.caption(video["title"])
-                    if rec.get("evidence"):
-                        st.write(f"근거: {rec['evidence']}")
-                    if rec.get("video_id"):
-                        st.link_button("원본 영상 보기", f"https://youtu.be/{rec['video_id']}", use_container_width=True)
+                    channel_id = rec.get("channel_id") or channel.get("channel_id") or "unknown"
+                    channel_groups.setdefault(
+                        channel_id,
+                        {
+                            "channel": channel,
+                            "recommendations": [],
+                        },
+                    )["recommendations"].append(rec)
+
+                for group_index, group in enumerate(channel_groups.values(), 1):
+                    channel = group["channel"]
+                    channel_recs = group["recommendations"]
+                    channel_name = channel.get("channel_name") or "알 수 없는 채널"
+                    subscribers = number(channel.get("subscriber_count"))
+
+                    st.markdown(
+                        f"### {safe(channel_name)}"
+                    )
+                    st.caption(
+                        f"구독자 {subscribers} · 관련 영상 {len(channel_recs)}개"
+                    )
+
+                    # 같은 채널에서 같은 근거 문구가 반복되면 한 번만 표시한다.
+                    unique_evidence = []
+                    seen_evidence = set()
+                    for rec in channel_recs:
+                        evidence = str(rec.get("evidence") or "").strip()
+                        if evidence and evidence not in seen_evidence:
+                            seen_evidence.add(evidence)
+                            unique_evidence.append(evidence)
+
+                    if unique_evidence:
+                        st.markdown("**공통 추천 근거**")
+                        for evidence in unique_evidence[:3]:
+                            st.write(f"• {evidence}")
+
+                    st.markdown("**관련 영상**")
+                    for video_index, rec in enumerate(channel_recs, 1):
+                        video = rec.get("video", {})
+                        title = video.get("title") or "제목을 확인할 수 없는 영상"
+                        st.markdown(f"**{video_index}. {safe(title)}**")
+
+                        reason = str(rec.get("reason") or "").strip()
+                        if reason and reason not in seen_evidence:
+                            st.caption(f"추천 이유: {reason}")
+
+                        pros = rec.get("pros") or []
+                        cons = rec.get("cons") or []
+                        if pros:
+                            st.caption("장점: " + " · ".join(str(value) for value in pros[:3]))
+                        if cons:
+                            st.caption("아쉬운 점: " + " · ".join(str(value) for value in cons[:3]))
+
+                        if rec.get("video_id"):
+                            st.link_button(
+                                f"원본 영상 {video_index} 보기",
+                                f"https://youtu.be/{rec['video_id']}",
+                                key=f"video_{product['product_id']}_{rec['recommendation_id']}",
+                                use_container_width=True,
+                            )
+
+                    if group_index < len(channel_groups):
+                        st.divider()
 
 
 def render_dashboard():
