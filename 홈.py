@@ -75,7 +75,7 @@ def number(value):
 def load_public_data():
     products = api_get(
         "products",
-        "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,created_at",
+        "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,image_url,image_source,image_verified,image_checked_at,image_note,created_at",
         {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc", "limit": "1000"},
     )
     recs = api_get(
@@ -109,7 +109,7 @@ def load_public_data():
 def load_admin_data():
     products = api_get(
         "products",
-        "product_id,canonical_name,brand,model,category,search_keyword,identity_score,review_status,is_visible,review_note,coupang_url,coupang_product_name,affiliate_verified,affiliate_note,created_at",
+        "product_id,canonical_name,brand,model,category,search_keyword,identity_score,review_status,is_visible,review_note,coupang_url,coupang_product_name,affiliate_verified,affiliate_note,image_url,image_source,image_verified,image_checked_at,image_note,created_at",
         {"order": "created_at.desc", "limit": "5000"},
     )
     videos = api_get(
@@ -893,6 +893,36 @@ div[data-testid="stExpander"] > details {
 /* 브라우저의 자동 다크 폼 렌더링 차단 */
 input, select, textarea, option { color-scheme: only light !important; }
 
+
+/* ===== 상품 이미지 영역 ===== */
+.product-placeholder {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-height: 170px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.product-placeholder span { font-size: 58px; line-height: 1; }
+.product-placeholder small { font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+.st-key-product_grid [data-testid="stImage"] img {
+  width: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  object-fit: contain !important;
+  background: #FFFFFF !important;
+  border-radius: 16px !important;
+  padding: 10px !important;
+  box-shadow: inset 0 0 0 1px #EDF1F6 !important;
+}
+@media (max-width: 600px) {
+  .product-placeholder { min-height: 210px; }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -928,9 +958,41 @@ def require_admin():
     return False
 
 
+CATEGORY_VISUALS = {
+    "IT·전자": ("🖥️", "#EAF3FF", "#3182F6"),
+    "뷰티": ("🧴", "#FFF1E8", "#E67527"),
+    "생활·살림": ("🏠", "#EEF8F3", "#218B61"),
+    "주방": ("🍳", "#FFF6DF", "#BD7500"),
+    "패션": ("👕", "#F4EEFF", "#7652C7"),
+    "여행": ("🧳", "#EAF8FA", "#167C8C"),
+    "자동차": ("🚗", "#EEF1F5", "#4E5968"),
+    "운동·건강": ("🏃", "#FFF0F0", "#C92A2A"),
+    "육아": ("🧸", "#FFF4E8", "#D06A19"),
+    "반려동물": ("🐾", "#F4F7EA", "#6E832B"),
+    "기타": ("🛍️", "#F1F4F8", "#5D6B7A"),
+}
+
+
+def render_product_visual(product):
+    image_url = str(product.get("image_url") or "").strip()
+    verified = bool(product.get("image_verified"))
+    if verified and image_url.startswith(("https://", "http://")):
+        st.image(image_url, use_container_width=True)
+        return
+
+    category = product.get("category") or "기타"
+    icon, background, color = CATEGORY_VISUALS.get(category, CATEGORY_VISUALS["기타"])
+    st.markdown(
+        f'<div class="product-placeholder" style="background:{background};color:{color}">'
+        f'<span>{icon}</span><small>{safe(category)}</small></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def render_product_card(product):
     recs = product["recommendations"]
     with st.container(border=True):
+        render_product_visual(product)
         st.markdown(
             f'<div class="product-title">{safe(product.get("canonical_name"))}</div>'
             f'<div class="muted">{safe(product.get("brand"))} · '
@@ -1148,12 +1210,43 @@ def render_review():
                 model = c2.text_input("모델", value=product.get("model") or "")
                 category = st.text_input("카테고리", value=product.get("category") or "기타")
                 keyword = st.text_input("검색 키워드", value=product.get("search_keyword") or name)
+                st.markdown("**대표 이미지 관리**")
+                image_url = st.text_input(
+                    "이미지 URL",
+                    value=product.get("image_url") or "",
+                    placeholder="https://...",
+                )
+                image_source = st.selectbox(
+                    "이미지 출처",
+                    ["", "brand_official", "affiliate", "manual", "youtube_thumbnail"],
+                    index=(
+                        ["", "brand_official", "affiliate", "manual", "youtube_thumbnail"].index(product.get("image_source"))
+                        if product.get("image_source") in ["", "brand_official", "affiliate", "manual", "youtube_thumbnail"]
+                        else 0
+                    ),
+                    format_func=lambda value: {
+                        "": "출처 미선택",
+                        "brand_official": "브랜드 공식",
+                        "affiliate": "제휴사 제공",
+                        "manual": "직접 업로드·확인",
+                        "youtube_thumbnail": "유튜브 썸네일",
+                    }[value],
+                )
+                image_verified = st.checkbox(
+                    "정확한 상품 이미지 확인 완료",
+                    value=bool(product.get("image_verified")),
+                )
+                image_note = st.text_input(
+                    "이미지 메모",
+                    value=product.get("image_note") or "",
+                    placeholder="색상·용량·세대 차이 확인",
+                )
                 note = st.text_input("관리 메모", value=product.get("review_note") or "")
                 approve_col, hide_col = st.columns(2)
                 approve = approve_col.form_submit_button("승인 후 공개", type="primary", use_container_width=True)
                 hide = hide_col.form_submit_button("숨김 처리", use_container_width=True)
             if approve:
-                api_patch("products", {"canonical_name": name.strip(), "normalized_name": re.sub(r"[^0-9a-z가-힣]+", "", name.lower()), "brand": brand.strip(), "model": model.strip(), "category": category.strip() or "기타", "search_keyword": keyword.strip() or name.strip(), "review_status": "approved", "is_visible": True, "reviewed_at": datetime.now(timezone.utc).isoformat(), "review_note": note.strip() or "관리자 승인"}, {"product_id": f"eq.{pid}"})
+                api_patch("products", {"canonical_name": name.strip(), "normalized_name": re.sub(r"[^0-9a-z가-힣]+", "", name.lower()), "brand": brand.strip(), "model": model.strip(), "category": category.strip() or "기타", "search_keyword": keyword.strip() or name.strip(), "image_url": image_url.strip() or None, "image_source": image_source or None, "image_verified": bool(image_verified and image_url.strip().startswith(("https://", "http://"))), "image_checked_at": datetime.now(timezone.utc).isoformat() if image_verified and image_url.strip().startswith(("https://", "http://")) else None, "image_note": image_note.strip() or None, "review_status": "approved", "is_visible": True, "reviewed_at": datetime.now(timezone.utc).isoformat(), "review_note": note.strip() or "관리자 승인"}, {"product_id": f"eq.{pid}"})
                 st.cache_data.clear(); st.rerun()
             if hide:
                 api_patch("products", {"review_status": "hidden", "is_visible": False, "reviewed_at": datetime.now(timezone.utc).isoformat(), "review_note": note.strip() or "관리자 숨김"}, {"product_id": f"eq.{pid}"})
