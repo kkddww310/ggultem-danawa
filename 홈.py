@@ -186,6 +186,10 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
     font-size: 14px !important;
   }
 }
+
+.purchase-badge{display:inline-block;margin:4px 5px 5px 0;padding:4px 8px;border-radius:999px;background:#FFF2E8;color:#B94F09;border:1px solid #FFD9BD;font-size:11px;font-weight:800}
+.summary-line{margin-top:6px;padding:8px 10px;border-radius:9px;font-size:12px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.summary-pro{background:#EEF8F3;color:#176B49}.summary-con{background:#FFF3F3;color:#A61B22}
 </style>
 """, unsafe_allow_html=True)
 
@@ -259,6 +263,38 @@ def render_product_visual(product):
     )
 
 
+def recommendation_summary(recommendations):
+    purchase_counts = Counter()
+    pros = Counter()
+    cons = Counter()
+    for rec in recommendations:
+        purchase_counts[str(rec.get("purchase_type") or "확인되지 않음").strip()] += 1
+        for value in rec.get("pros") or []:
+            text = re.sub(r"\s+", " ", str(value).strip())
+            if len(text) >= 2:
+                pros[text] += 1
+        for value in rec.get("cons") or []:
+            text = re.sub(r"\s+", " ", str(value).strip())
+            if len(text) >= 2:
+                cons[text] += 1
+    return {
+        "purchase_counts": purchase_counts,
+        "pros": [text for text, _ in pros.most_common(3)],
+        "cons": [text for text, _ in cons.most_common(3)],
+    }
+
+
+def render_purchase_badges(counts):
+    labels = [("직접 구매", "직접 구매"), ("제품 제공", "제품 제공"), ("유료 광고", "유료 광고"), ("확인되지 않음", "미확인")]
+    parts = []
+    for key, label in labels:
+        count = int(counts.get(key, 0))
+        if count:
+            parts.append(f'<span class="purchase-badge">{label} {count}</span>')
+    if parts:
+        st.markdown("".join(parts), unsafe_allow_html=True)
+
+
 def render_product_card(product):
     recs = product["recommendations"]
     with st.container(border=True):
@@ -267,6 +303,12 @@ def render_product_card(product):
         channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
         confidence = max([float(r.get("confidence") or 0) for r in recs] or [0])
         st.markdown(f'<span class="badge">유튜버 {channel_count}명</span><span class="badge">영상 {len(recs)}개</span><span class="badge">신뢰도 {confidence:.0%}</span>', unsafe_allow_html=True)
+        summary = recommendation_summary(recs)
+        render_purchase_badges(summary["purchase_counts"])
+        if summary["pros"]:
+            st.markdown(f'<div class="summary-line summary-pro">장점 · {safe(summary["pros"][0])}</div>', unsafe_allow_html=True)
+        if summary["cons"]:
+            st.markdown(f'<div class="summary-line summary-con">아쉬움 · {safe(summary["cons"][0])}</div>', unsafe_allow_html=True)
         if recs and recs[0].get("reason"):
             st.markdown(f'<div class="reason">{safe(recs[0]["reason"])}</div>', unsafe_allow_html=True)
         query_name = quote(str(product.get("canonical_name") or product.get("search_keyword") or ""))
@@ -294,6 +336,17 @@ def render_product_card(product):
                 use_container_width=True,
             )
         with st.expander(f"추천 근거와 영상 {len(recs)}건"):
+            if summary["pros"] or summary["cons"]:
+                st.markdown("**영상 통합 요약**")
+                if summary["pros"]:
+                    st.markdown("**공통 장점**")
+                    for value in summary["pros"]:
+                        st.write(f"• {value}")
+                if summary["cons"]:
+                    st.markdown("**공통 아쉬움**")
+                    for value in summary["cons"]:
+                        st.write(f"• {value}")
+                st.divider()
             for rec in recs:
                 channel = rec.get("channel", {})
                 video = rec.get("video", {})
