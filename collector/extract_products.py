@@ -9,11 +9,13 @@ from collector.config import OPENROUTER_API_KEY
 from collector.database import select, upsert, update
 
 MODELS = (
+    # OpenRouter가 현재 이용 가능한 무료 모델을 자동 선택한다.
+    # 개별 :free 모델 ID는 종료되거나 변경될 수 있어 고정하지 않는다.
     "openrouter/free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemma-3-27b-it:free",
-    "mistralai/mistral-small-3.1-24b-instruct:free",
 )
+
+OPENROUTER_MAX_ATTEMPTS = 3
+OPENROUTER_RETRY_SECONDS = (5, 12)
 
 BATCH_LIMIT = 5
 MIN_CONFIDENCE = 0.87
@@ -200,32 +202,114 @@ confidence 0.87 이상이며 브랜드와 모델이 원문에 직접 확인될 �
 [설명]
 {(video.get("description") or "")[:9000]}'''
 
-    last_error = None
+    errors = []
+
     for model in MODELS:
-        try:
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://github.com/kkddww310/ggultem-danawa",
-                    "X-Title": "Ggultem Danawa Collector",
-                },
-                json={
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.0,
-                },
-                timeout=40,
-            )
-            if response.status_code >= 400:
-                raise RuntimeError(f"HTTP {response.status_code}: {response.text[:300]}")
-            parsed = extract_json(response.json()["choices"][0]["message"]["content"])
-            return parsed.get("items", []) if isinstance(parsed, dict) else parsed
-        except Exception as error:
-            last_error = error
-            time.sleep(1.5)
-    raise RuntimeError(f"OpenRouter 전체 모델 실패: {last_error}")
+        for attempt in range(1, OPENROUTER_MAX_ATTEMPTS + 1):
+            try:
+                response = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com/kkddww310/ggultem-danawa",
+                        "X-Title": "Ggultem Danawa Collector",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.0,
+                    },
+                    timeout=40,
+                )
+
+                if response.status_code >= 400:
+                    body = response.text[:500]
+                    error_text = (
+                        f"model={model} attempt={attempt} "
+                        f"HTTP {response.status_code}: {body}"
+                    )
+                    errors.append(error_text)
+                    print(f"OpenRouter request failed | {error_text}")
+
+                    # 인증·결제 오류는 반복해도 해결되지 않으므로 즉시 중단한다.
+                    if response.status_code in {401, 402, 403}:
+                        raise RuntimeError(error_text)
+
+                    # 404는 개별 모델 고정 ID에서 주로 발생한다. 다음 모델로 이동한다.
+                    if response.status_code == 404:
+                        break
+
+                    # 429·5xx는 같은 라우터로 잠시 후 재시도한다.
+                    if (
+                        response.status_code == 429
+                        or response.status_code >= 500
+                    ) and attempt < OPENROUTER_MAX_ATTEMPTS:
+                        wait_seconds = OPENROUTER_RETRY_SECONDS[attempt - 1]
+                        print(
+                            "OpenRouter retry scheduled | "
+                            f"model={model} wait={wait_seconds}s"
+                        )
+                        time.sleep(wait_seconds)
+                        continue
+
+                    raise RuntimeError(error_text)
+
+                data = response.json()
+                choices = data.get("choices") or []
+                if not choices:
+                    raise ValueError(
+                        f"model={model} attempt={attempt} choices가 없습니다: "
+                        f"{str(data)[:500]}"
+                    )
+
+                content = choices[0].get("message", {}).get("content", "")
+                parsed = extract_json(content)
+                items = parsed.get("items", []) if isinstance(parsed, dict) else parsed
+
+                if not isinstance(items, list):
+                    raise ValueError("items가 배열이 아닙니다.")
+
+                print(
+                    "OpenRouter request succeeded | "
+                    f"model={model} attempt={attempt} items={len(items)}"
+                )
+                return items
+
+            except requests.Timeout as error:
+                error_text = f"model={model} attempt={attempt} timeout: {error}"
+                errors.append(error_text)
+                print(f"OpenRouter request failed | {error_text}")
+                if attempt < OPENROUTER_MAX_ATTEMPTS:
+                    wait_seconds = OPENROUTER_RETRY_SECONDS[attempt - 1]
+                    time.sleep(wait_seconds)
+                    continue
+
+            except (ValueError, KeyError, json.JSONDecodeError) as error:
+                error_text = (
+                    f"model={model} attempt={attempt} response_error: {error}"
+                )
+                errors.append(error_text)
+                print(f"OpenRouter response invalid | {error_text}")
+                if attempt < OPENROUTER_MAX_ATTEMPTS:
+                    wait_seconds = OPENROUTER_RETRY_SECONDS[attempt - 1]
+                    time.sleep(wait_seconds)
+                    continue
+
+            except RuntimeError:
+                raise
+
+            except Exception as error:
+                error_text = f"model={model} attempt={attempt} error: {error}"
+                errors.append(error_text)
+                print(f"OpenRouter request failed | {error_text}")
+                if attempt < OPENROUTER_MAX_ATTEMPTS:
+                    wait_seconds = OPENROUTER_RETRY_SECONDS[attempt - 1]
+                    time.sleep(wait_seconds)
+                    continue
+
+    error_summary = " || ".join(errors[-8:])
+    raise RuntimeError(f"OpenRouter 전체 시도 실패: {error_summary}")
 
 
 def normalize_brand_key(value):
