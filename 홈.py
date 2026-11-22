@@ -171,6 +171,21 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 @media (max-width: 600px) {
   .video-thumbnail-wrap { height: 210px; }
 }
+
+/* 쇼핑 이동 버튼은 한 줄 2열로 압축 */
+.st-key-product_grid [data-testid="stLinkButton"] a {
+  min-height: 42px !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  white-space: nowrap !important;
+  font-size: 14px !important;
+}
+@media (max-width: 600px) {
+  .st-key-product_grid [data-testid="stLinkButton"] a {
+    min-height: 44px !important;
+    font-size: 14px !important;
+  }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -255,10 +270,29 @@ def render_product_card(product):
         if recs and recs[0].get("reason"):
             st.markdown(f'<div class="reason">{safe(recs[0]["reason"])}</div>', unsafe_allow_html=True)
         query_name = quote(str(product.get("canonical_name") or product.get("search_keyword") or ""))
-        st.link_button("네이버쇼핑 확인", f"https://search.shopping.naver.com/search/all?query={query_name}", type="primary", use_container_width=True)
-        affiliate = bool(product.get("affiliate_verified") and str(product.get("coupang_url") or "").startswith("https://link.coupang.com/"))
-        coupang_url = product.get("coupang_url") if affiliate else f"https://www.coupang.com/np/search?q={query_name}"
-        st.link_button("쿠팡 파트너스 구매" if affiliate else "쿠팡에서 검색", coupang_url, use_container_width=True)
+        affiliate = bool(
+            product.get("affiliate_verified")
+            and str(product.get("coupang_url") or "").startswith("https://link.coupang.com/")
+        )
+        coupang_url = (
+            product.get("coupang_url")
+            if affiliate
+            else f"https://www.coupang.com/np/search?q={query_name}"
+        )
+        shop_left, shop_right = st.columns(2, gap="small")
+        with shop_left:
+            st.link_button(
+                "네이버쇼핑",
+                f"https://search.shopping.naver.com/search/all?query={query_name}",
+                type="primary",
+                use_container_width=True,
+            )
+        with shop_right:
+            st.link_button(
+                "쿠팡 구매" if affiliate else "쿠팡 검색",
+                coupang_url,
+                use_container_width=True,
+            )
         with st.expander(f"추천 근거와 영상 {len(recs)}건"):
             for rec in recs:
                 channel = rec.get("channel", {})
