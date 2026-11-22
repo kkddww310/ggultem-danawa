@@ -31,6 +31,31 @@ GENERIC_TERMS = {
 UNKNOWN_MODELS = {"", "확인되지않음", "미확인", "unknown", "없음", "미상"}
 COMPOSITE_MARKERS = ("+", "/", "&", " 세트", " 패키지", " 외 ", " 등 ")
 
+STANDARD_CATEGORIES = {
+    "IT·전자", "뷰티", "패션", "생활·살림", "주방", "여행",
+    "자동차", "운동·건강", "육아", "반려동물", "기타",
+}
+CATEGORY_ALIASES = {
+    "it": "IT·전자", "it전자": "IT·전자", "전자": "IT·전자",
+    "전자기기": "IT·전자", "디지털": "IT·전자",
+    "기타뷰티": "뷰티", "뷰티기타": "뷰티", "화장품": "뷰티",
+    "코스메틱": "뷰티", "beauty": "뷰티",
+    "주방생활살림": "생활·살림", "생활살림주방": "생활·살림",
+    "가전": "생활·살림", "생활가전": "생활·살림", "살림": "생활·살림",
+    "생활": "생활·살림", "주방가전": "주방", "조리": "주방",
+    "스포츠": "운동·건강", "헬스": "운동·건강", "운동": "운동·건강",
+    "펫": "반려동물", "반려견": "반려동물", "반려묘": "반려동물",
+    "아동": "육아", "유아": "육아", "차량": "자동차",
+}
+
+# 용량·수량·색상·호수·세대·모델 번호 중 하나가 있으면 검색 가능한 구체 옵션으로 본다.
+SPECIFIC_OPTION_PATTERN = re.compile(
+    r"(?:\b\d+(?:\.\d+)?\s?(?:ml|l|g|kg|mg|tb|gb|w|mah|hz|인치|매|개|호|번|세대)\b"
+    r"|\b[A-Za-z]{1,15}[- ]?\d+[A-Za-z0-9-]*\b"
+    r"|(?:핑크골드|베이지|브라운|뉴트럴|피치|로즈|블랙|화이트|레드|블루|그린|퍼플|코랄))",
+    re.I,
+)
+
 
 class OpenRouterDailyLimitReached(RuntimeError):
     """OpenRouter 무료 일일 한도가 소진된 상태."""
@@ -95,6 +120,44 @@ def source_contains_identity(video, name, brand, model):
     )
 
 
+def standardize_category(value, name=""):
+    raw = str(value or "기타").strip()
+    if raw in STANDARD_CATEGORIES:
+        return raw
+    key = normalize_text(raw)
+    if key in CATEGORY_ALIASES:
+        return CATEGORY_ALIASES[key]
+    product_name = str(name or "").lower()
+    if any(word in product_name for word in ("토너", "세럼", "쿠션", "크림", "마스크", "선크림", "틴트", "파운데이션", "고데기", "향수")):
+        return "뷰티"
+    if any(word in product_name for word in ("냄비", "프라이팬", "식기", "블렌더", "믹서기", "커피머신", "토스터", "에어프라이어")):
+        return "주방"
+    if any(word in product_name for word in ("청소기", "냉장고", "세탁기", "건조기", "가습기", "제습기", "매트")):
+        return "생활·살림"
+    return "기타"
+
+
+def has_specific_option(name, model):
+    return bool(SPECIFIC_OPTION_PATTERN.search(f"{name} {model}"))
+
+
+def concrete_searchable_product(video, item):
+    """모델 번호가 없어도 브랜드+고유명+옵션이 원문에 있으면 검색 가능한 상품으로 인정한다."""
+    if item["confidence"] < 0.90:
+        return False
+    if not item["brand_key"] or is_generic(item["brand"]):
+        return False
+    if is_generic(item["name"]) or is_generic(item["model"]):
+        return False
+    if any(marker in item["name"].lower() for marker in COMPOSITE_MARKERS):
+        return False
+    if not source_contains_identity(video, item["name"], item["brand"], item["model"]):
+        return False
+    if len(item["model_key"]) < 6:
+        return False
+    return has_specific_option(item["name"], item["model"])
+
+
 def validate_product(video, raw):
     name = str(raw.get("name", "")).strip()
     brand = str(raw.get("brand", "")).strip()
@@ -127,7 +190,7 @@ def validate_product(video, raw):
         "brand_key": normalize_brand(brand),
         "model_key": normalize_text(model),
         "keyword": str(raw.get("keyword", "")).strip() or name,
-        "category": str(raw.get("category", "기타")).strip() or "기타",
+        "category": standardize_category(raw.get("category", "기타"), name),
         "reason": str(raw.get("reason", "")).strip(),
         "pros": [str(x).strip() for x in raw.get("pros", []) if str(x).strip()][:4],
         "cons": [str(x).strip() for x in raw.get("cons", []) if str(x).strip()][:4],
@@ -291,7 +354,8 @@ def save_item(video, item):
         print(f"Merged recommendation into existing product | product_id={product_id} | name={item['name']}")
     else:
         product_id = str(uuid.uuid4())
-        auto_approved = score >= 93
+        searchable_approved = concrete_searchable_product(video, item)
+        auto_approved = score >= 93 or searchable_approved
         upsert(
             "products",
             [{
@@ -310,7 +374,13 @@ def save_item(video, item):
                 "review_status": "approved" if auto_approved else "pending",
                 "is_visible": auto_approved,
                 "reviewed_at": None,
-                "review_note": "자동 검증 93점 이상 공개" if auto_approved else "관리자 검수 대기",
+                "review_note": (
+                    "자동 검증 93점 이상 공개"
+                    if score >= 93
+                    else "브랜드·고유 제품명·옵션 확인 자동 공개"
+                    if searchable_approved
+                    else "관리자 검수 대기"
+                ),
             }],
             "normalized_name",
         )
