@@ -228,20 +228,97 @@ confidence 0.87 이상이며 브랜드와 모델이 원문에 직접 확인될 �
     raise RuntimeError(f"OpenRouter 전체 모델 실패: {last_error}")
 
 
+def normalize_brand_key(value):
+    text = str(value or "").lower().strip()
+    replacements = {
+        "dyson": "다이슨", "shark": "샤크", "logitech": "로지텍",
+        "samsung": "삼성", "apple": "애플", "anker": "앤커",
+        "ugreen": "유그린", "lg electronics": "lg", "lge": "lg",
+        "xiaomi": "샤오미", "sony": "소니", "bose": "보스",
+    }
+    for source, target in replacements.items():
+        text = text.replace(source, target)
+    return normalize_text(text)
+
+
+def normalize_model_key(value):
+    return normalize_text(value)
+
+
 def existing_product(normalized):
     rows = select(
         "products",
-        "product_id,normalized_name,review_status,is_visible",
+        (
+            "product_id,normalized_name,brand_key,model_key,review_status,"
+            "is_visible,merge_status,merged_into"
+        ),
         {"normalized_name": f"eq.{normalized}"},
         limit=1,
     )
     return rows[0] if rows else None
 
 
+def find_product_by_identity(brand_key, model_key):
+    if not brand_key or not model_key:
+        return None
+    rows = select(
+        "products",
+        (
+            "product_id,canonical_name,normalized_name,brand_key,model_key,"
+            "review_status,is_visible,merge_status,merged_into,created_at"
+        ),
+        {
+            "brand_key": f"eq.{brand_key}",
+            "model_key": f"eq.{model_key}",
+            "review_status": "neq.merged",
+        },
+        limit=20,
+        order="is_visible.desc,created_at.asc",
+    )
+    return rows[0] if rows else None
+
+
+def calculate_identity_score(video, item):
+    score = int(round(float(item["confidence"]) * 40))
+    source = normalize_text(f"{video.get('title', '')} {video.get('description', '')}")
+    brand_key = normalize_brand_key(item["brand"])
+    model_key = normalize_model_key(item["model"])
+    name_key = normalize_text(item["name"])
+    if brand_key and brand_key in source:
+        score += 20
+    if model_key and model_key in source:
+        score += 25
+    if name_key and name_key in source:
+        score += 10
+    if re.search(r"https?://", str(video.get("description", ""))):
+        score += 5
+    return min(100, score)
+
+
 def save_validated_item(video, item):
+    brand_key = normalize_brand_key(item["brand"])
+    model_key = normalize_model_key(item["model"])
+    identity_score = calculate_identity_score(video, item)
+
+    # 1순위: 정규화 상품명이 완전히 같은 기존 상품
     product = existing_product(item["normalized_name"])
-    product_id = product["product_id"] if product else str(uuid.uuid4())
+
+    # 2순위: 브랜드와 모델 키가 정확히 같은 기존 대표 상품
     if not product:
+        product = find_product_by_identity(brand_key, model_key)
+
+    if product:
+        product_id = product["product_id"]
+        print(
+            "Merged recommendation into existing product | "
+            f"product_id={product_id} | brand_key={brand_key} | "
+            f"model_key={model_key} | name={item['name']}"
+        )
+    else:
+        product_id = str(uuid.uuid4())
+
+        # 자체 검증점수 93점 이상은 자동 승인, 그 외는 관리자 검수 대기
+        auto_approved = identity_score >= 93
         upsert(
             "products",
             [{
@@ -250,12 +327,21 @@ def save_validated_item(video, item):
                 "normalized_name": item["normalized_name"],
                 "brand": item["brand"],
                 "model": item["model"],
+                "brand_key": brand_key,
+                "model_key": model_key,
+                "identity_score": identity_score,
+                "merge_status": "unique",
+                "merged_into": None,
                 "category": item["category"],
                 "search_keyword": item["keyword"],
-                "review_status": "pending",
-                "is_visible": False,
+                "review_status": "approved" if auto_approved else "pending",
+                "is_visible": auto_approved,
                 "reviewed_at": None,
-                "review_note": "정확한 브랜드·모델 관리자 검수 대기",
+                "review_note": (
+                    "자동 검증 93점 이상 공개"
+                    if auto_approved
+                    else "정확한 브랜드·모델 관리자 검수 대기"
+                ),
             }],
             "normalized_name",
         )
