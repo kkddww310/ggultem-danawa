@@ -546,6 +546,74 @@ input, textarea, select, option {
   color-scheme: light !important;
 }
 
+
+/* ===== 상품 목록: PC 3열 / 태블릿 2열 / 모바일 1열 ===== */
+.st-key-product_grid [data-testid="stHorizontalBlock"] {
+  gap: 16px !important;
+  align-items: stretch !important;
+}
+.st-key-product_grid [data-testid="column"] {
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.st-key-product_grid [data-testid="column"] > div {
+  width: 100% !important;
+}
+.st-key-product_grid [data-testid="stVerticalBlockBorderWrapper"] {
+  height: 100% !important;
+  min-height: 345px !important;
+  padding: 16px !important;
+}
+.st-key-product_grid .product-title {
+  min-height: 48px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.st-key-product_grid .reason {
+  min-height: 70px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.st-key-product_grid [data-testid="stButton"] button,
+.st-key-product_grid [data-testid="stLinkButton"] a {
+  width: 100% !important;
+}
+
+@media (max-width: 900px) and (min-width: 601px) {
+  .st-key-product_grid [data-testid="stHorizontalBlock"] {
+    flex-wrap: wrap !important;
+  }
+  .st-key-product_grid [data-testid="column"] {
+    flex: 0 0 calc(50% - 8px) !important;
+    width: calc(50% - 8px) !important;
+    min-width: calc(50% - 8px) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .st-key-product_grid [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .st-key-product_grid [data-testid="column"] {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 100% !important;
+  }
+  .st-key-product_grid [data-testid="stVerticalBlockBorderWrapper"] {
+    min-height: 0 !important;
+  }
+  .st-key-product_grid .product-title,
+  .st-key-product_grid .reason {
+    min-height: 0 !important;
+  }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -581,6 +649,91 @@ def require_admin():
     return False
 
 
+def render_product_card(product):
+    recs = product["recommendations"]
+    with st.container(border=True):
+        st.markdown(
+            f'<div class="product-title">{safe(product.get("canonical_name"))}</div>'
+            f'<div class="muted">{safe(product.get("brand"))} · '
+            f'{safe(product.get("category") or "기타")}</div>',
+            unsafe_allow_html=True,
+        )
+        channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
+        confidence = max([float(r.get("confidence") or 0) for r in recs] or [0])
+        st.markdown(
+            f'<span class="badge">유튜버 {channel_count}명</span>'
+            f'<span class="badge">영상 {len(recs)}개</span>'
+            f'<span class="badge">신뢰도 {confidence:.0%}</span>',
+            unsafe_allow_html=True,
+        )
+        if recs and recs[0].get("reason"):
+            st.markdown(
+                f'<div class="reason">{safe(recs[0]["reason"])}</div>',
+                unsafe_allow_html=True,
+            )
+
+        query_name = quote(str(product.get("canonical_name") or product.get("search_keyword") or ""))
+        st.link_button(
+            "네이버쇼핑 확인",
+            f"https://search.shopping.naver.com/search/all?query={query_name}",
+            type="primary",
+            use_container_width=True,
+        )
+        affiliate = bool(
+            product.get("affiliate_verified")
+            and str(product.get("coupang_url") or "").startswith("https://link.coupang.com/")
+        )
+        coupang_url = (
+            product.get("coupang_url")
+            if affiliate
+            else f"https://www.coupang.com/np/search?q={query_name}"
+        )
+        st.link_button(
+            "쿠팡 파트너스 구매" if affiliate else "쿠팡에서 검색",
+            coupang_url,
+            use_container_width=True,
+        )
+
+        with st.expander(f"추천 근거와 영상 {len(recs)}건"):
+            channel_groups = {}
+            for rec in recs:
+                channel = rec.get("channel", {})
+                channel_id = rec.get("channel_id") or channel.get("channel_id") or "unknown"
+                channel_groups.setdefault(
+                    channel_id,
+                    {"channel": channel, "recommendations": []},
+                )["recommendations"].append(rec)
+
+            for group_index, group in enumerate(channel_groups.values(), 1):
+                channel = group["channel"]
+                channel_recs = group["recommendations"]
+                st.markdown(f"**{safe(channel.get('channel_name') or '알 수 없는 채널')}**")
+                st.caption(
+                    f"구독자 {number(channel.get('subscriber_count'))} · "
+                    f"관련 영상 {len(channel_recs)}개"
+                )
+                seen_evidence = set()
+                for rec in channel_recs:
+                    evidence = str(rec.get("evidence") or "").strip()
+                    if evidence and evidence not in seen_evidence:
+                        seen_evidence.add(evidence)
+                        st.write(f"• {evidence}")
+                for video_index, rec in enumerate(channel_recs, 1):
+                    video = rec.get("video", {})
+                    st.markdown(
+                        f"**{video_index}. {safe(video.get('title') or '제목을 확인할 수 없는 영상')}**"
+                    )
+                    if rec.get("video_id"):
+                        st.link_button(
+                            f"원본 영상 {video_index} 보기",
+                            f"https://youtu.be/{rec['video_id']}",
+                            key=f"video_{product['product_id']}_{rec['recommendation_id']}",
+                            use_container_width=True,
+                        )
+                if group_index < len(channel_groups):
+                    st.divider()
+
+
 def render_home():
     products = load_public_data()
     channel_ids = {r.get("channel_id") for p in products for r in p["recommendations"] if r.get("channel_id")}
@@ -600,89 +753,47 @@ def render_home():
             continue
         shown.append(product)
     st.caption(f"상품 {len(shown)}개")
-    for product in shown:
-        recs = product["recommendations"]
-        with st.container(border=True):
-            st.markdown(f'<div class="product-title">{safe(product.get("canonical_name"))}</div><div class="muted">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</div>', unsafe_allow_html=True)
-            channels = len({r.get("channel_id") for r in recs if r.get("channel_id")})
-            confidence = max([float(r.get("confidence") or 0) for r in recs] or [0])
-            st.markdown(f'<span class="badge">유튜버 {channels}명</span><span class="badge">영상 {len(recs)}개</span><span class="badge">신뢰도 {confidence:.0%}</span>', unsafe_allow_html=True)
-            if recs and recs[0].get("reason"):
-                st.markdown(f'<div class="reason">{safe(recs[0]["reason"])}</div>', unsafe_allow_html=True)
-            query_name = quote(str(product.get("canonical_name") or product.get("search_keyword") or ""))
-            c1, c2 = st.columns(2)
-            c1.link_button("네이버쇼핑 확인", f"https://search.shopping.naver.com/search/all?query={query_name}", type="primary", use_container_width=True)
-            affiliate = bool(product.get("affiliate_verified") and str(product.get("coupang_url") or "").startswith("https://link.coupang.com/"))
-            url = product.get("coupang_url") if affiliate else f"https://www.coupang.com/np/search?q={query_name}"
-            c2.link_button("쿠팡 파트너스 구매" if affiliate else "쿠팡에서 검색", url, use_container_width=True)
-            with st.expander(f"추천 근거와 영상 {len(recs)}건"):
-                # 동일 채널의 여러 추천 영상을 한 묶음으로 표시한다.
-                channel_groups = {}
-                for rec in recs:
-                    channel = rec.get("channel", {})
-                    channel_id = rec.get("channel_id") or channel.get("channel_id") or "unknown"
-                    channel_groups.setdefault(
-                        channel_id,
-                        {
-                            "channel": channel,
-                            "recommendations": [],
-                        },
-                    )["recommendations"].append(rec)
+    # 페이지당 24개: PC 3열 × 8행, 태블릿 2열, 모바일 1열
+    page_size = 24
+    total_pages = max(1, (len(shown) + page_size - 1) // page_size)
+    current_page = int(st.session_state.get("catalog_page", 1))
+    current_page = min(max(current_page, 1), total_pages)
+    st.session_state.catalog_page = current_page
 
-                for group_index, group in enumerate(channel_groups.values(), 1):
-                    channel = group["channel"]
-                    channel_recs = group["recommendations"]
-                    channel_name = channel.get("channel_name") or "알 수 없는 채널"
-                    subscribers = number(channel.get("subscriber_count"))
+    start_index = (current_page - 1) * page_size
+    page_products = shown[start_index:start_index + page_size]
 
-                    st.markdown(
-                        f"### {safe(channel_name)}"
-                    )
-                    st.caption(
-                        f"구독자 {subscribers} · 관련 영상 {len(channel_recs)}개"
-                    )
+    with st.container(key="product_grid"):
+        for row_start in range(0, len(page_products), 3):
+            columns = st.columns(3, gap="medium")
+            row_products = page_products[row_start:row_start + 3]
+            for column, product in zip(columns, row_products):
+                with column:
+                    render_product_card(product)
 
-                    # 같은 채널에서 같은 근거 문구가 반복되면 한 번만 표시한다.
-                    unique_evidence = []
-                    seen_evidence = set()
-                    for rec in channel_recs:
-                        evidence = str(rec.get("evidence") or "").strip()
-                        if evidence and evidence not in seen_evidence:
-                            seen_evidence.add(evidence)
-                            unique_evidence.append(evidence)
-
-                    if unique_evidence:
-                        st.markdown("**공통 추천 근거**")
-                        for evidence in unique_evidence[:3]:
-                            st.write(f"• {evidence}")
-
-                    st.markdown("**관련 영상**")
-                    for video_index, rec in enumerate(channel_recs, 1):
-                        video = rec.get("video", {})
-                        title = video.get("title") or "제목을 확인할 수 없는 영상"
-                        st.markdown(f"**{video_index}. {safe(title)}**")
-
-                        reason = str(rec.get("reason") or "").strip()
-                        if reason and reason not in seen_evidence:
-                            st.caption(f"추천 이유: {reason}")
-
-                        pros = rec.get("pros") or []
-                        cons = rec.get("cons") or []
-                        if pros:
-                            st.caption("장점: " + " · ".join(str(value) for value in pros[:3]))
-                        if cons:
-                            st.caption("아쉬운 점: " + " · ".join(str(value) for value in cons[:3]))
-
-                        if rec.get("video_id"):
-                            st.link_button(
-                                f"원본 영상 {video_index} 보기",
-                                f"https://youtu.be/{rec['video_id']}",
-                                key=f"video_{product['product_id']}_{rec['recommendation_id']}",
-                                use_container_width=True,
-                            )
-
-                    if group_index < len(channel_groups):
-                        st.divider()
+    if total_pages > 1:
+        previous_col, page_col, next_col = st.columns([1, 1.2, 1])
+        if previous_col.button(
+            "← 이전",
+            disabled=current_page <= 1,
+            use_container_width=True,
+            key="catalog_previous",
+        ):
+            st.session_state.catalog_page = current_page - 1
+            st.rerun()
+        page_col.markdown(
+            f'<div style="text-align:center;padding:11px;color:#4E5968;font-weight:750">'
+            f'{current_page} / {total_pages}</div>',
+            unsafe_allow_html=True,
+        )
+        if next_col.button(
+            "다음 →",
+            disabled=current_page >= total_pages,
+            use_container_width=True,
+            key="catalog_next",
+        ):
+            st.session_state.catalog_page = current_page + 1
+            st.rerun()
 
 
 def render_dashboard():
