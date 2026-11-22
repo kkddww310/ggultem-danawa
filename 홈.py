@@ -778,6 +778,121 @@ div[data-testid="stForm"] {
   box-shadow: inset 0 0 0 1px #DDE9F8, 0 5px 18px rgba(49,130,246,.055) !important;
 }
 
+
+/* ===== 피치 오렌지 최종 테마: #F28A3A ===== */
+:root {
+  --peach-orange: #F28A3A;
+  --peach-orange-dark: #E67527;
+  --peach-orange-soft: #FFF2E8;
+  --peach-orange-glow: rgba(242,138,58,.22);
+}
+
+/* 상품 카드와 관리자/통계 카드: 검은 선 제거 */
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"],
+div[data-testid="stVerticalBlockBorderWrapper"],
+div[data-testid="stForm"] {
+  border: none !important;
+  outline: none !important;
+}
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] {
+  box-shadow: 0 8px 26px rgba(49,130,246,.10) !important;
+  background: #FFFFFF !important;
+}
+
+/* 검색 입력: border 대신 inset shadow를 써서 브라우저 기본 검정선을 완전히 덮음 */
+div[data-testid="stTextInput"] div[data-baseweb="input"],
+div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+  border: none !important;
+  outline: none !important;
+  background: #FFFFFF !important;
+  box-shadow: inset 0 0 0 2px var(--peach-orange), 0 4px 14px rgba(242,138,58,.10) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+}
+div[data-testid="stTextInput"] div[data-baseweb="input"] *,
+div[data-testid="stTextInput"] div[data-baseweb="base-input"] *,
+div[data-testid="stTextInput"] input {
+  border: none !important;
+  outline: none !important;
+  background: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+  box-shadow: none !important;
+}
+div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
+  box-shadow: inset 0 0 0 2px var(--peach-orange-dark), 0 0 0 4px var(--peach-orange-glow) !important;
+}
+
+/* 카테고리 선택: 오른쪽 검정 영역을 포함해 모든 자식 배경을 흰색으로 강제 */
+div[data-testid="stSelectbox"] div[data-baseweb="select"] {
+  border: none !important;
+  outline: none !important;
+  background: #FFFFFF !important;
+  box-shadow: inset 0 0 0 2px var(--peach-orange), 0 4px 14px rgba(242,138,58,.10) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+}
+div[data-testid="stSelectbox"] div[data-baseweb="select"] *,
+div[data-testid="stSelectbox"] div[role="combobox"],
+div[data-testid="stSelectbox"] div[role="combobox"] *,
+div[data-testid="stSelectbox"] div[aria-haspopup="listbox"],
+div[data-testid="stSelectbox"] div[aria-haspopup="listbox"] * {
+  border: none !important;
+  outline: none !important;
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+  box-shadow: none !important;
+}
+div[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within {
+  box-shadow: inset 0 0 0 2px var(--peach-orange-dark), 0 0 0 4px var(--peach-orange-glow) !important;
+}
+div[data-testid="stSelectbox"] svg,
+div[data-testid="stSelectbox"] [data-baseweb="icon"] {
+  fill: var(--peach-orange-dark) !important;
+  color: var(--peach-orange-dark) !important;
+  background: transparent !important;
+}
+
+/* 펼친 카테고리 메뉴 */
+div[data-baseweb="popover"],
+div[data-baseweb="popover"] > div,
+ul[role="listbox"],
+li[role="option"] {
+  background: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+  border: none !important;
+}
+div[data-baseweb="popover"] > div {
+  box-shadow: 0 10px 30px rgba(25,31,40,.13), inset 0 0 0 1px #FFD9BD !important;
+  border-radius: 12px !important;
+}
+li[role="option"]:hover,
+li[role="option"][aria-selected="true"] {
+  background: var(--peach-orange-soft) !important;
+  color: #B94F09 !important;
+  -webkit-text-fill-color: #B94F09 !important;
+}
+
+/* 펼치기 상자는 검은 테두리 없이 옅은 파란 내부선 */
+div[data-testid="stExpander"],
+div[data-testid="stExpander"] > details,
+div[data-testid="stExpander"] summary {
+  border: none !important;
+  outline: none !important;
+}
+div[data-testid="stExpander"] > details {
+  box-shadow: inset 0 0 0 1px #DDE9F8 !important;
+  border-radius: 13px !important;
+  background: #F9FBFE !important;
+}
+
+/* 브라우저의 자동 다크 폼 렌더링 차단 */
+input, select, textarea, option { color-scheme: only light !important; }
+
 </style>
 """, unsafe_allow_html=True)
 
