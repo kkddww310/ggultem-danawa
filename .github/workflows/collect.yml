@@ -2,9 +2,16 @@ name: Collect YouTube channels and videos
 
 on:
   workflow_dispatch:
+
   schedule:
-    # 한국 시간 매일 오전 2시
-    - cron: "0 17 * * *"
+    # GitHub Actions cron은 UTC 기준
+    # UTC 17:17 = 한국 시간 다음 날 오전 2:17
+    # 정각 혼잡을 피하기 위해 17분으로 설정
+    - cron: "17 17 * * *"
+
+concurrency:
+  group: collect-youtube-channels-and-videos
+  cancel-in-progress: false
 
 jobs:
   collect:
