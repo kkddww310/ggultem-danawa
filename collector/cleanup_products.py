@@ -31,6 +31,13 @@ UNKNOWN_MODELS = {
 
 COMPOSITE_MARKERS = ("+", "/", "&", " 세트", " 패키지", " 외 ", " 등 ")
 AUTO_APPROVE_SCORE = 93
+CONCRETE_APPROVE_SCORE = 82
+SPECIFIC_OPTION_PATTERN = re.compile(
+    r"(?:\b\d+(?:\.\d+)?\s?(?:ml|l|g|kg|mg|tb|gb|w|mah|hz|인치|매|개|호|번|세대)\b"
+    r"|\b[A-Za-z]{1,15}[- ]?\d+[A-Za-z0-9-]*\b"
+    r"|(?:핑크골드|베이지|브라운|뉴트럴|피치|로즈|블랙|화이트|레드|블루|그린|퍼플|코랄))",
+    re.I,
+)
 
 
 def normalize(value):
@@ -120,6 +127,27 @@ def merge_product(duplicate, representative):
     )
 
 
+def is_concrete_searchable(product, recommendation):
+    """과거 pending 상품도 브랜드+고유명+옵션+신뢰도가 충분하면 자동 승인한다."""
+    name = str(product.get("canonical_name") or "")
+    brand = str(product.get("brand") or "")
+    model = str(product.get("model") or "")
+    score = int(product.get("identity_score") or 0)
+    confidence = float((recommendation or {}).get("confidence") or 0)
+
+    if score < CONCRETE_APPROVE_SCORE or confidence < 0.90:
+        return False
+    if not normalize(brand) or is_generic(brand):
+        return False
+    if not normalize(model) or is_generic(model):
+        return False
+    if is_generic(name) or has_composite_marker(name):
+        return False
+    if len(normalize(model)) < 6:
+        return False
+    return bool(SPECIFIC_OPTION_PATTERN.search(f"{name} {model}"))
+
+
 def main():
     products = select(
         "products",
@@ -133,9 +161,16 @@ def main():
     )
     recommendations = select(
         "recommendations",
-        "recommendation_id,product_id,video_id",
+        "recommendation_id,product_id,video_id,confidence",
         limit=10000,
     )
+
+    best_recommendation = {}
+    for recommendation in recommendations:
+        product_id = recommendation.get("product_id")
+        current = best_recommendation.get(product_id)
+        if current is None or float(recommendation.get("confidence") or 0) > float(current.get("confidence") or 0):
+            best_recommendation[product_id] = recommendation
 
     hidden = approved = merged = review_kept = 0
 
@@ -215,15 +250,32 @@ def main():
             continue
 
         score = int(product.get("identity_score") or 0)
-        if score >= AUTO_APPROVE_SCORE:
-            approve_product(product)
+        concrete = is_concrete_searchable(
+            product,
+            best_recommendation.get(product["product_id"]),
+        )
+        if score >= AUTO_APPROVE_SCORE or concrete:
+            update(
+                "products",
+                {
+                    "review_status": "approved",
+                    "is_visible": True,
+                    "merge_status": "unique",
+                    "review_note": (
+                        "자동 식별점수 93점 이상 공개"
+                        if score >= AUTO_APPROVE_SCORE
+                        else "브랜드·고유 제품명·옵션 확인 자동 공개"
+                    ),
+                },
+                {"product_id": f"eq.{product['product_id']}"},
+            )
             approved += 1
         else:
             update(
                 "products",
                 {
                     "merge_status": "review",
-                    "review_note": "자동 승인 점수 미달로 관리자 검수 유지",
+                    "review_note": "자동 승인 기준 미달로 관리자 검수 유지",
                 },
                 {"product_id": f"eq.{product['product_id']}"},
             )
