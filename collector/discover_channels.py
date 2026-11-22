@@ -1,5 +1,9 @@
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
+import random
+import time
+
+import requests
 
 from collector.config import DISCOVERY_QUERY_LIMIT, MIN_SUBSCRIBERS
 from collector.database import select, update, upsert
@@ -87,6 +91,32 @@ def record_query_error(query_row, error):
     )
 
 
+def search_videos_with_retry(query_text, max_results=25):
+    """YouTube 검색의 순간적인 429를 지수 백오프로 재시도한다."""
+    waits = (5, 10, 20)
+    last_error = None
+
+    for attempt in range(len(waits) + 1):
+        try:
+            return search_videos(query_text, max_results=max_results)
+        except requests.HTTPError as error:
+            last_error = error
+            status = getattr(error.response, "status_code", None)
+            if status != 429 or attempt >= len(waits):
+                raise
+            wait_seconds = waits[attempt] + random.uniform(0.2, 1.2)
+            print(
+                f"YouTube 429 retry | query={query_text} | "
+                f"attempt={attempt + 1}/{len(waits)} | wait={wait_seconds:.1f}s"
+            )
+            time.sleep(wait_seconds)
+        except Exception as error:
+            last_error = error
+            raise
+
+    raise last_error
+
+
 def collect_candidates(query_rows):
     channel_names = {}
     category_votes = defaultdict(Counter)
@@ -97,7 +127,10 @@ def collect_candidates(query_rows):
         query_text = row["query_text"]
         category = row.get("category") or "기타"
         try:
-            items = search_videos(query_text, max_results=25)
+            # 검색 요청 사이의 간격으로 순간적인 QPS 제한을 줄인다.
+            if index > 1:
+                time.sleep(1.2 + random.uniform(0.1, 0.6))
+            items = search_videos_with_retry(query_text, max_results=25)
             found = set()
             for item in items:
                 snippet = item.get("snippet", {})
