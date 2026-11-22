@@ -119,7 +119,7 @@ def load_admin_data():
     )
     channels = api_get(
         "channels",
-        "channel_id,channel_name,status,scan_priority,total_scanned_videos,product_candidate_videos,extracted_product_count,created_at,last_scanned_at,next_video_scan_at",
+        "channel_id,channel_name,status,scan_priority,total_scanned_videos,product_candidate_videos,extracted_product_count,last_scanned_at,next_video_scan_at",
         {"limit": "10000"},
     )
     queries = api_get(
@@ -142,6 +142,31 @@ st.markdown("""
 .hero,.card{background:#fff;border-radius:20px;padding:20px;box-shadow:0 5px 20px rgba(0,0,0,.055);margin-bottom:12px}
 .hero b{font-size:31px}.muted{color:#6b7684;font-size:13px}.product-title{font-size:17px;font-weight:850}.badge{display:inline-block;background:#edf4ff;color:#2867c7;padding:4px 9px;border-radius:20px;font-size:11px;margin:5px 5px 5px 0}.reason{background:#f7f9fb;border-radius:12px;padding:12px;margin:9px 0;color:#4e5968;font-size:13px}.metric{background:#fff;border-radius:16px;padding:15px;box-shadow:0 3px 13px rgba(0,0,0,.05);min-height:94px}.metric-label{font-size:12px;color:#8b95a1;font-weight:700}.metric-value{font-size:25px;font-weight:900;margin-top:5px}.ok{color:#16883e}.warn{color:#d26b00}.danger{color:#d13438}
 [data-testid="stVerticalBlockBorderWrapper"]{background:#fff;border:0!important;border-radius:20px!important;box-shadow:0 5px 20px rgba(0,0,0,.055)!important;padding:18px!important;margin-bottom:12px!important}.stButton button,.stLinkButton a{border:0!important;border-radius:12px!important;min-height:42px!important;font-weight:750!important}[data-testid="stTextInput"] input,[data-testid="stSelectbox"] div{background:#fff!important;color:#191f28!important;-webkit-text-fill-color:#191f28!important}.status-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eef1f4;font-size:13px}.status-row:last-child{border:0}.error-box{background:#fff2f3;color:#a61b22;padding:10px;border-radius:10px;font-size:12px;margin:6px 0;word-break:break-word}
+
+/* 최종 내비게이션 색상 보정 */
+.stButton > button[kind="primary"],
+.stButton > button[data-testid="stBaseButton-primary"] {
+  background:#3182F6 !important;
+  border:1px solid #3182F6 !important;
+  color:#FFFFFF !important;
+}
+.stButton > button[kind="primary"] *,
+.stButton > button[data-testid="stBaseButton-primary"] * {
+  color:#FFFFFF !important;
+  -webkit-text-fill-color:#FFFFFF !important;
+}
+.stButton > button[kind="secondary"],
+.stButton > button[data-testid="stBaseButton-secondary"] {
+  background:#E9EEF5 !important;
+  border:1px solid #DCE3EB !important;
+  color:#344054 !important;
+}
+.stButton > button[kind="secondary"] *,
+.stButton > button[data-testid="stBaseButton-secondary"] * {
+  color:#344054 !important;
+  -webkit-text-fill-color:#344054 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
