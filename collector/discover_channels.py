@@ -1,529 +1,220 @@
 from collections import Counter, defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
-from collector.config import (
-    DISCOVERY_QUERIES,
-    DISCOVERY_QUERY_LIMIT,
-    MIN_SUBSCRIBERS,
-)
-from collector.database import upsert
-from collector.youtube_api import (
-    search_videos,
-    get_channels,
-)
-
+from collector.config import DISCOVERY_QUERY_LIMIT, MIN_SUBSCRIBERS
+from collector.database import select, update, upsert
+from collector.youtube_api import get_channels, search_videos
 
 KST = timezone(timedelta(hours=9))
 
 
-def normalize_query_entry(entry):
-    """
-    config.py의 검색어를 표준 형태로 변환한다.
-
-    새 형식:
-    {
-        "query": "로봇청소기 사용기",
-        "category": "생활·살림"
-    }
-
-    구형 문자열 형식도 호환한다.
-    """
-    if isinstance(entry, dict):
-        query = str(
-            entry.get("query", "")
-        ).strip()
-
-        category = str(
-            entry.get("category", "기타")
-        ).strip() or "기타"
-
-        return {
-            "query": query,
-            "category": category,
-        }
-
-    return {
-        "query": str(entry or "").strip(),
-        "category": "기타",
-    }
+def now_iso():
+    return datetime.now(timezone.utc).isoformat()
 
 
-def get_daily_queries():
-    """
-    현재 날짜를 기준으로 오늘 실행할 검색어 묶음을 선택한다.
-
-    예:
-    전체 검색어 140개
-    하루 실행 20개
-
-    1일차: 0~19
-    2일차: 20~39
-    3일차: 40~59
-    ...
-    7일차: 120~139
-    8일차: 다시 0~19
-    """
-    normalized_queries = [
-        normalize_query_entry(entry)
-        for entry in DISCOVERY_QUERIES
-    ]
-
-    normalized_queries = [
-        entry
-        for entry in normalized_queries
-        if entry["query"]
-    ]
-
-    if not normalized_queries:
-        return []
-
-    limit = max(
-        1,
-        min(
-            DISCOVERY_QUERY_LIMIT,
-            len(normalized_queries),
+def select_due_queries(limit):
+    rows = select(
+        "discovery_queries",
+        (
+            "query_id,query_text,category,priority,last_run_at,next_run_at,"
+            "run_count,channels_found,active_channels_found,"
+            "consecutive_empty_runs,error_count,last_error"
         ),
+        {
+            "enabled": "eq.true",
+            "next_run_at": f"lte.{now_iso()}",
+        },
+        limit=max(1, limit),
+        order="priority.desc,next_run_at.asc,last_run_at.asc.nullsfirst",
     )
 
-    today = datetime.now(KST).date()
-
-    # 2026-01-01을 순환 기준일로 사용한다.
-    base_date = datetime(
-        2026,
-        1,
-        1,
-        tzinfo=KST,
-    ).date()
-
-    elapsed_days = (
-        today - base_date
-    ).days
-
-    start_index = (
-        elapsed_days * limit
-    ) % len(normalized_queries)
-
-    selected = []
-
-    for offset in range(limit):
-        index = (
-            start_index + offset
-        ) % len(normalized_queries)
-
-        selected.append(
-            normalized_queries[index]
+    # 최초 실행 직후에는 모든 행의 next_run_at가 비슷하다.
+    # REST order 호환성 차이를 피하기 위해 코드에서도 한 번 정렬한다.
+    rows.sort(
+        key=lambda row: (
+            -int(row.get("priority", 1) or 1),
+            row.get("next_run_at") or "",
+            row.get("last_run_at") or "",
         )
+    )
+    return rows[:limit]
 
-    return selected
+
+def record_query_success(query_row, found_count, active_count):
+    empty_runs = 0 if found_count > 0 else int(query_row.get("consecutive_empty_runs", 0) or 0) + 1
+
+    if active_count > 0:
+        delay = timedelta(days=1)
+    elif found_count > 0:
+        delay = timedelta(days=3)
+    else:
+        delay = timedelta(days=7)
+
+    # 연속 빈 결과 5회 이상은 삭제하지 않고 30일 뒤로 미룬다.
+    if empty_runs >= 5:
+        delay = timedelta(days=30)
+
+    current = datetime.now(timezone.utc)
+    update(
+        "discovery_queries",
+        {
+            "last_run_at": current.isoformat(),
+            "next_run_at": (current + delay).isoformat(),
+            "run_count": int(query_row.get("run_count", 0) or 0) + 1,
+            "channels_found": int(query_row.get("channels_found", 0) or 0) + found_count,
+            "active_channels_found": int(query_row.get("active_channels_found", 0) or 0) + active_count,
+            "consecutive_empty_runs": empty_runs,
+            "last_error": None,
+            "updated_at": current.isoformat(),
+        },
+        {"query_id": f"eq.{query_row['query_id']}"},
+    )
 
 
-def discover_channel_candidates(
-    selected_queries,
-):
-    """
-    오늘 선택된 검색어로 YouTube 영상을 검색하고
-    실제 업로드 채널 ID를 수집한다.
+def record_query_error(query_row, error):
+    current = datetime.now(timezone.utc)
+    update(
+        "discovery_queries",
+        {
+            "last_run_at": current.isoformat(),
+            "next_run_at": (current + timedelta(hours=6)).isoformat(),
+            "run_count": int(query_row.get("run_count", 0) or 0) + 1,
+            "error_count": int(query_row.get("error_count", 0) or 0) + 1,
+            "last_error": str(error)[:1000],
+            "updated_at": current.isoformat(),
+        },
+        {"query_id": f"eq.{query_row['query_id']}"},
+    )
 
-    채널명 문자열을 추측하지 않고
-    YouTube 검색 결과의 snippet.channelId를 사용한다.
-    """
+
+def collect_candidates(query_rows):
     channel_names = {}
     category_votes = defaultdict(Counter)
-    query_results = []
+    query_channel_ids = {}
+    errors = {}
 
-    for index, entry in enumerate(
-        selected_queries,
-        start=1,
-    ):
-        query = entry["query"]
-        category = entry["category"]
-
+    for index, row in enumerate(query_rows, start=1):
+        query_text = row["query_text"]
+        category = row.get("category") or "기타"
         try:
-            items = search_videos(
-                query,
-                max_results=25,
-            )
-
-            discovered_in_query = set()
-
+            items = search_videos(query_text, max_results=25)
+            found = set()
             for item in items:
-                snippet = item.get(
-                    "snippet",
-                    {},
-                )
-
-                channel_id = str(
-                    snippet.get(
-                        "channelId",
-                        "",
-                    )
-                ).strip()
-
-                channel_name = str(
-                    snippet.get(
-                        "channelTitle",
-                        "",
-                    )
-                ).strip()
-
+                snippet = item.get("snippet", {})
+                channel_id = str(snippet.get("channelId", "")).strip()
+                channel_name = str(snippet.get("channelTitle", "")).strip()
                 if not channel_id:
                     continue
-
-                discovered_in_query.add(
-                    channel_id
-                )
-
+                found.add(channel_id)
                 if channel_name:
-                    channel_names[
-                        channel_id
-                    ] = channel_name
+                    channel_names[channel_id] = channel_name
+                category_votes[channel_id][category] += 1
 
-                category_votes[
-                    channel_id
-                ][category] += 1
-
-            query_results.append(
-                {
-                    "query": query,
-                    "category": category,
-                    "found": len(
-                        discovered_in_query
-                    ),
-                    "error": "",
-                }
-            )
-
+            query_channel_ids[row["query_id"]] = found
             print(
-                f"[{index}/"
-                f"{len(selected_queries)}] "
-                f"{category} | "
-                f"{query} | "
-                f"channels="
-                f"{len(discovered_in_query)}"
+                f"[{index}/{len(query_rows)}] {category} | {query_text} | "
+                f"channels={len(found)}"
             )
-
         except Exception as error:
-            query_results.append(
-                {
-                    "query": query,
-                    "category": category,
-                    "found": 0,
-                    "error": str(error),
-                }
-            )
-
+            query_channel_ids[row["query_id"]] = set()
+            errors[row["query_id"]] = error
             print(
-                f"[{index}/"
-                f"{len(selected_queries)}] "
-                f"{category} | "
-                f"{query} | "
-                f"ERROR: {error}"
+                f"[{index}/{len(query_rows)}] {category} | {query_text} | ERROR: {error}"
             )
 
-    return {
-        "channel_ids": list(
-            channel_names.keys()
-        ),
-        "channel_names": channel_names,
-        "category_votes": category_votes,
-        "query_results": query_results,
-    }
+    return channel_names, category_votes, query_channel_ids, errors
 
 
-def choose_primary_category(
-    channel_id,
-    category_votes,
-):
-    """
-    한 채널이 여러 검색 분야에서 발견된 경우
-    가장 많이 발견된 분야를 대표 카테고리로 사용한다.
-    """
-    votes = category_votes.get(
-        channel_id,
-    )
-
-    if not votes:
-        return "기타"
-
-    return votes.most_common(1)[0][0]
-
-
-def build_channel_records(
-    channel_items,
-    candidate_data,
-):
-    """
-    YouTube channels.list 결과를
-    Supabase channels 테이블 형식으로 변환한다.
-    """
+def build_channel_records(channel_items, channel_names, category_votes):
     records = []
-
-    scanned_at = datetime.now(
-        timezone.utc
-    ).isoformat()
-
-    category_votes = candidate_data[
-        "category_votes"
-    ]
-
-    fallback_names = candidate_data[
-        "channel_names"
-    ]
+    status_by_channel = {}
+    scanned_at = now_iso()
 
     for item in channel_items:
-        channel_id = str(
-            item.get("id", "")
-        ).strip()
-
+        channel_id = str(item.get("id", "")).strip()
         if not channel_id:
             continue
 
-        snippet = item.get(
-            "snippet",
-            {},
-        )
-
-        statistics = item.get(
-            "statistics",
-            {},
-        )
-
-        content_details = item.get(
-            "contentDetails",
-            {},
-        )
-
-        related_playlists = (
-            content_details
-            .get(
-                "relatedPlaylists",
-                {},
-            )
-        )
-
-        uploads_playlist_id = (
-            related_playlists
-            .get("uploads")
-        )
-
-        hidden_subscribers = bool(
-            statistics.get(
-                "hiddenSubscriberCount",
-                False,
-            )
-        )
+        snippet = item.get("snippet", {})
+        statistics = item.get("statistics", {})
+        content_details = item.get("contentDetails", {})
+        hidden = bool(statistics.get("hiddenSubscriberCount", False))
 
         try:
-            subscriber_count = int(
-                statistics.get(
-                    "subscriberCount",
-                    0,
-                )
-                or 0
-            )
+            subscribers = int(statistics.get("subscriberCount", 0) or 0)
         except (TypeError, ValueError):
-            subscriber_count = 0
+            subscribers = 0
 
-        if hidden_subscribers:
-            status = (
-                "hidden_subscribers"
-            )
-
-        elif subscriber_count >= (
-            MIN_SUBSCRIBERS
-        ):
+        if hidden:
+            status = "hidden_subscribers"
+        elif subscribers >= MIN_SUBSCRIBERS:
             status = "active"
-
         else:
-            status = (
-                "below_threshold"
-            )
+            status = "below_threshold"
 
-        channel_name = str(
-            snippet.get(
-                "title",
-                "",
-            )
-            or fallback_names.get(
-                channel_id,
-                "",
-            )
-        ).strip()
-
-        primary_category = (
-            choose_primary_category(
-                channel_id,
-                category_votes,
-            )
-        )
-
-        category_counts = dict(
-            category_votes.get(
-                channel_id,
-                {},
-            )
-        )
+        votes = category_votes.get(channel_id, Counter())
+        primary_category = votes.most_common(1)[0][0] if votes else "기타"
+        uploads = content_details.get("relatedPlaylists", {}).get("uploads")
 
         records.append(
             {
-                "channel_id": (
-                    channel_id
-                ),
-                "channel_name": (
-                    channel_name
-                    or channel_id
-                ),
-                "subscriber_count": (
-                    subscriber_count
-                ),
-                "subscriber_hidden": (
-                    hidden_subscribers
-                ),
-                "country": (
-                    snippet.get(
-                        "country"
-                    )
-                ),
-                "description": str(
-                    snippet.get(
-                        "description",
-                        "",
-                    )
-                    or ""
-                )[:5000],
-                "primary_category": (
-                    primary_category
-                ),
-                "category_scores": (
-                    category_counts
-                ),
-                "uploads_playlist_id": (
-                    uploads_playlist_id
-                ),
+                "channel_id": channel_id,
+                "channel_name": str(
+                    snippet.get("title") or channel_names.get(channel_id) or channel_id
+                ).strip(),
+                "subscriber_count": subscribers,
+                "subscriber_hidden": hidden,
+                "country": snippet.get("country"),
+                "description": str(snippet.get("description", "") or "")[:5000],
+                "primary_category": primary_category,
+                "category_scores": dict(votes),
+                "uploads_playlist_id": uploads,
                 "status": status,
-                "last_scanned_at": (
-                    scanned_at
-                ),
+                "last_scanned_at": scanned_at,
             }
         )
+        status_by_channel[channel_id] = status
 
-    return records
+    return records, status_by_channel
 
 
 def main():
-    """
-    날짜에 따라 검색어 일부를 순환 실행하고
-    발견된 YouTube 채널을 Supabase에 저장한다.
-    """
-    selected_queries = (
-        get_daily_queries()
-    )
-
-    if not selected_queries:
-        print(
-            "실행할 검색어가 없습니다."
-        )
+    query_rows = select_due_queries(DISCOVERY_QUERY_LIMIT)
+    if not query_rows:
+        print("No discovery queries are due. Nothing to run.")
         return
 
-    print(
-        "YouTube channel discovery "
-        "started"
-    )
+    print(f"Due discovery queries selected: {len(query_rows)}")
+    for row in query_rows:
+        print(f"- priority={row.get('priority', 1)} [{row.get('category')}] {row['query_text']}")
 
-    print(
-        f"Total configured queries: "
-        f"{len(DISCOVERY_QUERIES)}"
-    )
-
-    print(
-        f"Queries selected today: "
-        f"{len(selected_queries)}"
-    )
-
-    for entry in selected_queries:
-        print(
-            f"- [{entry['category']}] "
-            f"{entry['query']}"
-        )
-
-    candidate_data = (
-        discover_channel_candidates(
-            selected_queries
-        )
-    )
-
-    channel_ids = candidate_data[
-        "channel_ids"
-    ]
-
-    if not channel_ids:
-        print(
-            "검색 결과에서 채널을 "
-            "발견하지 못했습니다."
-        )
-        return
-
-    print(
-        f"Unique channel candidates: "
-        f"{len(channel_ids)}"
-    )
-
-    channel_items = get_channels(
-        channel_ids
-    )
-
-    records = build_channel_records(
-        channel_items,
-        candidate_data,
+    channel_names, category_votes, query_channel_ids, errors = collect_candidates(query_rows)
+    channel_ids = list(channel_names.keys())
+    channel_items = get_channels(channel_ids) if channel_ids else []
+    records, status_by_channel = build_channel_records(
+        channel_items, channel_names, category_votes
     )
 
     if records:
-        upsert(
-            "channels",
-            records,
-            "channel_id",
+        upsert("channels", records, "channel_id")
+
+    for row in query_rows:
+        query_id = row["query_id"]
+        if query_id in errors:
+            record_query_error(row, errors[query_id])
+            continue
+
+        found_ids = query_channel_ids.get(query_id, set())
+        active_count = sum(
+            1 for channel_id in found_ids if status_by_channel.get(channel_id) == "active"
         )
+        record_query_success(row, len(found_ids), active_count)
 
-    active_count = sum(
-        1
-        for record in records
-        if record["status"] == "active"
-    )
-
-    below_count = sum(
-        1
-        for record in records
-        if record["status"]
-        == "below_threshold"
-    )
-
-    hidden_count = sum(
-        1
-        for record in records
-        if record["status"]
-        == "hidden_subscribers"
-    )
-
-    query_error_count = sum(
-        1
-        for result
-        in candidate_data[
-            "query_results"
-        ]
-        if result["error"]
-    )
-
+    active_total = sum(1 for record in records if record["status"] == "active")
     print(
-        "Channel discovery completed | "
-        f"saved={len(records)} | "
-        f"active_1m_plus="
-        f"{active_count} | "
-        f"below_threshold="
-        f"{below_count} | "
-        f"hidden_subscribers="
-        f"{hidden_count} | "
-        f"query_errors="
-        f"{query_error_count}"
+        "DB-scheduled channel discovery completed | "
+        f"queries={len(query_rows)} | unique_channels={len(records)} | "
+        f"active_1m_plus={active_total} | query_errors={len(errors)}"
     )
 
 
