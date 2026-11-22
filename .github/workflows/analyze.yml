@@ -1,0 +1,38 @@
+name: Analyze YouTube product candidates
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    # GitHub Actions는 UTC 기준
+    # 한국 시간 오전 3시, 오전 9시, 오후 3시, 오후 9시
+    - cron: "0 18,0,6,12 * * *"
+
+concurrency:
+  group: analyze-youtube-products
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Extract products with OpenRouter
+        run: python -m collector.extract_products
