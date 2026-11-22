@@ -190,6 +190,86 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 .purchase-badge{display:inline-block;margin:4px 5px 5px 0;padding:4px 8px;border-radius:999px;background:#FFF2E8;color:#B94F09;border:1px solid #FFD9BD;font-size:11px;font-weight:800}
 .summary-line{margin-top:6px;padding:8px 10px;border-radius:9px;font-size:12px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .summary-pro{background:#EEF8F3;color:#176B49}.summary-con{background:#FFF3F3;color:#A61B22}
+
+/* ===== 간결한 상품 카드 최종 보정 ===== */
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] {
+  padding: 13px !important;
+  border-radius: 18px !important;
+}
+.st-key-product_grid .product-title {
+  min-height: 44px !important;
+  margin-top: 2px !important;
+  font-size: 16px !important;
+  line-height: 1.38 !important;
+}
+.st-key-product_grid .muted {
+  margin-top: 2px !important;
+  font-size: 12px !important;
+}
+.st-key-product_grid .badge,
+.st-key-product_grid .purchase-badge {
+  padding: 3px 7px !important;
+  margin: 4px 3px 3px 0 !important;
+  font-size: 10px !important;
+}
+.st-key-product_grid .summary-line {
+  margin: 6px 0 8px !important;
+  padding: 7px 9px !important;
+  min-height: 0 !important;
+  font-size: 12px !important;
+  -webkit-line-clamp: 1 !important;
+}
+.st-key-product_grid [data-testid="stLinkButton"] a {
+  min-height: 38px !important;
+  font-size: 13px !important;
+  padding: 6px 7px !important;
+}
+.st-key-product_grid [data-testid="stExpander"] {
+  margin-top: 7px !important;
+  border-radius: 11px !important;
+}
+.st-key-product_grid [data-testid="stExpander"] summary {
+  min-height: 38px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 13px !important;
+}
+.video-thumbnail-wrap,
+.product-placeholder,
+.st-key-product_grid [data-testid="stImage"],
+.st-key-product_grid [data-testid="stImage"] img {
+  height: 180px !important;
+  min-height: 180px !important;
+  max-height: 180px !important;
+}
+.video-thumbnail-label {
+  left: 8px !important;
+  bottom: 8px !important;
+  padding: 5px 8px !important;
+  font-size: 10px !important;
+}
+@media (max-width: 900px) and (min-width: 601px) {
+  .video-thumbnail-wrap,
+  .product-placeholder,
+  .st-key-product_grid [data-testid="stImage"],
+  .st-key-product_grid [data-testid="stImage"] img {
+    height: 175px !important;
+    min-height: 175px !important;
+    max-height: 175px !important;
+  }
+}
+@media (max-width: 600px) {
+  .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] { padding: 14px !important; }
+  .video-thumbnail-wrap,
+  .product-placeholder,
+  .st-key-product_grid [data-testid="stImage"],
+  .st-key-product_grid [data-testid="stImage"] img {
+    height: 200px !important;
+    min-height: 200px !important;
+    max-height: 200px !important;
+  }
+  .st-key-product_grid .product-title { min-height: 0 !important; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -307,10 +387,6 @@ def render_product_card(product):
         render_purchase_badges(summary["purchase_counts"])
         if summary["pros"]:
             st.markdown(f'<div class="summary-line summary-pro">장점 · {safe(summary["pros"][0])}</div>', unsafe_allow_html=True)
-        if summary["cons"]:
-            st.markdown(f'<div class="summary-line summary-con">아쉬움 · {safe(summary["cons"][0])}</div>', unsafe_allow_html=True)
-        if recs and recs[0].get("reason"):
-            st.markdown(f'<div class="reason">{safe(recs[0]["reason"])}</div>', unsafe_allow_html=True)
         query_name = quote(str(product.get("canonical_name") or product.get("search_keyword") or ""))
         affiliate = bool(
             product.get("affiliate_verified")
@@ -335,7 +411,7 @@ def render_product_card(product):
                 coupang_url,
                 use_container_width=True,
             )
-        with st.expander(f"추천 근거와 영상 {len(recs)}건"):
+        with st.expander(f"상세 비교 · 영상 {len(recs)}개"):
             if summary["pros"] or summary["cons"]:
                 st.markdown("**영상 통합 요약**")
                 if summary["pros"]:
