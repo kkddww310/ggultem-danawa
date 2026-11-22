@@ -5,9 +5,8 @@ on:
 
   schedule:
     # GitHub Actions cron은 UTC 기준
-    # UTC 17:17 = 한국 시간 다음 날 오전 2:17
-    # 정각 혼잡을 피하기 위해 17분으로 설정
-    - cron: "17 17 * * *"
+    # UTC 05:17, 17:17 = 한국 시간 오후 2:17, 다음 날 오전 2:17
+    - cron: "17 5,17 * * *"
 
 concurrency:
   group: collect-youtube-channels-and-videos
@@ -16,16 +15,16 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     env:
       YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      MIN_SUBSCRIBERS: "1000000"
-      DISCOVERY_QUERY_LIMIT: "20"
-      VIDEOS_PER_CHANNEL: "30"
+      MIN_SUBSCRIBERS: "100000"
+      DISCOVERY_QUERY_LIMIT: "25"
+      VIDEOS_PER_CHANNEL: "50"
 
     steps:
       - name: Checkout repository
