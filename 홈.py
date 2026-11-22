@@ -387,7 +387,18 @@ def render_home():
             if recs and recs[0].get("reason"):
                 st.markdown(f'<div class="reason">{safe(recs[0]["reason"])}</div>', unsafe_allow_html=True)
 
-            search_name = item.get("search_keyword") or item.get("canonical_name")
+            # 판매처 검색에는 관리자가 검수한 전체 상품명을 최우선으로 사용한다.
+            # 일반 키워드만 쓰면 쿠팡/네이버에서 엉뚱한 검색 결과로 이동할 수 있다.
+            search_parts = [
+                str(item.get("canonical_name") or "").strip(),
+                str(item.get("brand") or "").strip(),
+                str(item.get("model") or "").strip(),
+            ]
+            search_name = " ".join(
+                dict.fromkeys(part for part in search_parts if part)
+            ).strip()
+            if not search_name:
+                search_name = str(item.get("search_keyword") or "").strip()
             encoded = quote(search_name)
             b1, b2 = st.columns(2)
             b1.link_button(
