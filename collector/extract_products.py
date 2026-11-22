@@ -9,7 +9,7 @@ from collector.config import OPENROUTER_API_KEY
 from collector.database import select, upsert, update
 
 MODELS = ("openrouter/free",)
-BATCH_LIMIT = 5
+BATCH_LIMIT = 12
 MIN_CONFIDENCE = 0.87
 MAX_ATTEMPTS = 3
 RETRY_SECONDS = (5, 12)
@@ -30,6 +30,10 @@ GENERIC_TERMS = {
 }
 UNKNOWN_MODELS = {"", "확인되지않음", "미확인", "unknown", "없음", "미상"}
 COMPOSITE_MARKERS = ("+", "/", "&", " 세트", " 패키지", " 외 ", " 등 ")
+INVALID_POINT_PATTERNS = (
+    "원문에", "명시됨", "후기는 없음", "후기 없음", "언급 없음",
+    "정보가 없음", "확인되지 않", "알 수 없", "단점 없음", "장점 없음",
+)
 
 STANDARD_CATEGORIES = {
     "IT·전자", "뷰티", "패션", "생활·살림", "주방", "여행",
@@ -98,6 +102,18 @@ def extract_json(text):
 def is_generic(value):
     normalized = normalize_text(value)
     return not normalized or normalized in GENERIC_TERMS
+
+
+def clean_points(values):
+    cleaned_list = []
+    for raw in values or []:
+        text = re.sub(r"\s+", " ", str(raw or "").strip())
+        if len(text) < 2:
+            continue
+        if any(pattern in text for pattern in INVALID_POINT_PATTERNS):
+            continue
+        cleaned_list.append(text)
+    return cleaned_list[:4]
 
 
 def has_specific_model(model):
@@ -192,8 +208,8 @@ def validate_product(video, raw):
         "keyword": str(raw.get("keyword", "")).strip() or name,
         "category": standardize_category(raw.get("category", "기타"), name),
         "reason": str(raw.get("reason", "")).strip(),
-        "pros": [str(x).strip() for x in raw.get("pros", []) if str(x).strip()][:4],
-        "cons": [str(x).strip() for x in raw.get("cons", []) if str(x).strip()][:4],
+        "pros": clean_points(raw.get("pros", [])),
+        "cons": clean_points(raw.get("cons", [])),
         "evidence": str(raw.get("evidence", "")).strip()[:300],
         "confidence": confidence,
         "purchase_type": str(raw.get("purchase_type", "확인되지 않음")).strip() or "확인되지 않음",
@@ -206,6 +222,7 @@ def build_prompt(video):
 제목과 설명에 직접 명시된 브랜드와 정확한 모델이 있는 단일 제품만 추출하라.
 일반 품목명, 운동 도구 통칭, 여러 물건을 + 또는 /로 묶은 표현은 반환하지 마라.
 브랜드나 모델을 추측하지 마라.
+pros와 cons에는 실제 제품의 특징·효능·사용감·가격적 아쉬움만 적고, "원문에 명시됨", "상세 후기 없음" 같은 분석 메모는 절대 넣지 마라. 근거가 없으면 빈 배열 []로 두어라.
 
 반드시 JSON 객체 하나만 반환한다.
 {{"items":[{{"name":"브랜드 + 정확한 단일 제품명","brand":"브랜드","model":"정확한 모델명","keyword":"정확한 상품 검색어","category":"IT·전자|뷰티|패션|생활·살림|주방|여행|자동차|운동·건강|육아|반려동물|기타","reason":"소개 이유","pros":["장점"],"cons":["단점"],"evidence":"원문 근거","confidence":0.0,"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음"}}]}}
