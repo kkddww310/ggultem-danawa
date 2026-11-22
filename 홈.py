@@ -1,4 +1,6 @@
 import html
+import re
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 import requests
@@ -46,6 +48,21 @@ def api_get(table, select="*", params=None, timeout=30):
     if not response.ok:
         raise RuntimeError(f"Supabase 조회 실패: HTTP {response.status_code} · {response.text[:300]}")
     return response.json()
+
+
+def api_patch(table, values, params=None, timeout=30):
+    response = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers={**supabase_headers(), "Prefer": "return=representation"},
+        params=params or {},
+        json=values,
+        timeout=timeout,
+    )
+    if not response.ok:
+        raise RuntimeError(
+            f"Supabase 수정 실패: HTTP {response.status_code} · {response.text[:300]}"
+        )
+    return response.json() if response.text else []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -111,6 +128,43 @@ def load_catalog():
 
     catalog.sort(key=lambda x: (x["channel_count"], x["video_count"], x["max_confidence"]), reverse=True)
     return catalog
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_pending_products():
+    products = api_get(
+        "products",
+        (
+            "product_id,canonical_name,normalized_name,brand,model,category,"
+            "search_keyword,review_status,is_visible,review_note,created_at"
+        ),
+        {"review_status": "eq.pending", "order": "created_at.asc", "limit": "500"},
+    )
+    recommendations = api_get(
+        "recommendations",
+        (
+            "recommendation_id,product_id,video_id,channel_id,reason,pros,cons,"
+            "evidence,confidence,purchase_type"
+        ),
+        {"limit": "5000"},
+    )
+    videos = api_get("videos", "video_id,title", {"limit": "5000"})
+    channels = api_get(
+        "channels", "channel_id,channel_name,subscriber_count", {"limit": "5000"}
+    )
+    video_map = {row["video_id"]: row for row in videos}
+    channel_map = {row["channel_id"]: row for row in channels}
+    grouped = {}
+    for rec in recommendations:
+        grouped.setdefault(rec.get("product_id"), []).append(rec)
+    for product in products:
+        product["recommendations"] = []
+        for rec in grouped.get(product["product_id"], []):
+            item = dict(rec)
+            item["video"] = video_map.get(rec.get("video_id"), {})
+            item["channel"] = channel_map.get(rec.get("channel_id"), {})
+            product["recommendations"].append(item)
+    return products
 
 
 def safe(value):
@@ -258,126 +312,301 @@ div[data-testid="stVerticalBlockBorderWrapper"] > div { border:none !important; 
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="app-title">🛍️ 꿀템 다나와</div>', unsafe_allow_html=True)
+def render_home():
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        st.error("Streamlit Secrets에 SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY를 등록해 주세요.")
+        st.stop()
 
+    try:
+        with st.spinner("자동 수집된 꿀템을 불러오는 중..."):
+            catalog = load_catalog()
+    except Exception as error:
+        st.error(str(error))
+        st.info("SUPABASE_URL에는 /rest/v1 없이 https://프로젝트ID.supabase.co 까지만 입력해야 합니다.")
+        st.stop()
+
+    all_channels = {
+        rec.get("channel", {}).get("channel_id")
+        for item in catalog for rec in item["recommendations"]
+        if rec.get("channel", {}).get("channel_id")
+    }
+    all_videos = {
+        rec.get("video_id") for item in catalog for rec in item["recommendations"] if rec.get("video_id")
+    }
+
+    st.markdown(f"""
+    <div class="hero">
+      <div class="hero-label">유튜버 영상에서 자동 검증된 상품</div>
+      <div class="hero-count">{len(catalog):,}개</div>
+      <div class="hero-meta">실제 채널 {len(all_channels):,}개 · 추천 영상 {len(all_videos):,}개 · 매일 자동 업데이트</div>
+    </div>
+    <div class="notice"><b>데이터 안내</b><br>유튜브 영상 제목·설명과 AI 분석을 바탕으로 정리한 상품입니다. 구매 전 모델명과 판매 정보를 다시 확인해 주세요.</div>
+    """, unsafe_allow_html=True)
+
+    c1, c2 = st.columns([1.45, 1])
+    keyword = c1.text_input("상품 검색", placeholder="🔍 상품·브랜드·유튜버 검색", label_visibility="collapsed")
+    categories = sorted({x.get("category") or "기타" for x in catalog})
+    selected_category = c2.selectbox("카테고리", ["전체"] + categories, label_visibility="collapsed")
+
+    filtered = []
+    for item in catalog:
+        if selected_category != "전체" and (item.get("category") or "기타") != selected_category:
+            continue
+        channel_names = " ".join(rec.get("channel", {}).get("channel_name", "") for rec in item["recommendations"])
+        haystack = " ".join([
+            item.get("canonical_name", ""), item.get("brand", ""), item.get("model", ""),
+            item.get("category", ""), item.get("search_keyword", ""), channel_names,
+        ]).lower()
+        if keyword and keyword.lower() not in haystack:
+            continue
+        filtered.append(item)
+
+    st.caption(f"검증 상품 {len(filtered)}개 · 데이터는 5분마다 자동 갱신")
+
+    if not filtered:
+        with st.container(border=True):
+            st.write("조건에 맞는 자동 수집 상품이 아직 없습니다.")
+
+    for item in filtered:
+        recs = item["recommendations"]
+        icon, icon_bg = icon_for(f"{item.get('canonical_name')} {item.get('category')}")
+        with st.container(border=True):
+            st.markdown(
+                f'<div class="product-head"><div class="product-icon" style="background:{icon_bg}">{icon}</div>'
+                f'<div><div class="product-name">{safe(item.get("canonical_name"))}</div>'
+                f'<div class="product-sub">{safe(item.get("brand"))} · {safe(item.get("category") or "기타")}</div></div></div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<span class="badge">유튜버 {item["channel_count"]}명</span>'
+                f'<span class="badge">추천 영상 {item["video_count"]}개</span>'
+                f'<span class="badge">근거 신뢰도 {item["max_confidence"]:.0%}</span>',
+                unsafe_allow_html=True,
+            )
+
+            if recs and recs[0].get("reason"):
+                st.markdown(f'<div class="reason">{safe(recs[0]["reason"])}</div>', unsafe_allow_html=True)
+
+            search_name = item.get("search_keyword") or item.get("canonical_name")
+            encoded = quote(search_name)
+            b1, b2 = st.columns(2)
+            b1.link_button(
+                "네이버쇼핑 확인",
+                f"https://search.shopping.naver.com/search/all?query={encoded}&sort=price_asc",
+                type="primary",
+                use_container_width=True,
+            )
+            b2.link_button(
+                "쿠팡에서 검색",
+                f"https://www.coupang.com/np/search?q={encoded}",
+                type="secondary",
+                use_container_width=True,
+            )
+
+            with st.expander(f"추천 근거와 영상 {len(recs)}건"):
+                for index, rec in enumerate(recs, 1):
+                    channel = rec.get("channel", {})
+                    video = rec.get("video", {})
+                    channel_name = channel.get("channel_name") or "알 수 없는 채널"
+                    subscribers = human_number(channel.get("subscriber_count"))
+                    confidence = float(rec.get("confidence") or 0)
+                    st.markdown(f"**{index}. {safe(channel_name)}** · 구독자 {subscribers} · 신뢰도 {confidence:.0%}")
+                    if video.get("title"):
+                        st.caption(video["title"])
+                    if rec.get("evidence"):
+                        st.write(f"근거: {rec['evidence']}")
+                    pros = rec.get("pros") or []
+                    cons = rec.get("cons") or []
+                    if pros:
+                        st.write("좋았던 점: " + " · ".join(str(x) for x in pros))
+                    if cons:
+                        st.write("아쉬운 점: " + " · ".join(str(x) for x in cons))
+                    st.caption(f"구매 형태: {rec.get('purchase_type') or '확인되지 않음'}")
+                    st.link_button(
+                        f"▶ {timestamp(rec.get('start_sec'))}부터 영상 보기",
+                        youtube_url(rec),
+                        key=f"video_{item['product_id']}_{rec['recommendation_id']}",
+                        use_container_width=True,
+                    )
+                    if index < len(recs):
+                        st.divider()
+
+    if st.button("최신 데이터 다시 불러오기", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+def render_admin():
+    admin_password = get_secret("ADMIN_PASSWORD")
+    if not admin_password:
+        st.error("Streamlit Secrets에 ADMIN_PASSWORD를 등록해 주세요.")
+        return
+
+    if not st.session_state.get("admin_authenticated", False):
+        with st.container(border=True):
+            st.subheader("관리자 로그인")
+            entered = st.text_input("관리자 비밀번호", type="password", key="admin_password_input")
+            if st.button("로그인", type="primary", use_container_width=True):
+                if entered == admin_password:
+                    st.session_state.admin_authenticated = True
+                    st.rerun()
+                else:
+                    st.error("비밀번호가 맞지 않습니다.")
+        return
+
+    head1, head2 = st.columns([3, 1])
+    head1.subheader("검수 대기 상품")
+    if head2.button("로그아웃", use_container_width=True):
+        st.session_state.admin_authenticated = False
+        st.rerun()
+
+    try:
+        pending = load_pending_products()
+    except Exception as error:
+        st.error(str(error))
+        return
+
+    st.caption(f"승인 또는 숨김 처리가 필요한 상품 {len(pending)}개")
+    if not pending:
+        st.success("현재 검수 대기 상품이 없습니다.")
+        return
+
+    category_options = [
+        "IT·전자", "뷰티", "패션", "생활·살림", "주방", "여행", "자동차",
+        "운동·건강", "육아", "반려동물", "기타"
+    ]
+
+    for product in pending:
+        product_id = product["product_id"]
+        with st.container(border=True):
+            st.markdown(f"### {safe(product.get('canonical_name'))}")
+            recs = product.get("recommendations", [])
+            if recs:
+                rec = recs[0]
+                channel = rec.get("channel", {})
+                video = rec.get("video", {})
+                st.caption(
+                    f"{channel.get('channel_name') or '알 수 없는 채널'} · "
+                    f"AI 신뢰도 {float(rec.get('confidence') or 0):.0%}"
+                )
+                if video.get("title"):
+                    st.write(f"영상: {video['title']}")
+                if rec.get("reason"):
+                    st.info(rec["reason"])
+                if rec.get("evidence"):
+                    st.caption(f"근거: {rec['evidence']}")
+                if rec.get("video_id"):
+                    st.link_button(
+                        "원본 영상 확인",
+                        f"https://youtu.be/{rec['video_id']}",
+                        use_container_width=True,
+                    )
+
+            with st.form(key=f"review_form_{product_id}"):
+                edited_name = st.text_input(
+                    "상품명", value=product.get("canonical_name") or ""
+                )
+                left, right = st.columns(2)
+                edited_brand = left.text_input(
+                    "브랜드", value=product.get("brand") or ""
+                )
+                edited_model = right.text_input(
+                    "모델", value=product.get("model") or ""
+                )
+                current_category = product.get("category") or "기타"
+                category_index = (
+                    category_options.index(current_category)
+                    if current_category in category_options else len(category_options) - 1
+                )
+                edited_category = st.selectbox(
+                    "카테고리", category_options, index=category_index
+                )
+                edited_keyword = st.text_input(
+                    "검색 키워드",
+                    value=product.get("search_keyword") or product.get("canonical_name") or "",
+                )
+                review_note = st.text_input(
+                    "관리 메모", value=product.get("review_note") or ""
+                )
+                approve_col, hide_col = st.columns(2)
+                approve = approve_col.form_submit_button(
+                    "승인 후 공개", type="primary", use_container_width=True
+                )
+                hide = hide_col.form_submit_button(
+                    "숨김 처리", use_container_width=True
+                )
+
+            if approve:
+                clean_name = edited_name.strip()
+                normalized = re.sub(r"[^0-9a-z가-힣]+", "", clean_name.lower())
+                if len(normalized) < 4:
+                    st.error("상품명이 너무 짧습니다.")
+                else:
+                    try:
+                        api_patch(
+                            "products",
+                            {
+                                "canonical_name": clean_name,
+                                "normalized_name": normalized,
+                                "brand": edited_brand.strip(),
+                                "model": edited_model.strip(),
+                                "category": edited_category,
+                                "search_keyword": edited_keyword.strip() or clean_name,
+                                "review_status": "approved",
+                                "is_visible": True,
+                                "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                                "review_note": review_note.strip() or "관리자 승인",
+                            },
+                            {"product_id": f"eq.{product_id}"},
+                        )
+                        st.cache_data.clear()
+                        st.success("승인했습니다.")
+                        st.rerun()
+                    except Exception as error:
+                        st.error(str(error))
+
+            if hide:
+                try:
+                    api_patch(
+                        "products",
+                        {
+                            "review_status": "hidden",
+                            "is_visible": False,
+                            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                            "review_note": review_note.strip() or "관리자 숨김",
+                        },
+                        {"product_id": f"eq.{product_id}"},
+                    )
+                    st.cache_data.clear()
+                    st.success("숨김 처리했습니다.")
+                    st.rerun()
+                except Exception as error:
+                    st.error(str(error))
+
+
+st.markdown('<div class="app-title">🛍️ 꿀템 다나와</div>', unsafe_allow_html=True)
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("Streamlit Secrets에 SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY를 등록해 주세요.")
     st.stop()
 
-try:
-    with st.spinner("자동 수집된 꿀템을 불러오는 중..."):
-        catalog = load_catalog()
-except Exception as error:
-    st.error(str(error))
-    st.info("SUPABASE_URL에는 /rest/v1 없이 https://프로젝트ID.supabase.co 까지만 입력해야 합니다.")
-    st.stop()
-
-all_channels = {
-    rec.get("channel", {}).get("channel_id")
-    for item in catalog for rec in item["recommendations"]
-    if rec.get("channel", {}).get("channel_id")
-}
-all_videos = {
-    rec.get("video_id") for item in catalog for rec in item["recommendations"] if rec.get("video_id")
-}
-
-st.markdown(f"""
-<div class="hero">
-  <div class="hero-label">유튜버 영상에서 자동 검증된 상품</div>
-  <div class="hero-count">{len(catalog):,}개</div>
-  <div class="hero-meta">실제 채널 {len(all_channels):,}개 · 추천 영상 {len(all_videos):,}개 · 매일 자동 업데이트</div>
-</div>
-<div class="notice"><b>데이터 안내</b><br>유튜브 영상 제목·설명과 AI 분석을 바탕으로 정리한 상품입니다. 구매 전 모델명과 판매 정보를 다시 확인해 주세요.</div>
-""", unsafe_allow_html=True)
-
-c1, c2 = st.columns([1.45, 1])
-keyword = c1.text_input("상품 검색", placeholder="🔍 상품·브랜드·유튜버 검색", label_visibility="collapsed")
-categories = sorted({x.get("category") or "기타" for x in catalog})
-selected_category = c2.selectbox("카테고리", ["전체"] + categories, label_visibility="collapsed")
-
-filtered = []
-for item in catalog:
-    if selected_category != "전체" and (item.get("category") or "기타") != selected_category:
-        continue
-    channel_names = " ".join(rec.get("channel", {}).get("channel_name", "") for rec in item["recommendations"])
-    haystack = " ".join([
-        item.get("canonical_name", ""), item.get("brand", ""), item.get("model", ""),
-        item.get("category", ""), item.get("search_keyword", ""), channel_names,
-    ]).lower()
-    if keyword and keyword.lower() not in haystack:
-        continue
-    filtered.append(item)
-
-st.caption(f"검증 상품 {len(filtered)}개 · 데이터는 5분마다 자동 갱신")
-
-if not filtered:
-    with st.container(border=True):
-        st.write("조건에 맞는 자동 수집 상품이 아직 없습니다.")
-
-for item in filtered:
-    recs = item["recommendations"]
-    icon, icon_bg = icon_for(f"{item.get('canonical_name')} {item.get('category')}")
-    with st.container(border=True):
-        st.markdown(
-            f'<div class="product-head"><div class="product-icon" style="background:{icon_bg}">{icon}</div>'
-            f'<div><div class="product-name">{safe(item.get("canonical_name"))}</div>'
-            f'<div class="product-sub">{safe(item.get("brand"))} · {safe(item.get("category") or "기타")}</div></div></div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f'<span class="badge">유튜버 {item["channel_count"]}명</span>'
-            f'<span class="badge">추천 영상 {item["video_count"]}개</span>'
-            f'<span class="badge">근거 신뢰도 {item["max_confidence"]:.0%}</span>',
-            unsafe_allow_html=True,
-        )
-
-        if recs and recs[0].get("reason"):
-            st.markdown(f'<div class="reason">{safe(recs[0]["reason"])}</div>', unsafe_allow_html=True)
-
-        search_name = item.get("search_keyword") or item.get("canonical_name")
-        encoded = quote(search_name)
-        b1, b2 = st.columns(2)
-        b1.link_button(
-            "네이버쇼핑 확인",
-            f"https://search.shopping.naver.com/search/all?query={encoded}&sort=price_asc",
-            type="primary",
-            use_container_width=True,
-        )
-        b2.link_button(
-            "쿠팡에서 검색",
-            f"https://www.coupang.com/np/search?q={encoded}",
-            type="secondary",
-            use_container_width=True,
-        )
-
-        with st.expander(f"추천 근거와 영상 {len(recs)}건"):
-            for index, rec in enumerate(recs, 1):
-                channel = rec.get("channel", {})
-                video = rec.get("video", {})
-                channel_name = channel.get("channel_name") or "알 수 없는 채널"
-                subscribers = human_number(channel.get("subscriber_count"))
-                confidence = float(rec.get("confidence") or 0)
-                st.markdown(f"**{index}. {safe(channel_name)}** · 구독자 {subscribers} · 신뢰도 {confidence:.0%}")
-                if video.get("title"):
-                    st.caption(video["title"])
-                if rec.get("evidence"):
-                    st.write(f"근거: {rec['evidence']}")
-                pros = rec.get("pros") or []
-                cons = rec.get("cons") or []
-                if pros:
-                    st.write("좋았던 점: " + " · ".join(str(x) for x in pros))
-                if cons:
-                    st.write("아쉬운 점: " + " · ".join(str(x) for x in cons))
-                st.caption(f"구매 형태: {rec.get('purchase_type') or '확인되지 않음'}")
-                st.link_button(
-                    f"▶ {timestamp(rec.get('start_sec'))}부터 영상 보기",
-                    youtube_url(rec),
-                    key=f"video_{item['product_id']}_{rec['recommendation_id']}",
-                    use_container_width=True,
-                )
-                if index < len(recs):
-                    st.divider()
-
-if st.button("최신 데이터 다시 불러오기", use_container_width=True):
-    st.cache_data.clear()
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+nav_home, nav_admin = st.columns(2)
+if nav_home.button(
+    "꿀템 홈",
+    type="primary" if st.session_state.page == "home" else "secondary",
+    use_container_width=True,
+):
+    st.session_state.page = "home"
     st.rerun()
+if nav_admin.button(
+    "관리자 검수",
+    type="primary" if st.session_state.page == "admin" else "secondary",
+    use_container_width=True,
+):
+    st.session_state.page = "admin"
+    st.rerun()
+
+if st.session_state.page == "admin":
+    render_admin()
+else:
+    render_home()
