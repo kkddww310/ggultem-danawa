@@ -614,6 +614,50 @@ input, textarea, select, option {
   }
 }
 
+
+/* ===== 검색창·카테고리 비비드 오렌지 테두리 ===== */
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+  background: #FFFFFF !important;
+  border: 2px solid #FF7A00 !important;
+  border-radius: 13px !important;
+  box-shadow: 0 2px 9px rgba(255,122,0,.11) !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"]:hover,
+[data-testid="stTextInput"] div[data-baseweb="base-input"]:hover {
+  border-color: #FF6200 !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
+  border-color: #FF5A00 !important;
+  box-shadow: 0 0 0 4px rgba(255,122,0,.17) !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] {
+  background: #FFFFFF !important;
+  border: 2px solid #FF7A00 !important;
+  border-radius: 13px !important;
+  box-shadow: 0 2px 9px rgba(255,122,0,.11) !important;
+  overflow: hidden !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"]:hover {
+  border-color: #FF6200 !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within {
+  border-color: #FF5A00 !important;
+  box-shadow: 0 0 0 4px rgba(255,122,0,.17) !important;
+}
+[data-testid="stSelectbox"] svg {
+  fill: #FF6A00 !important;
+  color: #FF6A00 !important;
+}
+[role="option"]:hover,
+[role="option"][aria-selected="true"] {
+  background: #FFF2E8 !important;
+  color: #C94F00 !important;
+  -webkit-text-fill-color: #C94F00 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
