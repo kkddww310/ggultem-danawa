@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
   schedule:
-    # GitHub Actions는 UTC 기준
+    # GitHub Actions cron은 UTC 기준
     # 한국 시간 오전 3시, 오전 9시, 오후 3시, 오후 9시
     - cron: "0 18,0,6,12 * * *"
 
@@ -18,7 +18,13 @@ jobs:
     timeout-minutes: 15
 
     env:
+      # config.py가 import될 때 필요
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+
+      # 상품 AI 분석에 필요
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+      # Supabase 조회·저장에 필요
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
