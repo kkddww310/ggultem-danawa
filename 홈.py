@@ -116,6 +116,22 @@ div[data-testid="stTextInput"] div[data-baseweb="input"],div[data-testid="stSele
 div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border-radius:18px!important;box-shadow:inset 0 0 0 1px #DDE9F8!important;padding:17px!important}div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:#191F28!important;-webkit-text-fill-color:#191F28!important}
 @media(max-width:900px) and (min-width:601px){.st-key-product_grid [data-testid="stHorizontalBlock"]{flex-wrap:wrap!important}.st-key-product_grid [data-testid="column"]{flex:0 0 calc(50% - 8px)!important;min-width:calc(50% - 8px)!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:190px!important}}
 @media(max-width:600px){.block-container{padding:.65rem .55rem 3rem}.st-key-product_grid [data-testid="stHorizontalBlock"]{flex-direction:column!important}.st-key-product_grid [data-testid="column"]{width:100%!important;min-width:100%!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:210px!important}.product-title,.reason{min-height:0}.title{font-size:22px}}
+
+.thumbnail-source-badge {
+  display: inline-block;
+  position: relative;
+  margin-top: -43px;
+  margin-left: 9px;
+  margin-bottom: 17px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(25,31,40,.78);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  z-index: 2;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -151,13 +167,40 @@ def require_admin():
 
 
 def render_product_visual(product):
+    """검증 상품 이미지 -> 대표 추천 영상 썸네일 -> 카테고리 기본 이미지 순으로 표시."""
     image_url = str(product.get("image_url") or "").strip()
     if product.get("image_verified") and image_url.startswith(("https://", "http://")):
         st.image(image_url, use_container_width=True)
         return
+
+    recommendations = product.get("recommendations") or []
+    ranked = sorted(
+        recommendations,
+        key=lambda rec: (
+            float(rec.get("confidence") or 0),
+            int((rec.get("video") or {}).get("view_count") or 0),
+            str((rec.get("video") or {}).get("published_at") or ""),
+        ),
+        reverse=True,
+    )
+    representative = next((rec for rec in ranked if rec.get("video_id")), None)
+    if representative:
+        video_id = representative["video_id"]
+        thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+        st.image(thumbnail_url, use_container_width=True)
+        st.markdown(
+            '<div class="thumbnail-source-badge">추천 영상 이미지</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
     category = product.get("category") or "기타"
     icon, background, color = CATEGORY_VISUALS.get(category, CATEGORY_VISUALS["기타"])
-    st.markdown(f'<div class="product-placeholder" style="background:{background};color:{color}"><span>{icon}</span><small>{safe(category)}</small></div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="product-placeholder" style="background:{background};color:{color}">'
+        f'<span>{icon}</span><small>{safe(category)}</small></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_product_card(product):
