@@ -184,6 +184,69 @@ ul[data-baseweb="menu"], ul[data-baseweb="menu"] li, div[data-baseweb="popover"]
 .stLinkButton > a[kind="secondary"] * { color:#2F6FD6 !important; -webkit-text-fill-color:#2F6FD6 !important; }
 [data-testid="stExpander"] details { background:#fff !important; border:1px solid #E7EBF0 !important; border-radius:14px !important; }
 [data-testid="stExpander"] * { color:#191F28 !important; }
+
+/* ===== UI polish override ===== */
+.block-container { max-width:620px !important; padding:0.45rem 1rem 4rem !important; }
+.app-title { display:flex; align-items:center; gap:8px; margin:4px 2px 14px; font-size:22px; letter-spacing:-.4px; }
+.hero { border:none !important; border-radius:26px !important; padding:24px !important; box-shadow:0 8px 28px rgba(34,55,80,.075) !important; }
+.notice { background:#F7F9FC !important; border:none !important; color:#5B6573 !important; border-radius:16px !important; padding:13px 15px !important; }
+.notice b { color:#344054 !important; }
+
+div[data-testid="stVerticalBlockBorderWrapper"] {
+  border:none !important; outline:none !important; border-radius:22px !important;
+  box-shadow:0 5px 22px rgba(34,55,80,.07) !important; padding:20px !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"] > div { border:none !important; outline:none !important; box-shadow:none !important; }
+.product-name { font-size:17px !important; letter-spacing:-.25px; }
+.badge { background:#EEF5FF !important; color:#2D6CD3 !important; padding:4px 9px !important; }
+.reason { background:#F7F9FB !important; border:0 !important; padding:12px 14px !important; }
+
+/* search/select: one soft border only */
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stSelectbox"] div[data-baseweb="select"] {
+  border:1px solid #E1E6EC !important; outline:none !important; border-radius:14px !important;
+  box-shadow:0 1px 2px rgba(16,24,40,.025) !important; min-height:48px !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"] > div,
+[data-testid="stTextInput"] input,
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[role="combobox"],
+[data-testid="stSelectbox"] div[role="combobox"] > div {
+  border:none !important; outline:none !important; box-shadow:none !important; background:#fff !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within {
+  border-color:#72A4FF !important; box-shadow:0 0 0 3px rgba(76,130,238,.12) !important;
+}
+
+/* buttons */
+.stLinkButton > a { min-height:46px !important; border-radius:14px !important; font-size:13.5px !important; }
+.stLinkButton > a[kind="primary"] { background:#4C82EE !important; }
+.stLinkButton > a[kind="secondary"] { background:#EEF5FF !important; color:#2D6CD3 !important; }
+
+/* expander: eliminate red/black focus ring */
+[data-testid="stExpander"], [data-testid="stExpander"] details,
+[data-testid="stExpander"] summary, [data-testid="stExpander"] summary:focus,
+[data-testid="stExpander"] summary:focus-visible {
+  border:none !important; outline:none !important; box-shadow:none !important;
+}
+[data-testid="stExpander"] details { background:#F8FAFC !important; border-radius:14px !important; overflow:hidden !important; }
+[data-testid="stExpander"] summary { background:#F8FAFC !important; padding:2px 4px !important; }
+[data-testid="stExpander"] summary:hover { background:#F2F6FA !important; }
+[data-testid="stExpander"] details[open] { box-shadow:inset 0 0 0 1px #E8EDF2 !important; }
+
+/* refresh button */
+.stButton > button { background:#F2F4F6 !important; color:#4E5968 !important; border:none !important; min-height:44px !important; }
+.stButton > button * { color:#4E5968 !important; -webkit-text-fill-color:#4E5968 !important; }
+
+@media (max-width:640px) {
+  .block-container { padding:.25rem .75rem 3rem !important; }
+  .hero { padding:20px !important; }
+  div[data-testid="stVerticalBlockBorderWrapper"] { padding:16px !important; }
+  .product-name { font-size:15.5px !important; }
+  .hero-count { font-size:31px !important; }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -216,7 +279,7 @@ st.markdown(f"""
   <div class="hero-count">{len(catalog):,}개</div>
   <div class="hero-meta">실제 채널 {len(all_channels):,}개 · 추천 영상 {len(all_videos):,}개 · 매일 자동 업데이트</div>
 </div>
-<div class="notice"><b>광고 안내</b><br>향후 쿠팡 파트너스 링크가 포함될 수 있으며, 이에 따른 일정액의 수수료를 제공받을 수 있습니다. 구매 가격에는 영향을 주지 않습니다.</div>
+<div class="notice"><b>데이터 안내</b><br>유튜브 영상 제목·설명과 AI 분석을 바탕으로 정리한 상품입니다. 구매 전 모델명과 판매 정보를 다시 확인해 주세요.</div>
 """, unsafe_allow_html=True)
 
 c1, c2 = st.columns([1.45, 1])
@@ -237,7 +300,7 @@ for item in catalog:
         continue
     filtered.append(item)
 
-st.caption(f"상품 {len(filtered)}개 · 최근 5분 캐시")
+st.caption(f"검증 상품 {len(filtered)}개 · 데이터는 5분마다 자동 갱신")
 
 if not filtered:
     with st.container(border=True):
@@ -267,13 +330,13 @@ for item in filtered:
         encoded = quote(search_name)
         b1, b2 = st.columns(2)
         b1.link_button(
-            "네이버 가격 비교",
+            "네이버쇼핑 확인",
             f"https://search.shopping.naver.com/search/all?query={encoded}&sort=price_asc",
             type="primary",
             use_container_width=True,
         )
         b2.link_button(
-            "쿠팡 가격 확인",
+            "쿠팡에서 검색",
             f"https://www.coupang.com/np/search?q={encoded}",
             type="secondary",
             use_container_width=True,
