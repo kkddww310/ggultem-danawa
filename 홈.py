@@ -268,6 +268,119 @@ st.markdown("""
   .product-title { font-size: 16px; }
   .stButton > button, .stLinkButton > a { min-height: 46px !important; }
 }
+
+/* ===== Streamlit 입력창 검은 배경 최종 보정 ===== */
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stTextInput"] div[data-baseweb="input"] > div,
+[data-testid="stTextInput"] input,
+[data-testid="stSelectbox"] div[data-baseweb="select"],
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[role="combobox"],
+[data-testid="stSelectbox"] div[role="combobox"] > div,
+[data-testid="stNumberInput"] div[data-baseweb="input"],
+[data-testid="stNumberInput"] input,
+[data-testid="stTextArea"] textarea {
+  background-color: #FFFFFF !important;
+  background: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+  caret-color: #3182F6 !important;
+  opacity: 1 !important;
+}
+
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stSelectbox"] div[data-baseweb="select"],
+[data-testid="stNumberInput"] div[data-baseweb="input"],
+[data-testid="stTextArea"] textarea {
+  border: 1px solid #DCE3EB !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+[data-testid="stTextInput"] input::placeholder,
+[data-testid="stTextArea"] textarea::placeholder {
+  color: #8B95A1 !important;
+  -webkit-text-fill-color: #8B95A1 !important;
+  opacity: 1 !important;
+}
+
+[data-testid="stSelectbox"] svg,
+[data-testid="stTextInput"] svg,
+[data-testid="stNumberInput"] svg {
+  fill: #4E5968 !important;
+  color: #4E5968 !important;
+}
+
+[data-testid="stWidgetLabel"],
+[data-testid="stWidgetLabel"] p,
+[data-testid="stTextInput"] label,
+[data-testid="stSelectbox"] label,
+[data-testid="stNumberInput"] label,
+[data-testid="stTextArea"] label {
+  color: #4E5968 !important;
+  -webkit-text-fill-color: #4E5968 !important;
+  opacity: 1 !important;
+  font-weight: 700 !important;
+}
+
+[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within,
+[data-testid="stNumberInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stTextArea"] textarea:focus {
+  border-color: #3182F6 !important;
+  box-shadow: 0 0 0 3px rgba(49,130,246,.14) !important;
+}
+
+/* 관리자 폼은 흰색 배경과 선명한 라벨을 사용 */
+[data-testid="stForm"] {
+  background: #F8FAFD !important;
+  border: 1px solid #DCE3EB !important;
+  border-radius: 16px !important;
+  padding: 18px !important;
+}
+[data-testid="stForm"] input,
+[data-testid="stForm"] textarea,
+[data-testid="stForm"] div[role="combobox"],
+[data-testid="stForm"] div[data-baseweb="input"],
+[data-testid="stForm"] div[data-baseweb="select"],
+[data-testid="stForm"] div[data-baseweb="base-input"] {
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+}
+
+/* 승인과 숨김 버튼을 의미에 맞게 구분 */
+[data-testid="stForm"] button[kind="primary"],
+[data-testid="stForm"] button[data-testid="stBaseButton-primary"] {
+  background: #3182F6 !important;
+  border-color: #3182F6 !important;
+  color: #FFFFFF !important;
+}
+[data-testid="stForm"] button[kind="primary"] *,
+[data-testid="stForm"] button[data-testid="stBaseButton-primary"] * {
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+}
+[data-testid="stForm"] button[kind="secondary"],
+[data-testid="stForm"] button[data-testid="stBaseButton-secondary"] {
+  background: #FFF0F0 !important;
+  border: 1px solid #FFD1D1 !important;
+  color: #C92A2A !important;
+}
+[data-testid="stForm"] button[kind="secondary"] *,
+[data-testid="stForm"] button[data-testid="stBaseButton-secondary"] * {
+  color: #C92A2A !important;
+  -webkit-text-fill-color: #C92A2A !important;
+}
+
+/* 브라우저 다크 테마의 강제 색상 반영 방지 */
+input, textarea, select {
+  color-scheme: light !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
