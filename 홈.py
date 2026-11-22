@@ -52,8 +52,16 @@ def api_get(table, select="*", params=None, timeout=30):
 def load_catalog():
     products = api_get(
         "products",
-        "product_id,canonical_name,normalized_name,brand,model,category,search_keyword,created_at",
-        {"order": "created_at.desc", "limit": "1000"},
+        (
+            "product_id,canonical_name,normalized_name,brand,model,category,"
+            "search_keyword,review_status,is_visible,created_at"
+        ),
+        {
+            "review_status": "eq.approved",
+            "is_visible": "eq.true",
+            "order": "created_at.desc",
+            "limit": "1000",
+        },
     )
     recommendations = api_get(
         "recommendations",
