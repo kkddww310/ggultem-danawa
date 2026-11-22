@@ -5,8 +5,8 @@ on:
 
   schedule:
     # GitHub Actions cron은 UTC 기준
-    # 한국 시간 오전 3시, 오전 9시, 오후 3시, 오후 9시
-    - cron: "0 18,0,6,12 * * *"
+    # 한국 시간 오전 3:10, 오전 9:10, 오후 3:10, 오후 9:10
+    - cron: "10 18,0,6,12 * * *"
 
 concurrency:
   group: analyze-youtube-products
@@ -18,13 +18,13 @@ jobs:
     timeout-minutes: 15
 
     env:
-      # config.py가 import될 때 필요
+      # collector.config import에 필요
       YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
 
-      # 상품 AI 분석에 필요
+      # OpenRouter 상품 분석
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
-      # Supabase 조회·저장에 필요
+      # Supabase 조회·저장
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
