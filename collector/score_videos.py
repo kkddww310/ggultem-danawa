@@ -3,592 +3,251 @@ from urllib.parse import urlparse
 
 from collector.database import select, update
 
-
-# =========================================================
-# 후보 점수 기준
-# =========================================================
-
-# 구매 의도가 강한 표현
-STRONG_POSITIVE = {
-    "내돈내산": 6,
-    "찐추천": 5,
-    "추천템": 5,
-    "필수템": 5,
-    "잘 산": 5,
-    "잘산": 5,
-    "인생템": 5,
-    "하울": 5,
-    "언박싱": 5,
-    "구매 후기": 5,
-    "한달 사용": 5,
-    "한 달 사용": 5,
-    "실사용": 4,
-    "사용기": 4,
-    "리뷰": 4,
-    "비교": 4,
-    "써봤": 4,
-    "사봤": 4,
-    "구매": 3,
-    "신제품": 3,
-    "가성비": 3,
-    "베스트": 3,
-    "top": 3,
+# 제품 구매·리뷰 의도가 강한 표현
+PRODUCT_INTENT = {
+    "내돈내산": 7, "찐추천": 6, "추천템": 6, "필수템": 6,
+    "인생템": 6, "하울": 6, "언박싱": 6, "구매 후기": 6,
+    "한달 사용": 6, "한 달 사용": 6, "실사용": 5,
+    "사용기": 5, "리뷰": 5, "비교": 5, "써봤": 4,
+    "사봤": 4, "구매": 4, "신제품": 4, "가성비": 3,
+    "추천": 2, "베스트": 3, "top": 3,
 }
 
-# 설명란에 있으면 상품 소개 가능성이 높은 표현
 COMMERCE_SIGNALS = {
-    "유료 광고": 5,
-    "유료광고": 5,
-    "제품 제공": 5,
-    "제품제공": 5,
-    "협찬": 4,
-    "광고 포함": 4,
-    "광고포함": 4,
-    "파트너스": 5,
-    "구매 링크": 4,
-    "구매링크": 4,
-    "제품 링크": 4,
-    "제품링크": 4,
-    "최저가 링크": 3,
-    "공식몰": 3,
-    "스마트스토어": 3,
-    "올리브영": 2,
-    "쿠팡": 2,
-    "네이버쇼핑": 2,
-    "오늘의집": 2,
+    "유료 광고": 6, "유료광고": 6, "제품 제공": 6, "제품제공": 6,
+    "협찬": 5, "광고 포함": 5, "광고포함": 5, "파트너스": 6,
+    "구매 링크": 5, "구매링크": 5, "제품 링크": 5, "제품링크": 5,
+    "공식몰": 4, "스마트스토어": 4, "올리브영": 3,
+    "쿠팡": 3, "네이버쇼핑": 3, "오늘의집": 3,
 }
 
-# 판매처나 쇼핑 도메인
-SHOPPING_DOMAINS = {
-    "coupang.com",
-    "link.coupang.com",
-    "shopping.naver.com",
-    "smartstore.naver.com",
-    "brand.naver.com",
-    "oliveyoung.co.kr",
-    "ohou.se",
-    "11st.co.kr",
-    "gmarket.co.kr",
-    "auction.co.kr",
-    "ssg.com",
-    "lotteon.com",
-    "musinsa.com",
-    "29cm.co.kr",
-    "kurly.com",
-    "aliexpress.com",
-    "amazon.com",
+# 요리·일상 콘텐츠 표현. 제품 중심 신호가 없으면 강하게 제외한다.
+RECIPE_LIFESTYLE = {
+    "cook with me": -12, "meal prep": -12, "요리 모음": -12,
+    "집밥": -9, "레시피": -10, "도시락": -9, "반찬": -9,
+    "아침밥": -8, "저녁밥": -8, "야식": -7, "먹는": -5,
+    "만들기": -5, "요리법": -9, "요리 방법": -9, "한끼": -6,
+    "한 끼": -6, "주방 브이로그": -10, "살림 브이로그": -8,
+    "새벽 5시": -6, "새벽 5시 기상": -8, "냉장고 털기": -8,
 }
 
-# 영상 성격상 상품 추출 대상이 아닐 가능성이 큰 표현
 STRONG_NEGATIVE = {
-    "뮤직비디오": -15,
-    "music video": -15,
-    "official mv": -15,
-    "티저": -10,
-    "예고편": -10,
-    "다시보기": -10,
-    "하이라이트": -8,
-    "경기": -8,
-    "야구": -8,
-    "축구": -8,
-    "농구": -8,
-    "골 모음": -10,
-    "뉴스": -10,
-    "속보": -12,
-    "정치": -10,
-    "국회": -10,
-    "선거": -10,
-    "사건": -8,
-    "사고": -8,
-    "먹방": -7,
-    "브이로그": -5,
-    "vlog": -5,
-    "라이브": -7,
-    "live": -4,
-    "챌린지": -6,
-    "토크": -4,
-    "인터뷰": -4,
-    "웹예능": -7,
-    "몰아보기": -10,
+    "뮤직비디오": -18, "music video": -18, "official mv": -18,
+    "티저": -12, "예고편": -12, "다시보기": -12,
+    "하이라이트": -10, "경기": -10, "야구": -10, "축구": -10,
+    "농구": -10, "뉴스": -12, "속보": -14, "정치": -12,
+    "국회": -12, "선거": -12, "사건": -10, "사고": -10,
+    "먹방": -10, "브이로그": -6, "vlog": -6, "라이브": -8,
+    "챌린지": -8, "웹예능": -9, "몰아보기": -12,
+    "운동 루틴": -10, "홈트 루틴": -10, "운동법": -10,
+    "자세 교정": -9, "강의": -9, "강좌": -9, "튜토리얼": -9,
 }
 
-# 운동·강좌 영상에서 일반 도구 한 번 언급되는 일을 줄임
-TUTORIAL_NEGATIVE = {
-    "운동 루틴": -8,
-    "홈트 루틴": -8,
-    "헬스 루틴": -8,
-    "운동법": -8,
-    "사용법": -3,
-    "자세 교정": -7,
-    "근육 키우기": -7,
-    "어깨 운동": -7,
-    "가슴 운동": -7,
-    "하체 운동": -7,
-    "등 운동": -7,
-    "강의": -7,
-    "강좌": -7,
-    "튜토리얼": -7,
-    "레시피": -5,
-    "요리 방법": -5,
+SHOPPING_DOMAINS = {
+    "coupang.com", "link.coupang.com", "shopping.naver.com",
+    "smartstore.naver.com", "brand.naver.com", "oliveyoung.co.kr",
+    "ohou.se", "11st.co.kr", "gmarket.co.kr", "auction.co.kr",
+    "ssg.com", "lotteon.com", "musinsa.com", "29cm.co.kr", "kurly.com",
 }
 
-# 브랜드·모델 후보 패턴
+# 제목이 제품 자체를 중심으로 한다는 신호
+PRODUCT_TITLE_PATTERNS = (
+    re.compile(r"(?:추천|리뷰|비교|사용기|언박싱|내돈내산|사봤|써봤)"),
+    re.compile(r"(?:냄비|블렌더|청소기|모니터|노트북|이어폰|키보드|마우스|충전기|화장품|쿠션|선크림|가방|신발)\s*(?:추천|리뷰|비교)"),
+    re.compile(r"\b[A-Za-z]{2,15}[- ]?[A-Za-z]*\d+[A-Za-z0-9-]*\b", re.I),
+)
+
 MODEL_PATTERNS = (
-    # MX Master 3S, T7 Shield, R2, D10
+    re.compile(r"\b[A-Za-z]{1,15}[- ]?\d{1,5}[A-Za-z0-9-]*\b", re.I),
     re.compile(
-        r"\b[A-Za-z]{1,15}[- ]?\d{1,5}[A-Za-z0-9-]*\b",
-        re.I,
-    ),
-
-    # IW4271KRBK, B95AWBH 등 긴 영숫자 모델
-    re.compile(
-        r"\b(?=[A-Za-z0-9-]{5,20}\b)"
-        r"(?=[A-Za-z0-9-]*[A-Za-z])"
-        r"(?=[A-Za-z0-9-]*\d)"
-        r"[A-Za-z0-9-]+\b",
-        re.I,
-    ),
-
-    # 2TB, 100W, 27인치, 4K 등 상세 사양
-    re.compile(
-        r"\b\d+(?:\.\d+)?"
-        r"(?:tb|gb|w|mah|hz|인치|세대|k)\b",
+        r"\b(?=[A-Za-z0-9-]{5,20}\b)(?=[A-Za-z0-9-]*[A-Za-z])"
+        r"(?=[A-Za-z0-9-]*\d)[A-Za-z0-9-]+\b",
         re.I,
     ),
 )
 
-# 너무 흔해 모델 신호로 쓰면 안 되는 표현
-FALSE_MODEL_TOKENS = {
-    "top10",
-    "top5",
-    "top3",
-    "2024",
-    "2025",
-    "2026",
-    "2027",
-    "4k",
-    "1080p",
-    "shorts",
-}
+
+def normalize(value):
+    return re.sub(r"\s+", " ", str(value or "").lower()).strip()
 
 
-# =========================================================
-# 유틸
-# =========================================================
-def normalize_text(value):
-    return re.sub(
-        r"\s+",
-        " ",
-        str(value or "").lower(),
-    ).strip()
-
-
-def count_keyword_score(text, rules):
-    score = 0
-    matched = []
-
+def keyword_score(text, rules):
+    total = 0
+    matches = []
     for keyword, points in rules.items():
         if keyword in text:
-            score += points
-            matched.append(
-                {
-                    "keyword": keyword,
-                    "points": points,
-                }
-            )
-
-    return score, matched
+            total += points
+            matches.append(keyword)
+    return total, matches
 
 
-def extract_urls(text):
-    return re.findall(
-        r"https?://[^\s<>\"]+",
-        str(text or ""),
-        flags=re.I,
-    )
-
-
-def count_shopping_links(description):
-    count = 0
+def shopping_links(description):
     domains = set()
-
-    for url in extract_urls(description):
+    for url in re.findall(r'https?://[^\s<>\"]+', str(description or ""), flags=re.I):
         try:
-            hostname = (
-                urlparse(url).hostname
-                or ""
-            ).lower()
-
-            hostname = hostname.removeprefix(
-                "www."
-            )
-
+            hostname = (urlparse(url).hostname or "").lower().removeprefix("www.")
             for domain in SHOPPING_DOMAINS:
-                if (
-                    hostname == domain
-                    or hostname.endswith(
-                        f".{domain}"
-                    )
-                ):
-                    count += 1
+                if hostname == domain or hostname.endswith(f".{domain}"):
                     domains.add(domain)
                     break
-
         except Exception:
             continue
+    return sorted(domains)
 
-    return count, sorted(domains)
 
-
-def find_model_signals(text):
+def model_signals(text):
     found = set()
-
     for pattern in MODEL_PATTERNS:
-        for match in pattern.findall(text):
-            token = str(match).strip()
-
-            normalized = re.sub(
-                r"[^0-9a-z가-힣]+",
-                "",
-                token.lower(),
-            )
-
-            if not normalized:
-                continue
-
-            if normalized in FALSE_MODEL_TOKENS:
-                continue
-
-            found.add(token)
-
+        for token in pattern.findall(text):
+            normalized = re.sub(r"[^0-9a-z가-힣]+", "", token.lower())
+            if normalized and normalized not in {"top10", "top5", "2024", "2025", "2026", "2027"}:
+                found.add(token)
     return sorted(found)
 
 
-# =========================================================
-# 영상 점수 계산
-# =========================================================
+def has_product_title_signal(title):
+    return any(pattern.search(title) for pattern in PRODUCT_TITLE_PATTERNS)
+
+
 def score_video(video):
-    title = normalize_text(
-        video.get("title", "")
-    )
-
-    description = normalize_text(
-        video.get("description", "")
-    )
-
+    title = normalize(video.get("title"))
+    description = normalize(video.get("description"))
     combined = f"{title} {description}"
+
+    title_intent, title_matches = keyword_score(title, PRODUCT_INTENT)
+    description_intent, _ = keyword_score(description, PRODUCT_INTENT)
+    commerce, commerce_matches = keyword_score(combined, COMMERCE_SIGNALS)
+    recipe_penalty, recipe_matches = keyword_score(title, RECIPE_LIFESTYLE)
+    negative, negative_matches = keyword_score(combined, STRONG_NEGATIVE)
+    domains = shopping_links(video.get("description"))
+    models = model_signals(combined)
+    product_title = has_product_title_signal(title)
 
     score = 0
     reasons = []
 
-    # 제목은 구매 의도가 강하므로 더 높은 비중
-    title_score, title_matches = (
-        count_keyword_score(
-            title,
-            STRONG_POSITIVE,
+    if title_intent:
+        points = min(14, int(title_intent * 1.35))
+        score += points
+        reasons.append(f"제목 제품 의도 +{points}")
+
+    if description_intent:
+        points = min(6, description_intent)
+        score += points
+        reasons.append(f"설명 제품 의도 +{points}")
+
+    if commerce:
+        points = min(9, commerce)
+        score += points
+        reasons.append(f"상거래 신호 +{points}")
+
+    if domains:
+        points = min(6, len(domains) * 2)
+        score += points
+        reasons.append(f"쇼핑 링크 +{points}")
+
+    if models:
+        points = min(6, len(models) * 2)
+        score += points
+        reasons.append(f"모델 신호 +{points}")
+
+    if product_title:
+        score += 3
+        reasons.append("제품 중심 제목 +3")
+
+    # 레시피·집밥 영상은 제품 중심 제목이거나 강한 상거래 증거가 있어야 살린다.
+    if recipe_matches:
+        rescue = (
+            product_title
+            or title_intent >= 4
+            or (commerce >= 5 and bool(domains))
+            or (bool(models) and title_intent >= 2)
         )
+        if rescue:
+            applied = max(-4, recipe_penalty // 3)
+            score += applied
+            reasons.append(f"레시피지만 제품 중심 {applied}")
+        else:
+            score += recipe_penalty
+            reasons.append(f"레시피·일상 {recipe_penalty}")
+
+    if negative:
+        score += negative
+        reasons.append(f"비상품 영상 {negative}")
+
+    # 명확한 제품 신호가 전혀 없으면 쇼핑 링크만으로 후보가 되지 않도록 한다.
+    if not product_title and title_intent == 0 and not models:
+        score -= 5
+        reasons.append("제목 제품 식별 신호 없음 -5")
+
+    # 요리·일상 제목인데 구체적인 브랜드/모델과 제품 의도가 없으면 강제 제외권.
+    hard_recipe_block = bool(recipe_matches) and not (
+        product_title or title_intent >= 4 or (commerce >= 5 and domains) or (models and title_intent >= 2)
     )
 
-    if title_score:
-        weighted_title_score = int(
-            title_score * 1.4
-        )
-
-        score += weighted_title_score
-
-        reasons.append(
-            f"제목 상품 의도 "
-            f"+{weighted_title_score}"
-        )
-
-    # 설명란의 추천·리뷰 표현
-    description_score, _ = (
-        count_keyword_score(
-            description,
-            STRONG_POSITIVE,
-        )
-    )
-
-    if description_score:
-        # 설명란은 반복 키워드가 많으므로 최대 8점
-        applied = min(
-            description_score,
-            8,
-        )
-
-        score += applied
-
-        reasons.append(
-            f"설명 상품 의도 +{applied}"
-        )
-
-    # 광고·제품 제공·구매 링크 설명
-    commerce_score, _ = (
-        count_keyword_score(
-            combined,
-            COMMERCE_SIGNALS,
-        )
-    )
-
-    if commerce_score:
-        applied = min(
-            commerce_score,
-            10,
-        )
-
-        score += applied
-
-        reasons.append(
-            f"상거래 신호 +{applied}"
-        )
-
-    # 실제 쇼핑 링크
-    shopping_link_count, domains = (
-        count_shopping_links(
-            video.get(
-                "description",
-                "",
-            )
-        )
-    )
-
-    if shopping_link_count:
-        link_score = min(
-            9,
-            shopping_link_count * 3,
-        )
-
-        score += link_score
-
-        reasons.append(
-            f"쇼핑 링크 {shopping_link_count}개 "
-            f"+{link_score}"
-        )
-
-    # 모델 번호나 구체적 사양
-    model_signals = find_model_signals(
-        combined
-    )
-
-    if model_signals:
-        model_score = min(
-            8,
-            len(model_signals) * 2,
-        )
-
-        score += model_score
-
-        reasons.append(
-            f"모델·사양 신호 "
-            f"{len(model_signals)}개 "
-            f"+{model_score}"
-        )
-
-    # 강한 제외어
-    negative_score, negative_matches = (
-        count_keyword_score(
-            combined,
-            STRONG_NEGATIVE,
-        )
-    )
-
-    if negative_score:
-        score += negative_score
-
-        reasons.append(
-            f"비상품 영상 {negative_score}"
-        )
-
-    # 강좌·운동법 감점
-    tutorial_score, tutorial_matches = (
-        count_keyword_score(
-            combined,
-            TUTORIAL_NEGATIVE,
-        )
-    )
-
-    if tutorial_score:
-        score += tutorial_score
-
-        reasons.append(
-            f"강좌·루틴 {tutorial_score}"
-        )
-
-    # 제목에 상품 의도도 없고 쇼핑 링크도 없으면 추가 감점
-    if (
-        title_score == 0
-        and shopping_link_count == 0
-        and commerce_score == 0
-    ):
-        score -= 3
-        reasons.append(
-            "구매 근거 부족 -3"
-        )
-
-    # 모델 신호만 있고 리뷰·추천·링크가 전혀 없으면
-    # 연도·화질·점수 등을 모델로 오인했을 수 있으므로 감점
-    if (
-        model_signals
-        and title_score == 0
-        and commerce_score == 0
-        and shopping_link_count == 0
-    ):
-        score -= 2
-        reasons.append(
-            "모델 단독 신호 -2"
-        )
-
-    # 최종 점수를 과도하게 크게 저장하지 않도록 제한
-    score = max(
-        -30,
-        min(30, score),
-    )
-
+    score = max(-40, min(30, score))
     return {
         "score": score,
+        "hard_recipe_block": hard_recipe_block,
         "reasons": reasons,
-        "shopping_links": (
-            shopping_link_count
-        ),
-        "shopping_domains": domains,
-        "model_signals": (
-            model_signals[:10]
-        ),
-        "negative_matches": [
-            item["keyword"]
-            for item
-            in negative_matches
-        ][:10],
-        "tutorial_matches": [
-            item["keyword"]
-            for item
-            in tutorial_matches
-        ][:10],
+        "domains": domains,
+        "models": models[:10],
+        "recipe_matches": recipe_matches,
+        "negative_matches": negative_matches,
+        "commerce_matches": commerce_matches,
+        "title_matches": title_matches,
     }
 
 
-# =========================================================
-# 실행
-# =========================================================
 def main():
     videos = select(
         "videos",
-        (
-            "video_id,"
-            "title,"
-            "description,"
-            "view_count,"
-            "analysis_status"
-        ),
-        {
-            "analysis_status": (
-                "eq.pending"
-            )
-        },
+        "video_id,title,description,view_count,analysis_status",
+        {"analysis_status": "eq.pending"},
         limit=5000,
-        order=(
-            "published_at.desc"
-        ),
+        order="published_at.desc",
     )
 
-    queued = 0
-    skipped = 0
-
-    # 5점 이상을 AI 후보로 전송
-    queue_threshold = 5
+    threshold = 6
+    queued = skipped = 0
 
     for video in videos:
-        result = score_video(
-            video
-        )
-
-        product_score = result[
-            "score"
-        ]
-
-        if product_score >= (
-            queue_threshold
-        ):
+        result = score_video(video)
+        if result["score"] >= threshold and not result["hard_recipe_block"]:
             status = "queued"
             queued += 1
-
         else:
-            status = (
-                "skipped_non_product"
-            )
+            status = "skipped_non_product"
             skipped += 1
 
-        diagnostic = (
-            " | ".join(
-                result["reasons"]
-            )
-        )
-
-        if result[
-            "model_signals"
-        ]:
-            diagnostic += (
-                " | 모델신호="
-                + ", ".join(
-                    result[
-                        "model_signals"
-                    ]
-                )
-            )
-
-        if result[
-            "shopping_domains"
-        ]:
-            diagnostic += (
-                " | 쇼핑도메인="
-                + ", ".join(
-                    result[
-                        "shopping_domains"
-                    ]
-                )
-            )
+        diagnostic_parts = list(result["reasons"])
+        if result["models"]:
+            diagnostic_parts.append("모델=" + ", ".join(result["models"]))
+        if result["domains"]:
+            diagnostic_parts.append("쇼핑도메인=" + ", ".join(result["domains"]))
+        if result["recipe_matches"]:
+            diagnostic_parts.append("레시피표현=" + ", ".join(result["recipe_matches"]))
 
         update(
             "videos",
             {
-                "product_score": (
-                    product_score
-                ),
-                "analysis_status": (
-                    status
-                ),
-
-                # 후보 점수 근거를 관리용으로 저장한다.
-                # errors 컬럼을 진단 로그로도 활용한다.
-                "analysis_error": (
-                    diagnostic[:1000]
-                    if diagnostic
-                    else None
-                ),
+                "product_score": result["score"],
+                "analysis_status": status,
+                "analysis_error": " | ".join(diagnostic_parts)[:1000] or None,
             },
-            {
-                "video_id": (
-                    f"eq."
-                    f"{video['video_id']}"
-                )
-            },
+            {"video_id": f"eq.{video['video_id']}"},
         )
 
         print(
-            f"Scored video | "
-            f"id={video['video_id']} | "
-            f"score={product_score} | "
-            f"status={status} | "
-            f"title="
-            f"{video.get('title', '')[:80]}"
+            f"Scored video | id={video['video_id']} | score={result['score']} | "
+            f"status={status} | recipe_block={result['hard_recipe_block']} | "
+            f"title={video.get('title', '')[:90]}"
         )
 
     print(
         "Video scoring completed | "
-        f"scored={len(videos)} | "
-        f"queued={queued} | "
-        f"skipped={skipped} | "
-        f"threshold={queue_threshold}"
+        f"scored={len(videos)} | queued={queued} | skipped={skipped} | "
+        f"threshold={threshold}"
     )
 
 
