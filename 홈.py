@@ -132,6 +132,45 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
   line-height: 1;
   z-index: 2;
 }
+
+/* 영상 썸네일은 상품 사진과 구분해 16:9 전체폭 중앙 정렬 */
+.video-thumbnail-wrap {
+  position: relative;
+  width: 100%;
+  height: 210px;
+  margin: 0 0 13px 0;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #111827;
+  box-shadow: inset 0 0 0 1px rgba(25,31,40,.08);
+}
+.video-thumbnail {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0 auto;
+  object-fit: cover;
+  object-position: center center;
+}
+.video-thumbnail-label {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(25,31,40,.82);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  backdrop-filter: blur(4px);
+}
+@media (max-width: 900px) and (min-width: 601px) {
+  .video-thumbnail-wrap { height: 190px; }
+}
+@media (max-width: 600px) {
+  .video-thumbnail-wrap { height: 210px; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -185,11 +224,13 @@ def render_product_visual(product):
     )
     representative = next((rec for rec in ranked if rec.get("video_id")), None)
     if representative:
-        video_id = representative["video_id"]
+        video_id = safe(representative["video_id"])
         thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
-        st.image(thumbnail_url, use_container_width=True)
         st.markdown(
-            '<div class="thumbnail-source-badge">추천 영상 이미지</div>',
+            '<div class="video-thumbnail-wrap">'
+            f'<img class="video-thumbnail" src="{thumbnail_url}" alt="추천 영상 썸네일">'
+            '<span class="video-thumbnail-label">추천 영상 이미지</span>'
+            '</div>',
             unsafe_allow_html=True,
         )
         return
