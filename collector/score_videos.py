@@ -31,6 +31,19 @@ RECIPE_LIFESTYLE = {
     "새벽 5시": -6, "새벽 5시 기상": -8, "냉장고 털기": -8,
 }
 
+# 청소법·정리법·관리법·메이크업 방법 등 제품보다 방법이 중심인 영상
+METHOD_LIFESTYLE = {
+    "청소법": -12, "청소 방법": -12, "세탁법": -12, "세탁 방법": -12,
+    "정리법": -12, "정리 방법": -12, "수납법": -10, "관리법": -10,
+    "관리 방법": -10, "집안일": -9, "살림 루틴": -10, "청소 루틴": -10,
+    "세탁 루틴": -10, "정리 루틴": -10, "봄맞이 청소": -10,
+    "대청소": -8, "옷장 정리": -9, "냉장고 정리": -9, "욕실 청소": -9,
+    "주방 청소": -9, "메이크업 방법": -12, "메이크업 튜토리얼": -12,
+    "메이크업 룩": -8, "눈 커지는": -10, "얼굴 작아지는": -10,
+    "피부 관리법": -10, "바디 관리": -8, "헤어 관리": -8,
+    "꿀팁": -5, "노하우": -5, "방법": -4, "활용법": -7,
+}
+
 STRONG_NEGATIVE = {
     "뮤직비디오": -18, "music video": -18, "official mv": -18,
     "티저": -12, "예고편": -12, "다시보기": -12,
@@ -118,6 +131,7 @@ def score_video(video):
     description_intent, _ = keyword_score(description, PRODUCT_INTENT)
     commerce, commerce_matches = keyword_score(combined, COMMERCE_SIGNALS)
     recipe_penalty, recipe_matches = keyword_score(title, RECIPE_LIFESTYLE)
+    method_penalty, method_matches = keyword_score(title, METHOD_LIFESTYLE)
     negative, negative_matches = keyword_score(combined, STRONG_NEGATIVE)
     domains = shopping_links(video.get("description"))
     models = model_signals(combined)
@@ -171,6 +185,21 @@ def score_video(video):
             score += recipe_penalty
             reasons.append(f"레시피·일상 {recipe_penalty}")
 
+    # 청소법·정리법·관리법은 제품 중심 제목이나 구체적 모델이 있을 때만 살린다.
+    if method_matches:
+        method_rescue = (
+            title_intent >= 5
+            or (product_title and bool(models))
+            or (bool(models) and commerce >= 5 and bool(domains))
+        )
+        if method_rescue:
+            applied = max(-4, method_penalty // 3)
+            score += applied
+            reasons.append(f"생활방법이지만 제품 중심 {applied}")
+        else:
+            score += method_penalty
+            reasons.append(f"청소·정리·관리 방법 {method_penalty}")
+
     if negative:
         score += negative
         reasons.append(f"비상품 영상 {negative}")
@@ -184,15 +213,27 @@ def score_video(video):
     hard_recipe_block = bool(recipe_matches) and not (
         product_title or title_intent >= 4 or (commerce >= 5 and domains) or (models and title_intent >= 2)
     )
+    hard_method_block = bool(method_matches) and not (
+        title_intent >= 5
+        or (product_title and bool(models))
+        or (models and commerce >= 5 and domains)
+    )
+
+    # 설명란의 쇼핑 링크만으로 후보가 되는 것을 막는다.
+    # 제목에 제품 의도가 있거나 구체적 모델 신호가 있어야 한다.
+    identity_gate = bool(models) or title_intent >= 4 or product_title
 
     score = max(-40, min(30, score))
     return {
         "score": score,
         "hard_recipe_block": hard_recipe_block,
+        "hard_method_block": hard_method_block,
+        "identity_gate": identity_gate,
         "reasons": reasons,
         "domains": domains,
         "models": models[:10],
         "recipe_matches": recipe_matches,
+        "method_matches": method_matches,
         "negative_matches": negative_matches,
         "commerce_matches": commerce_matches,
         "title_matches": title_matches,
@@ -213,7 +254,12 @@ def main():
 
     for video in videos:
         result = score_video(video)
-        if result["score"] >= threshold and not result["hard_recipe_block"]:
+        if (
+            result["score"] >= threshold
+            and result["identity_gate"]
+            and not result["hard_recipe_block"]
+            and not result["hard_method_block"]
+        ):
             status = "queued"
             queued += 1
         else:
@@ -227,6 +273,8 @@ def main():
             diagnostic_parts.append("쇼핑도메인=" + ", ".join(result["domains"]))
         if result["recipe_matches"]:
             diagnostic_parts.append("레시피표현=" + ", ".join(result["recipe_matches"]))
+        if result["method_matches"]:
+            diagnostic_parts.append("생활방법표현=" + ", ".join(result["method_matches"]))
 
         update(
             "videos",
@@ -241,6 +289,8 @@ def main():
         print(
             f"Scored video | id={video['video_id']} | score={result['score']} | "
             f"status={status} | recipe_block={result['hard_recipe_block']} | "
+            f"method_block={result['hard_method_block']} | "
+            f"identity_gate={result['identity_gate']} | "
             f"title={video.get('title', '')[:90]}"
         )
 
