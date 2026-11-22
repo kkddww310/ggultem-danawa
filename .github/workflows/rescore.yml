@@ -1,0 +1,38 @@
+name: Rescore pending videos
+
+on:
+  # 예약 실행 없이 개발 중 필요할 때만 수동 실행
+  workflow_dispatch:
+
+concurrency:
+  group: rescore-pending-videos
+  cancel-in-progress: false
+
+jobs:
+  rescore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      # collector.config를 불러올 때 필요한 환경변수
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+      # Supabase 영상 조회·상태 수정
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Rescore pending videos
+        run: python -m collector.score_videos
