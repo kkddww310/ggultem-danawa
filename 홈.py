@@ -658,6 +658,126 @@ input, textarea, select, option {
   -webkit-text-fill-color: #C94F00 !important;
 }
 
+
+/* ===== 검은 테두리 완전 제거: 최종 우선순위 ===== */
+
+/* 상품, 운영 통계, 상품 검수의 외곽 네모 */
+div[data-testid="stVerticalBlockBorderWrapper"],
+div[data-testid="stVerticalBlockBorderWrapper"] > div,
+div[data-testid="stVerticalBlockBorderWrapper"] > div > div {
+  border: 0 !important;
+  outline: 0 !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"] {
+  background: #FFFFFF !important;
+  border-radius: 20px !important;
+  box-shadow: 0 7px 24px rgba(49,130,246,.085) !important;
+}
+
+/* 펼치기 영역의 검은 선 제거 */
+div[data-testid="stExpander"],
+div[data-testid="stExpander"] > details,
+div[data-testid="stExpander"] summary {
+  border: 0 !important;
+  outline: 0 !important;
+}
+div[data-testid="stExpander"] > details {
+  background: #F8FBFF !important;
+  border-radius: 13px !important;
+  box-shadow: inset 0 0 0 1px #DDE9F8 !important;
+}
+
+/* 검색창: 모든 내부 검은 border와 outline 제거 후 주황 외곽선 하나만 표시 */
+div[data-testid="stTextInput"],
+div[data-testid="stTextInput"] > div,
+div[data-testid="stTextInput"] div[data-baseweb="input"],
+div[data-testid="stTextInput"] div[data-baseweb="base-input"],
+div[data-testid="stTextInput"] div[data-baseweb="input"] > div,
+div[data-testid="stTextInput"] input {
+  outline: 0 !important;
+}
+div[data-testid="stTextInput"] div[data-baseweb="input"] *,
+div[data-testid="stTextInput"] div[data-baseweb="base-input"] * {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+div[data-testid="stTextInput"] div[data-baseweb="input"],
+div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+  background: #FFFFFF !important;
+  border: 2px solid #FF7A00 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 3px 12px rgba(255,122,0,.14) !important;
+  overflow: hidden !important;
+}
+div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
+  border-color: #FF5A00 !important;
+  box-shadow: 0 0 0 4px rgba(255,122,0,.18) !important;
+}
+
+/* 카테고리: 검은 오른쪽 영역과 검은 테두리를 모두 흰색/주황색으로 교체 */
+div[data-testid="stSelectbox"],
+div[data-testid="stSelectbox"] > div,
+div[data-testid="stSelectbox"] div[data-baseweb="select"],
+div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+div[data-testid="stSelectbox"] div[role="combobox"],
+div[data-testid="stSelectbox"] div[role="combobox"] > div,
+div[data-testid="stSelectbox"] div[aria-haspopup="listbox"],
+div[data-testid="stSelectbox"] input {
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+  outline: 0 !important;
+}
+div[data-testid="stSelectbox"] div[data-baseweb="select"] *,
+div[data-testid="stSelectbox"] div[role="combobox"] * {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+div[data-testid="stSelectbox"] div[data-baseweb="select"] {
+  border: 2px solid #FF7A00 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 3px 12px rgba(255,122,0,.14) !important;
+  overflow: hidden !important;
+}
+div[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within {
+  border-color: #FF5A00 !important;
+  box-shadow: 0 0 0 4px rgba(255,122,0,.18) !important;
+}
+div[data-testid="stSelectbox"] svg {
+  fill: #FF6A00 !important;
+  color: #FF6A00 !important;
+}
+
+/* 카테고리 펼침 메뉴 */
+div[data-baseweb="popover"],
+div[data-baseweb="popover"] > div,
+ul[role="listbox"],
+li[role="option"] {
+  background: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+  border-color: #FFE0C2 !important;
+}
+li[role="option"]:hover,
+li[role="option"][aria-selected="true"] {
+  background: #FFF1E5 !important;
+  color: #C94F00 !important;
+  -webkit-text-fill-color: #C94F00 !important;
+}
+
+/* 검수 폼의 외곽선도 검정 대신 파란 그림자로 통일 */
+div[data-testid="stForm"] {
+  border: 0 !important;
+  outline: 0 !important;
+  background: #F7FAFF !important;
+  border-radius: 18px !important;
+  box-shadow: inset 0 0 0 1px #DDE9F8, 0 5px 18px rgba(49,130,246,.055) !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
