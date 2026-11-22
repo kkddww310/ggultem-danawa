@@ -275,12 +275,17 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:0 13px 13px!important;overflow:hidden!important}.video-thumbnail-wrap{width:calc(100% + 26px)!important;height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;background:#111827!important;overflow:hidden!important}.video-thumbnail{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center center!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"]{width:calc(100% + 26px)!important;height:190px!important;min-height:190px!important;max-height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;overflow:hidden!important}.st-key-product_grid [data-testid="stImage"] img{width:100%!important;height:190px!important;max-height:190px!important;object-fit:cover!important;object-position:center center!important;padding:0!important;border-radius:18px 18px 0 0!important}.video-thumbnail-label{left:9px!important;bottom:9px!important}
 @media(max-width:900px) and (min-width:601px){.video-thumbnail-wrap,.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:180px!important;min-height:180px!important;max-height:180px!important}}@media(max-width:600px){.video-thumbnail-wrap,.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:215px!important;min-height:215px!important;max-height:215px!important}}
 
-/* 썸네일 16:9 비율 유지 및 카드 앞면 장단점 정렬 */
+/* 썸네일 상단 여백 제거, 16:9 비율 유지 및 카드 앞면 장단점 정렬 */
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"],
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div {
+  padding-top: 0 !important;
+}
 .video-thumbnail-wrap {
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
   aspect-ratio: 16 / 9 !important;
+  margin-top: -1px !important;
 }
 .card-summary-wrap {
   margin: 6px 0 10px;
@@ -349,10 +354,11 @@ def render_product_visual(product):
     representative = next((rec for rec in ranked if rec.get("video_id")), None)
     if representative:
         video_id = safe(representative["video_id"])
-        thumbnail_url = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
+        hd_url = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
+        fallback_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
         st.markdown(
             '<div class="video-thumbnail-wrap">'
-            f'<img class="video-thumbnail" src="{thumbnail_url}" alt="추천 영상 썸네일">'
+            f'<img class="video-thumbnail" src="{hd_url}" onerror="this.onerror=null;this.src=\'{fallback_url}\';" alt="추천 영상 썸네일">'
             '<span class="video-thumbnail-label">추천 영상 이미지</span>'
             '</div>',
             unsafe_allow_html=True,
