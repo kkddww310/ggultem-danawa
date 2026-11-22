@@ -30,6 +30,18 @@ CATEGORY_VISUALS = {
     "육아": ("🧸", "#FFF4E8", "#D06A19"), "반려동물": ("🐾", "#F4F7EA", "#6E832B"),
     "기타": ("🛍️", "#F1F4F8", "#5D6B7A"),
 }
+INVALID_POINT_PATTERNS = (
+    "원문에",
+    "명시됨",
+    "후기는 없음",
+    "후기 없음",
+    "언급 없음",
+    "정보가 없음",
+    "확인되지 않",
+    "알 수 없",
+    "단점 없음",
+    "장점 없음",
+)
 
 
 def headers(prefer=None):
@@ -72,6 +84,13 @@ def number(value):
 
 def count_by(rows, key):
     return Counter(str(row.get(key) or "unknown") for row in rows)
+
+
+def is_meaningful_point(text):
+    cleaned = re.sub(r"\s+", " ", str(text or "").strip())
+    if len(cleaned) < 2:
+        return False
+    return not any(pattern in cleaned for pattern in INVALID_POINT_PATTERNS)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -117,22 +136,6 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 @media(max-width:900px) and (min-width:601px){.st-key-product_grid [data-testid="stHorizontalBlock"]{flex-wrap:wrap!important}.st-key-product_grid [data-testid="column"]{flex:0 0 calc(50% - 8px)!important;min-width:calc(50% - 8px)!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:190px!important}}
 @media(max-width:600px){.block-container{padding:.65rem .55rem 3rem}.st-key-product_grid [data-testid="stHorizontalBlock"]{flex-direction:column!important}.st-key-product_grid [data-testid="column"]{width:100%!important;min-width:100%!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:210px!important}.product-title,.reason{min-height:0}.title{font-size:22px}}
 
-.thumbnail-source-badge {
-  display: inline-block;
-  position: relative;
-  margin-top: -43px;
-  margin-left: 9px;
-  margin-bottom: 17px;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: rgba(25,31,40,.78);
-  color: #FFFFFF;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-  z-index: 2;
-}
-
 /* 영상 썸네일은 상품 사진과 구분해 16:9 전체폭 중앙 정렬 */
 .video-thumbnail-wrap {
   position: relative;
@@ -152,25 +155,6 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
   object-fit: cover;
   object-position: center center;
 }
-.video-thumbnail-label {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(25,31,40,.82);
-  color: #FFFFFF;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-  backdrop-filter: blur(4px);
-}
-@media (max-width: 900px) and (min-width: 601px) {
-  .video-thumbnail-wrap { height: 190px; }
-}
-@media (max-width: 600px) {
-  .video-thumbnail-wrap { height: 210px; }
-}
 
 /* 쇼핑 이동 버튼은 한 줄 2열로 압축 */
 .st-key-product_grid [data-testid="stLinkButton"] a {
@@ -188,7 +172,7 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 }
 
 .purchase-badge{display:inline-block;margin:4px 5px 5px 0;padding:4px 8px;border-radius:999px;background:#FFF2E8;color:#B94F09;border:1px solid #FFD9BD;font-size:11px;font-weight:800}
-.summary-line{margin-top:6px;padding:8px 10px;border-radius:9px;font-size:12px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.summary-line{padding:8px 10px;border-radius:9px;font-size:12px;line-height:1.45}
 .summary-pro{background:#EEF8F3;color:#176B49}.summary-con{background:#FFF3F3;color:#A61B22}
 
 /* ===== 간결한 상품 카드 최종 보정 ===== */
@@ -212,13 +196,6 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
   margin: 4px 3px 3px 0 !important;
   font-size: 10px !important;
 }
-.st-key-product_grid .summary-line {
-  margin: 6px 0 8px !important;
-  padding: 7px 9px !important;
-  min-height: 0 !important;
-  font-size: 12px !important;
-  -webkit-line-clamp: 1 !important;
-}
 .st-key-product_grid [data-testid="stLinkButton"] a {
   min-height: 38px !important;
   font-size: 13px !important;
@@ -234,48 +211,16 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
   padding-bottom: 6px !important;
   font-size: 13px !important;
 }
-.video-thumbnail-wrap,
-.product-placeholder,
-.st-key-product_grid [data-testid="stImage"],
-.st-key-product_grid [data-testid="stImage"] img {
-  height: 180px !important;
-  min-height: 180px !important;
-  max-height: 180px !important;
-}
-.video-thumbnail-label {
-  left: 8px !important;
-  bottom: 8px !important;
-  padding: 5px 8px !important;
-  font-size: 10px !important;
-}
-@media (max-width: 900px) and (min-width: 601px) {
-  .video-thumbnail-wrap,
-  .product-placeholder,
-  .st-key-product_grid [data-testid="stImage"],
-  .st-key-product_grid [data-testid="stImage"] img {
-    height: 175px !important;
-    min-height: 175px !important;
-    max-height: 175px !important;
-  }
-}
 @media (max-width: 600px) {
   .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] { padding: 14px !important; }
-  .video-thumbnail-wrap,
-  .product-placeholder,
-  .st-key-product_grid [data-testid="stImage"],
-  .st-key-product_grid [data-testid="stImage"] img {
-    height: 200px !important;
-    min-height: 200px !important;
-    max-height: 200px !important;
-  }
   .st-key-product_grid .product-title { min-height: 0 !important; }
 }
 
 .card-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:5px 0 8px}.card-meta-row .badge{margin:0!important}.purchase-dot{display:inline-flex;align-items:center;gap:4px;height:23px;padding:0 7px;border-radius:999px;font-size:10px;font-weight:800;line-height:1;border:1px solid transparent}.purchase-dot i{display:inline-block;width:6px;height:6px;border-radius:50%;flex:0 0 6px}.purchase-buy{color:#176B49;background:#EEF8F3;border-color:#CDEBDC}.purchase-buy i{background:#22A06B}.purchase-provided{color:#8A5A00;background:#FFF7DD;border-color:#F4D98A}.purchase-provided i{background:#E9A800}.purchase-ad,.purchase-unknown{color:#B42318;background:#FFF0F0;border-color:#FFD0CC}.purchase-ad i,.purchase-unknown i{background:#E5484D}
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:0 13px 13px!important;overflow:hidden!important}.video-thumbnail-wrap{width:calc(100% + 26px)!important;height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;background:#111827!important;overflow:hidden!important}.video-thumbnail{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center center!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"]{width:calc(100% + 26px)!important;height:190px!important;min-height:190px!important;max-height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;overflow:hidden!important}.st-key-product_grid [data-testid="stImage"] img{width:100%!important;height:190px!important;max-height:190px!important;object-fit:cover!important;object-position:center center!important;padding:0!important;border-radius:18px 18px 0 0!important}.video-thumbnail-label{left:9px!important;bottom:9px!important}
-@media(max-width:900px) and (min-width:601px){.video-thumbnail-wrap,.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:180px!important;min-height:180px!important;max-height:180px!important}}@media(max-width:600px){.video-thumbnail-wrap,.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:215px!important;min-height:215px!important;max-height:215px!important}}
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:0 13px 13px!important;overflow:hidden!important}.video-thumbnail-wrap{width:calc(100% + 26px)!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;background:#111827!important;overflow:hidden!important}.video-thumbnail{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center center!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"]{width:calc(100% + 26px)!important;height:190px!important;min-height:190px!important;max-height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;overflow:hidden!important}.st-key-product_grid [data-testid="stImage"] img{width:100%!important;height:190px!important;max-height:190px!important;object-fit:cover!important;object-position:center center!important;padding:0!important;border-radius:18px 18px 0 0!important}
+@media(max-width:900px) and (min-width:601px){.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:180px!important;min-height:180px!important;max-height:180px!important}}@media(max-width:600px){.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:215px!important;min-height:215px!important;max-height:215px!important}}
 
-/* 썸네일 상단 여백 제거, 16:9 비율 유지 및 카드 앞면 장단점 정렬 */
+/* 썸네일 상단 여백 제거, 16:9 비율 유지 및 카드 앞면 장단점 자연 줄바꿈 */
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"],
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div {
   padding-top: 0 !important;
@@ -293,8 +238,17 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
   flex-direction: column;
   gap: 5px;
 }
-.card-summary-wrap .summary-line {
+.st-key-product_grid .summary-line {
+  display: block !important;
   margin: 0 !important;
+  padding: 8px 10px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  font-size: 12px !important;
+  line-height: 1.48 !important;
+  word-break: keep-all !important;
+  overflow-wrap: break-word !important;
+  -webkit-line-clamp: unset !important;
 }
 .summary-reason {
   background: #F4F6F9;
@@ -359,7 +313,6 @@ def render_product_visual(product):
         st.markdown(
             '<div class="video-thumbnail-wrap">'
             f'<img class="video-thumbnail" src="{hd_url}" onerror="this.onerror=null;this.src=\'{fallback_url}\';" alt="추천 영상 썸네일">'
-            '<span class="video-thumbnail-label">추천 영상 이미지</span>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -382,11 +335,11 @@ def recommendation_summary(recommendations):
         purchase_counts[str(rec.get("purchase_type") or "확인되지 않음").strip()] += 1
         for value in rec.get("pros") or []:
             text = re.sub(r"\s+", " ", str(value).strip())
-            if len(text) >= 2:
+            if is_meaningful_point(text):
                 pros[text] += 1
         for value in rec.get("cons") or []:
             text = re.sub(r"\s+", " ", str(value).strip())
-            if len(text) >= 2:
+            if is_meaningful_point(text):
                 cons[text] += 1
     return {
         "purchase_counts": purchase_counts,
@@ -430,7 +383,14 @@ def render_product_card(product):
 
         pro_line = summary["pros"][0] if summary["pros"] else ""
         con_line = summary["cons"][0] if summary["cons"] else ""
-        fallback_reason = next((str(r.get("reason") or "").strip() for r in recs if str(r.get("reason") or "").strip()), "")
+        fallback_reason = next(
+            (
+                re.sub(r"\s+", " ", str(r.get("reason") or "").strip())
+                for r in recs
+                if is_meaningful_point(r.get("reason"))
+            ),
+            "",
+        )
 
         summary_blocks = []
         if pro_line:
