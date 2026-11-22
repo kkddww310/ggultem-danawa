@@ -1,332 +1,237 @@
+from datetime import datetime, timedelta, timezone
+
 from collector.config import VIDEOS_PER_CHANNEL
-from collector.database import select, upsert
-from collector.youtube_api import (
-    get_playlist_videos,
-    get_videos,
-)
+from collector.database import select, update, upsert
+from collector.youtube_api import get_playlist_videos, get_videos
+
+MAX_CHANNELS_PER_RUN = 100
 
 
-def chunk_list(values, size=100):
-    """
-    Supabase in 필터가 너무 길어지지 않도록
-    ID 목록을 일정 크기로 나눈다.
-    """
+def now_utc():
+    return datetime.now(timezone.utc)
+
+
+def chunks(values, size=100):
     for start in range(0, len(values), size):
         yield values[start:start + size]
 
 
-def get_existing_video_ids(video_ids):
-    """
-    Supabase videos 테이블에 이미 존재하는
-    video_id만 조회한다.
-
-    기존 영상의 analysis_status를 다시 pending으로
-    바꾸지 않기 위한 확인 단계다.
-    """
-    existing_ids = set()
-
-    clean_ids = list(
-        dict.fromkeys(
-            video_id
-            for video_id in video_ids
-            if video_id
-        )
+def get_due_channels():
+    """다음 확인 시간이 지난 활성 채널을 우선순위 순으로 선택한다."""
+    rows = select(
+        "channels",
+        (
+            "channel_id,channel_name,uploads_playlist_id,scan_priority,"
+            "next_video_scan_at,last_video_published_at,total_scanned_videos,"
+            "product_candidate_videos,extracted_product_count"
+        ),
+        {
+            "status": "eq.active",
+            "uploads_playlist_id": "not.is.null",
+            "next_video_scan_at": f"lte.{now_utc().isoformat()}",
+        },
+        limit=MAX_CHANNELS_PER_RUN,
+        order="scan_priority.desc,next_video_scan_at.asc",
     )
+    return rows[:MAX_CHANNELS_PER_RUN]
 
-    for chunk in chunk_list(clean_ids, 100):
-        if not chunk:
-            continue
 
+def get_existing_videos(video_ids):
+    """기존 영상 상태를 가져와 analyzed 등의 값을 보존한다."""
+    result = {}
+    clean_ids = list(dict.fromkeys(video_id for video_id in video_ids if video_id))
+    for group in chunks(clean_ids, 100):
         rows = select(
             "videos",
-            "video_id",
-            {
-                "video_id": (
-                    f"in.({','.join(chunk)})"
-                )
-            },
-            limit=len(chunk),
+            "video_id,analysis_status,product_score,published_at",
+            {"video_id": f"in.({','.join(group)})"},
+            limit=len(group),
         )
-
         for row in rows:
-            video_id = row.get("video_id")
-
-            if video_id:
-                existing_ids.add(video_id)
-
-    return existing_ids
+            result[row["video_id"]] = row
+    return result
 
 
-def build_video_row(
-    item,
-    fallback_channel_id,
-    is_new,
-):
-    """
-    YouTube API의 영상 데이터를 Supabase 저장 형식으로 바꾼다.
+def next_scan_delay(priority):
+    """상품 영상 비율이 높은 채널을 더 자주 확인한다."""
+    return {
+        5: timedelta(days=1),
+        4: timedelta(days=3),
+        3: timedelta(days=3),
+        2: timedelta(days=7),
+        1: timedelta(days=30),
+    }.get(int(priority or 1), timedelta(days=30))
 
-    신규 영상에만 analysis_status=pending을 넣는다.
-    기존 영상에는 analysis_status를 아예 넣지 않아서
-    analyzed, no_product, ai_error 등의 기존 상태를 보존한다.
-    """
+
+def build_video_row(item, fallback_channel_id, is_new):
     snippet = item.get("snippet", {})
     statistics = item.get("statistics", {})
-
-    video_id = item.get("id", "")
-    channel_id = (
-        snippet.get("channelId")
-        or fallback_channel_id
-    )
-
     row = {
-        "video_id": video_id,
-        "channel_id": channel_id,
-        "title": snippet.get(
-            "title",
-            "제목 없음",
-        ),
-        "description": (
-            snippet.get("description", "")
-            or ""
-        )[:10000],
-        "published_at": snippet.get(
-            "publishedAt"
-        ),
-        "view_count": int(
-            statistics.get("viewCount", 0)
-            or 0
-        ),
-        "like_count": int(
-            statistics.get("likeCount", 0)
-            or 0
-        ),
-        "youtube_category_id": snippet.get(
-            "categoryId"
-        ),
+        "video_id": item["id"],
+        "channel_id": snippet.get("channelId") or fallback_channel_id,
+        "title": snippet.get("title", "제목 없음"),
+        "description": str(snippet.get("description", "") or "")[:10000],
+        "published_at": snippet.get("publishedAt"),
+        "view_count": int(statistics.get("viewCount", 0) or 0),
+        "like_count": int(statistics.get("likeCount", 0) or 0),
+        "youtube_category_id": snippet.get("categoryId"),
     }
-
-    # 새 영상만 AI 분석 대기 상태로 등록
     if is_new:
-        row["product_score"] = 0
-        row["analysis_status"] = "pending"
-        row["analysis_error"] = None
-
+        row.update({
+            "product_score": 0,
+            "analysis_status": "pending",
+            "analysis_error": None,
+        })
     return row
 
 
-def sync_channel_videos(channel):
-    """
-    활성 채널 한 개의 최근 영상을 가져와 저장한다.
+def refresh_channel_metrics(channel_id):
+    """현재 DB를 기준으로 채널별 상품 영상 비율과 우선순위를 다시 계산한다."""
+    videos = select(
+        "videos",
+        "video_id,product_score,analysis_status,published_at",
+        {"channel_id": f"eq.{channel_id}"},
+        limit=5000,
+    )
+    recommendations = select(
+        "recommendations",
+        "recommendation_id",
+        {"channel_id": f"eq.{channel_id}"},
+        limit=5000,
+    )
 
-    반환값:
-    {
-        "channel_id": "...",
-        "found": 20,
-        "new": 3,
-        "updated": 17
+    total = len(videos)
+    candidates = sum(
+        1
+        for video in videos
+        if int(video.get("product_score") or 0) >= 5
+        or video.get("analysis_status") in {
+            "queued", "analyzed", "no_product", "rejected_generic"
+        }
+    )
+    extracted = len(recommendations)
+    latest_published = max(
+        (video.get("published_at") for video in videos if video.get("published_at")),
+        default=None,
+    )
+    ratio = (candidates / total) if total else 0
+
+    if total == 0:
+        priority = 3
+    elif ratio >= 0.30:
+        priority = 5
+    elif ratio >= 0.10:
+        priority = 4
+    elif ratio >= 0.03:
+        priority = 2
+    else:
+        priority = 1
+
+    return {
+        "total_scanned_videos": total,
+        "product_candidate_videos": candidates,
+        "extracted_product_count": extracted,
+        "product_video_ratio": round(ratio, 4),
+        "scan_priority": priority,
+        "last_video_published_at": latest_published,
     }
-    """
-    channel_id = channel.get(
-        "channel_id",
-        "",
-    )
 
-    uploads_playlist_id = channel.get(
-        "uploads_playlist_id",
-        "",
-    )
 
-    if not channel_id:
-        return {
-            "channel_id": "",
-            "found": 0,
-            "new": 0,
-            "updated": 0,
-            "error": "channel_id 없음",
-        }
+def sync_channel(channel):
+    channel_id = channel["channel_id"]
+    playlist_id = channel.get("uploads_playlist_id")
+    priority_before = int(channel.get("scan_priority") or 1)
 
-    if not uploads_playlist_id:
-        return {
-            "channel_id": channel_id,
-            "found": 0,
-            "new": 0,
-            "updated": 0,
-            "error": "uploads_playlist_id 없음",
-        }
-
-    playlist_items = get_playlist_videos(
-        uploads_playlist_id,
-        VIDEOS_PER_CHANNEL,
-    )
-
-    video_ids = []
-
-    for playlist_item in playlist_items:
-        video_id = (
-            playlist_item
-            .get("contentDetails", {})
-            .get("videoId")
-        )
-
-        if video_id:
-            video_ids.append(video_id)
-
-    video_ids = list(
-        dict.fromkeys(video_ids)
-    )
+    playlist_items = get_playlist_videos(playlist_id, VIDEOS_PER_CHANNEL)
+    video_ids = [
+        item.get("contentDetails", {}).get("videoId")
+        for item in playlist_items
+        if item.get("contentDetails", {}).get("videoId")
+    ]
+    video_ids = list(dict.fromkeys(video_ids))
 
     if not video_ids:
-        return {
-            "channel_id": channel_id,
-            "found": 0,
-            "new": 0,
-            "updated": 0,
-            "error": "",
-        }
+        next_at = now_utc() + next_scan_delay(priority_before)
+        update(
+            "channels",
+            {"next_video_scan_at": next_at.isoformat()},
+            {"channel_id": f"eq.{channel_id}"},
+        )
+        return {"found": 0, "new": 0, "updated": 0, "priority": priority_before}
 
-    existing_ids = get_existing_video_ids(
-        video_ids
-    )
-
+    existing = get_existing_videos(video_ids)
     details = get_videos(video_ids)
-
     new_rows = []
     existing_rows = []
 
     for item in details:
-        video_id = item.get("id", "")
-
+        video_id = item.get("id")
         if not video_id:
             continue
-
-        is_new = (
-            video_id not in existing_ids
-        )
-
-        row = build_video_row(
-            item=item,
-            fallback_channel_id=channel_id,
-            is_new=is_new,
-        )
-
+        is_new = video_id not in existing
+        row = build_video_row(item, channel_id, is_new)
         if is_new:
             new_rows.append(row)
         else:
+            # 분석 상태 필드를 넣지 않아 기존 analyzed/no_product 등을 보존한다.
             existing_rows.append(row)
 
-    # 신규 영상:
-    # pending 상태를 포함해 최초 저장
     if new_rows:
-        upsert(
-            "videos",
-            new_rows,
-            "video_id",
-        )
-
-    # 기존 영상:
-    # 제목·설명·조회수 등만 갱신
-    # analysis_status와 product_score는 row에 없으므로 유지
+        upsert("videos", new_rows, "video_id")
     if existing_rows:
-        upsert(
-            "videos",
-            existing_rows,
-            "video_id",
-        )
+        upsert("videos", existing_rows, "video_id")
+
+    metrics = refresh_channel_metrics(channel_id)
+    next_at = now_utc() + next_scan_delay(metrics["scan_priority"])
+    update(
+        "channels",
+        {**metrics, "next_video_scan_at": next_at.isoformat()},
+        {"channel_id": f"eq.{channel_id}"},
+    )
 
     return {
-        "channel_id": channel_id,
         "found": len(details),
         "new": len(new_rows),
         "updated": len(existing_rows),
-        "error": "",
+        "priority": metrics["scan_priority"],
     }
 
 
 def main():
-    """
-    구독자 조건을 통과해 status=active인 채널의
-    최근 영상을 동기화한다.
+    channels = get_due_channels()
+    if not channels:
+        print("No active channels are due for video scanning.")
+        return
 
-    핵심 정책:
-    - 새 video_id만 pending으로 등록
-    - 기존 영상의 분석 상태는 보존
-    - 조회수, 제목, 설명 등 메타데이터는 갱신
-    """
-    channels = select(
-        "channels",
-        (
-            "channel_id,"
-            "channel_name,"
-            "uploads_playlist_id"
-        ),
-        {
-            "status": "eq.active",
-            "uploads_playlist_id": (
-                "not.is.null"
-            ),
-        },
-        limit=5000,
-        order="subscriber_count.desc",
-    )
+    total_found = total_new = total_updated = errors = 0
+    print(f"Due active channels selected: {len(channels)}")
 
-    total_channels = len(channels)
-    total_found = 0
-    total_new = 0
-    total_updated = 0
-    total_errors = 0
-
-    print(
-        f"Active channels to scan: "
-        f"{total_channels}"
-    )
-
-    for index, channel in enumerate(
-        channels,
-        start=1,
-    ):
-        channel_id = channel.get(
-            "channel_id",
-            "",
-        )
-
-        channel_name = channel.get(
-            "channel_name",
-            channel_id,
-        )
-
+    for index, channel in enumerate(channels, start=1):
+        name = channel.get("channel_name") or channel["channel_id"]
         try:
-            result = sync_channel_videos(
-                channel
-            )
-
+            result = sync_channel(channel)
             total_found += result["found"]
             total_new += result["new"]
             total_updated += result["updated"]
-
             print(
-                f"[{index}/{total_channels}] "
-                f"{channel_name} | "
-                f"found={result['found']} | "
-                f"new={result['new']} | "
-                f"updated={result['updated']}"
+                f"[{index}/{len(channels)}] {name} | found={result['found']} | "
+                f"new={result['new']} | updated={result['updated']} | "
+                f"next_priority={result['priority']}"
             )
-
         except Exception as error:
-            total_errors += 1
-
-            print(
-                f"[{index}/{total_channels}] "
-                f"{channel_name} | "
-                f"ERROR: {error}"
+            errors += 1
+            # 일시 오류는 6시간 뒤 재시도한다.
+            update(
+                "channels",
+                {"next_video_scan_at": (now_utc() + timedelta(hours=6)).isoformat()},
+                {"channel_id": f"eq.{channel['channel_id']}"},
             )
+            print(f"[{index}/{len(channels)}] {name} | ERROR: {error}")
 
     print(
-        "Video sync completed | "
-        f"channels={total_channels} | "
-        f"found={total_found} | "
-        f"new={total_new} | "
-        f"updated={total_updated} | "
-        f"errors={total_errors}"
+        "Priority video sync completed | "
+        f"channels={len(channels)} | found={total_found} | new={total_new} | "
+        f"updated={total_updated} | errors={errors}"
     )
 
 
