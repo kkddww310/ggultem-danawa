@@ -15,7 +15,7 @@ MODELS = (
     "mistralai/mistral-small-3.1-24b-instruct:free",
 )
 
-BATCH_LIMIT = 30
+BATCH_LIMIT = 5
 MIN_CONFIDENCE = 0.87
 
 GENERIC_TERMS = {
@@ -216,7 +216,7 @@ confidence 0.87 이상이며 브랜드와 모델이 원문에 직접 확인될 �
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.0,
                 },
-                timeout=75,
+                timeout=40,
             )
             if response.status_code >= 400:
                 raise RuntimeError(f"HTTP {response.status_code}: {response.text[:300]}")
