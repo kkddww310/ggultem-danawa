@@ -923,6 +923,52 @@ input, select, textarea, option { color-scheme: only light !important; }
   .product-placeholder { min-height: 210px; }
 }
 
+
+/* ===== 상품 이미지 4:3 비율 최종 보정 ===== */
+.product-placeholder {
+  width: 100% !important;
+  aspect-ratio: 4 / 3 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  border-radius: 15px !important;
+  margin-bottom: 13px !important;
+}
+.product-placeholder span {
+  font-size: 44px !important;
+}
+.product-placeholder small {
+  font-size: 12px !important;
+}
+.st-key-product_grid [data-testid="stImage"] img {
+  width: 100% !important;
+  aspect-ratio: 4 / 3 !important;
+  height: auto !important;
+  max-height: 190px !important;
+  object-fit: contain !important;
+  border-radius: 15px !important;
+  padding: 8px !important;
+}
+.st-key-product_grid [data-testid="stVerticalBlockBorderWrapper"] {
+  min-height: 0 !important;
+}
+@media (max-width: 900px) {
+  .st-key-product_grid [data-testid="stImage"] img {
+    max-height: 210px !important;
+  }
+}
+@media (max-width: 600px) {
+  .product-placeholder {
+    aspect-ratio: 16 / 10 !important;
+  }
+  .product-placeholder span {
+    font-size: 48px !important;
+  }
+  .st-key-product_grid [data-testid="stImage"] img {
+    aspect-ratio: 16 / 10 !important;
+    max-height: 230px !important;
+  }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
