@@ -24,28 +24,28 @@ SUPABASE_KEY = os.environ[
 # 채널과 영상 수집 기준
 # =========================================================
 
-# 구독자 100만 이상 채널은 자동 활성화
+# 구독자 10만 이상 채널은 자동 활성화
 MIN_SUBSCRIBERS = int(
     os.getenv(
         "MIN_SUBSCRIBERS",
-        "1000000",
+        "100000",
     )
 )
 
 # 한 번의 실행에서 사용할 검색어 수
-# YouTube search.list 할당량 절약을 위해 20개로 제한
+# YouTube search.list 30회 = 3,000유닛 (일일 한도 10,000유닛 내 안전 운영)
 DISCOVERY_QUERY_LIMIT = int(
     os.getenv(
         "DISCOVERY_QUERY_LIMIT",
-        "20",
+        "30",
     )
 )
 
-# 활성 채널별로 확인할 최근 영상 수
+# 활성 채널별로 확인할 최근 영상 수 (YouTube API 1회 최대치 50개 활용)
 VIDEOS_PER_CHANNEL = int(
     os.getenv(
         "VIDEOS_PER_CHANNEL",
-        "30",
+        "50",
     )
 )
 
@@ -53,22 +53,13 @@ VIDEOS_PER_CHANNEL = int(
 AI_BATCH_LIMIT = int(
     os.getenv(
         "AI_BATCH_LIMIT",
-        "30",
+        "12",
     )
 )
 
 
 # =========================================================
 # 분야별 YouTube 채널·상품 영상 발견 검색어
-# =========================================================
-#
-# 현재 약 140개의 검색어가 들어 있다.
-#
-# discover_channels.py에서 날짜를 기준으로
-# 매일 DISCOVERY_QUERY_LIMIT개의 검색어만 선택한다.
-#
-# 검색어가 140개이고 하루에 20개씩 실행하면
-# 약 7일마다 전체 검색어를 한 바퀴 순환한다.
 # =========================================================
 
 DISCOVERY_QUERIES = [
