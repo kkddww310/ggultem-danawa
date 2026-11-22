@@ -136,11 +136,10 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 @media(max-width:900px) and (min-width:601px){.st-key-product_grid [data-testid="stHorizontalBlock"]{flex-wrap:wrap!important}.st-key-product_grid [data-testid="column"]{flex:0 0 calc(50% - 8px)!important;min-width:calc(50% - 8px)!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:190px!important}}
 @media(max-width:600px){.block-container{padding:.65rem .55rem 3rem}.st-key-product_grid [data-testid="stHorizontalBlock"]{flex-direction:column!important}.st-key-product_grid [data-testid="column"]{width:100%!important;min-width:100%!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:210px!important}.product-title,.reason{min-height:0}.title{font-size:22px}}
 
-/* 영상 썸네일은 상품 사진과 구분해 16:9 전체폭 중앙 정렬 */
+/* 영상 썸네일 16:9 전체폭 중앙 정렬 */
 .video-thumbnail-wrap {
   position: relative;
   width: 100%;
-  height: 210px;
   margin: 0 0 13px 0;
   border-radius: 15px;
   overflow: hidden;
@@ -158,17 +157,10 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 
 /* 쇼핑 이동 버튼은 한 줄 2열로 압축 */
 .st-key-product_grid [data-testid="stLinkButton"] a {
-  min-height: 42px !important;
-  padding-left: 8px !important;
-  padding-right: 8px !important;
+  min-height: 38px !important;
+  padding: 6px 7px !important;
   white-space: nowrap !important;
-  font-size: 14px !important;
-}
-@media (max-width: 600px) {
-  .st-key-product_grid [data-testid="stLinkButton"] a {
-    min-height: 44px !important;
-    font-size: 14px !important;
-  }
+  font-size: 13px !important;
 }
 
 .purchase-badge{display:inline-block;margin:4px 5px 5px 0;padding:4px 8px;border-radius:999px;background:#FFF2E8;color:#B94F09;border:1px solid #FFD9BD;font-size:11px;font-weight:800}
@@ -177,8 +169,13 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 
 /* ===== 간결한 상품 카드 최종 보정 ===== */
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] {
-  padding: 13px !important;
+  padding: 0 13px 13px !important;
   border-radius: 18px !important;
+  overflow: hidden !important;
+}
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"],
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div {
+  padding-top: 0 !important;
 }
 .st-key-product_grid .product-title {
   min-height: 44px !important;
@@ -196,42 +193,24 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
   margin: 4px 3px 3px 0 !important;
   font-size: 10px !important;
 }
-.st-key-product_grid [data-testid="stLinkButton"] a {
-  min-height: 38px !important;
-  font-size: 13px !important;
-  padding: 6px 7px !important;
-}
 .st-key-product_grid [data-testid="stExpander"] {
   margin-top: 7px !important;
   border-radius: 11px !important;
 }
 .st-key-product_grid [data-testid="stExpander"] summary {
-  min-height: 38px !important;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
+  min-height: 36px !important;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
   font-size: 13px !important;
 }
 @media (max-width: 600px) {
-  .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] { padding: 14px !important; }
   .st-key-product_grid .product-title { min-height: 0 !important; }
 }
 
 .card-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:5px 0 8px}.card-meta-row .badge{margin:0!important}.purchase-dot{display:inline-flex;align-items:center;gap:4px;height:23px;padding:0 7px;border-radius:999px;font-size:10px;font-weight:800;line-height:1;border:1px solid transparent}.purchase-dot i{display:inline-block;width:6px;height:6px;border-radius:50%;flex:0 0 6px}.purchase-buy{color:#176B49;background:#EEF8F3;border-color:#CDEBDC}.purchase-buy i{background:#22A06B}.purchase-provided{color:#8A5A00;background:#FFF7DD;border-color:#F4D98A}.purchase-provided i{background:#E9A800}.purchase-ad,.purchase-unknown{color:#B42318;background:#FFF0F0;border-color:#FFD0CC}.purchase-ad i,.purchase-unknown i{background:#E5484D}
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:0 13px 13px!important;overflow:hidden!important}.video-thumbnail-wrap{width:calc(100% + 26px)!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;background:#111827!important;overflow:hidden!important}.video-thumbnail{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center center!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"]{width:calc(100% + 26px)!important;height:190px!important;min-height:190px!important;max-height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;overflow:hidden!important}.st-key-product_grid [data-testid="stImage"] img{width:100%!important;height:190px!important;max-height:190px!important;object-fit:cover!important;object-position:center center!important;padding:0!important;border-radius:18px 18px 0 0!important}
+.video-thumbnail-wrap{width:calc(100% + 26px)!important;height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:16 / 9!important;margin:-1px -13px 13px!important;border-radius:18px 18px 0 0!important;background:#111827!important;overflow:hidden!important}.product-placeholder,.st-key-product_grid [data-testid="stImage"]{width:calc(100% + 26px)!important;height:190px!important;min-height:190px!important;max-height:190px!important;margin:0 -13px 13px!important;border-radius:18px 18px 0 0!important;overflow:hidden!important}.st-key-product_grid [data-testid="stImage"] img{width:100%!important;height:190px!important;max-height:190px!important;object-fit:cover!important;object-position:center center!important;padding:0!important;border-radius:18px 18px 0 0!important}
 @media(max-width:900px) and (min-width:601px){.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:180px!important;min-height:180px!important;max-height:180px!important}}@media(max-width:600px){.product-placeholder,.st-key-product_grid [data-testid="stImage"],.st-key-product_grid [data-testid="stImage"] img{height:215px!important;min-height:215px!important;max-height:215px!important}}
 
-/* 썸네일 상단 여백 제거, 16:9 비율 유지 및 카드 앞면 장단점 자연 줄바꿈 */
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"],
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div {
-  padding-top: 0 !important;
-}
-.video-thumbnail-wrap {
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  aspect-ratio: 16 / 9 !important;
-  margin-top: -1px !important;
-}
 .card-summary-wrap {
   margin: 6px 0 10px;
   display: flex;
@@ -253,6 +232,76 @@ div[data-testid="stForm"]{border:0!important;background:#F7FAFF!important;border
 .summary-reason {
   background: #F4F6F9;
   color: #4E5968;
+}
+
+/* 상세 비교 확장 영역 압축 및 내부 스크롤 */
+.st-key-product_grid [data-testid="stExpanderDetails"] {
+  padding: 10px 12px !important;
+  max-height: 250px !important;
+  overflow-y: auto !important;
+}
+.exp-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  margin: 0 0 5px;
+}
+.exp-point {
+  font-size: 12px;
+  line-height: 1.42;
+  padding: 5px 8px;
+  border-radius: 7px;
+  margin-bottom: 4px;
+  word-break: keep-all;
+}
+.exp-pro { background: #EEF8F3; color: #176B49; }
+.exp-con { background: #FFF3F3; color: #A61B22; }
+.exp-divider {
+  height: 1px;
+  background: #EDF1F6;
+  margin: 8px 0;
+}
+.exp-rec-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #F2F4F8;
+}
+.exp-rec-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.exp-rec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.exp-channel {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.exp-video-link {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--brand) !important;
+  background: #EAF3FF;
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-decoration: none !important;
+}
+.exp-video-title {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.38;
+  margin-bottom: 3px;
+}
+.exp-evidence {
+  font-size: 12px;
+  color: #333D4B;
+  line-height: 1.42;
+  word-break: keep-all;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -427,27 +476,34 @@ def render_product_card(product):
                 use_container_width=True,
             )
         with st.expander(f"상세 비교 · 영상 {len(recs)}개"):
+            exp_parts = []
             if summary["pros"] or summary["cons"]:
-                st.markdown("**영상에서 추출한 통합 요약**")
-                st.caption("아래 장단점은 연결된 추천 영상의 AI 추출 결과입니다.")
-                if summary["pros"]:
-                    st.markdown("**공통 장점**")
-                    for value in summary["pros"]:
-                        st.write(f"• {value}")
-                if summary["cons"]:
-                    st.markdown("**공통 아쉬움**")
-                    for value in summary["cons"]:
-                        st.write(f"• {value}")
-                st.divider()
+                exp_parts.append('<div class="exp-section-title">영상 AI 요약</div>')
+                for value in summary["pros"]:
+                    exp_parts.append(f'<div class="exp-point exp-pro">👍 {safe(value)}</div>')
+                for value in summary["cons"]:
+                    exp_parts.append(f'<div class="exp-point exp-con">👎 {safe(value)}</div>')
+                exp_parts.append('<div class="exp-divider"></div>')
             for rec in recs:
                 channel = rec.get("channel", {})
                 video = rec.get("video", {})
-                st.markdown(f"**{safe(channel.get('channel_name') or '알 수 없는 채널')}**")
-                st.caption(video.get("title") or "제목 없음")
-                if rec.get("evidence"):
-                    st.write(rec["evidence"])
-                if rec.get("video_id"):
-                    st.link_button("원본 영상 보기", f"https://youtu.be/{rec['video_id']}", key=f"v_{rec['recommendation_id']}", use_container_width=True)
+                ch_name = safe(channel.get("channel_name") or "알 수 없는 채널")
+                v_title = safe(video.get("title") or "제목 없음")
+                v_id = safe(rec.get("video_id") or "")
+                link_html = (
+                    f'<a class="exp-video-link" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer">영상 보기 ↗</a>'
+                    if v_id else ""
+                )
+                ev_text = re.sub(r"\s+", " ", str(rec.get("evidence") or "").strip())
+                ev_html = f'<div class="exp-evidence">{safe(ev_text)}</div>' if ev_text else ""
+                exp_parts.append(
+                    '<div class="exp-rec-item">'
+                    f'<div class="exp-rec-head"><span class="exp-channel">{ch_name}</span>{link_html}</div>'
+                    f'<div class="exp-video-title">{v_title}</div>'
+                    f'{ev_html}'
+                    '</div>'
+                )
+            st.markdown("".join(exp_parts), unsafe_allow_html=True)
 
 
 def render_home():
