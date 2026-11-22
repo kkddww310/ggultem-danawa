@@ -381,6 +381,171 @@ input, textarea, select {
   color-scheme: light !important;
 }
 
+
+/* ===== 카드 테두리·카테고리·전체 관리자 UI 최종 조정 ===== */
+
+/* 상품/통계/검수 카드의 진한 네모 테두리를 제거하고 부드러운 카드로 통일 */
+[data-testid="stVerticalBlockBorderWrapper"],
+div[data-testid="stVerticalBlockBorderWrapper"] > div,
+[data-testid="stForm"],
+[data-testid="stExpander"] {
+  border-color: #E7EDF5 !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"] {
+  border: 1px solid #E7EDF5 !important;
+  border-radius: 20px !important;
+  background: #FFFFFF !important;
+  box-shadow: 0 7px 24px rgba(49,130,246,.065) !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:hover {
+  border-color: #D5E5FB !important;
+  box-shadow: 0 9px 28px rgba(49,130,246,.095) !important;
+}
+
+/* 펼치기 영역 역시 검은 외곽선 대신 옅은 청회색 */
+[data-testid="stExpander"] {
+  background: #F9FBFE !important;
+  border: 1px solid #DFE8F3 !important;
+  border-radius: 13px !important;
+  box-shadow: none !important;
+}
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary * {
+  color: #344054 !important;
+  -webkit-text-fill-color: #344054 !important;
+}
+
+/* 검색창: 붉거나 검은 외곽선이 남지 않도록 강제 */
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stTextInput"] div[data-baseweb="input"] > div,
+[data-testid="stTextInput"] input {
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+  border-color: transparent !important;
+  outline: none !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+  border: 1px solid #DCE5F0 !important;
+  border-radius: 13px !important;
+  box-shadow: 0 2px 8px rgba(49,130,246,.045) !important;
+}
+[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
+  border-color: #79AEFA !important;
+  box-shadow: 0 0 0 3px rgba(49,130,246,.13) !important;
+}
+
+/* 카테고리 선택창의 모든 중첩 요소를 밝은 배경으로 강제 */
+[data-testid="stSelectbox"],
+[data-testid="stSelectbox"] > div,
+[data-testid="stSelectbox"] div[data-baseweb="select"],
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stSelectbox"] div[role="combobox"],
+[data-testid="stSelectbox"] div[role="combobox"] > div,
+[data-testid="stSelectbox"] input,
+[data-baseweb="popover"],
+[data-baseweb="popover"] > div,
+[data-baseweb="menu"],
+[role="listbox"],
+[role="option"] {
+  background-color: #FFFFFF !important;
+  background: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+  opacity: 1 !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"] {
+  border: 1px solid #DCE5F0 !important;
+  border-radius: 13px !important;
+  box-shadow: 0 2px 8px rgba(49,130,246,.045) !important;
+  overflow: hidden !important;
+}
+[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within {
+  border-color: #79AEFA !important;
+  box-shadow: 0 0 0 3px rgba(49,130,246,.13) !important;
+}
+[data-testid="stSelectbox"] svg {
+  fill: #5D6B7A !important;
+  color: #5D6B7A !important;
+}
+[role="option"]:hover,
+[role="option"][aria-selected="true"] {
+  background: #EAF3FF !important;
+  color: #245FB5 !important;
+  -webkit-text-fill-color: #245FB5 !important;
+}
+
+/* 운영 통계의 메트릭 및 상태 네모 */
+.metric {
+  border: 1px solid #E7EDF5 !important;
+  background: linear-gradient(180deg,#FFFFFF 0%,#FBFDFF 100%) !important;
+  box-shadow: 0 6px 18px rgba(49,130,246,.055) !important;
+}
+.status-row {
+  border-bottom: 1px solid #EDF1F6 !important;
+}
+
+/* 상품 검수 폼: 회색 큰 네모 대신 옅은 파란 배경 */
+[data-testid="stForm"] {
+  background: #F7FAFF !important;
+  border: 1px solid #DDE9F8 !important;
+  border-radius: 17px !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.7) !important;
+}
+[data-testid="stForm"] input,
+[data-testid="stForm"] textarea,
+[data-testid="stForm"] div[role="combobox"],
+[data-testid="stForm"] div[data-baseweb="input"],
+[data-testid="stForm"] div[data-baseweb="base-input"],
+[data-testid="stForm"] div[data-baseweb="select"] {
+  background: #FFFFFF !important;
+  color: #191F28 !important;
+  -webkit-text-fill-color: #191F28 !important;
+}
+
+/* 버튼은 메인 파랑/보조 연파랑/숨김 연빨강으로 고정 */
+.stButton > button[kind="primary"],
+.stButton > button[data-testid="stBaseButton-primary"],
+.stLinkButton > a[kind="primary"],
+.stLinkButton > a[data-testid="stBaseLinkButton-primary"] {
+  background: #3182F6 !important;
+  border-color: #3182F6 !important;
+  color: #FFFFFF !important;
+}
+.stButton > button[kind="secondary"],
+.stButton > button[data-testid="stBaseButton-secondary"],
+.stLinkButton > a[kind="secondary"],
+.stLinkButton > a[data-testid="stBaseLinkButton-secondary"] {
+  background: #EDF5FF !important;
+  border: 1px solid #D4E6FF !important;
+  color: #245FB5 !important;
+}
+[data-testid="stForm"] button[kind="secondary"],
+[data-testid="stForm"] button[data-testid="stBaseButton-secondary"] {
+  background: #FFF1F2 !important;
+  border: 1px solid #FFD6D9 !important;
+  color: #C92A2A !important;
+}
+
+/* 라벨과 텍스트가 흐려지지 않도록 */
+[data-testid="stWidgetLabel"],
+[data-testid="stWidgetLabel"] *,
+[data-testid="stForm"] label,
+[data-testid="stForm"] label * {
+  color: #4E5968 !important;
+  -webkit-text-fill-color: #4E5968 !important;
+  opacity: 1 !important;
+}
+
+/* 브라우저 다크 모드가 Streamlit 폼을 덮지 못하게 */
+input, textarea, select, option {
+  color-scheme: light !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
