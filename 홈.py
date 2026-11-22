@@ -71,7 +71,7 @@ def load_catalog():
         "products",
         (
             "product_id,canonical_name,normalized_name,brand,model,category,"
-            "search_keyword,review_status,is_visible,created_at"
+            "search_keyword,review_status,is_visible,coupang_url,coupang_product_name,affiliate_verified,affiliate_checked_at,affiliate_note,created_at"
         ),
         {
             "review_status": "eq.approved",
@@ -136,7 +136,7 @@ def load_pending_products():
         "products",
         (
             "product_id,canonical_name,normalized_name,brand,model,category,"
-            "search_keyword,review_status,is_visible,review_note,created_at"
+            "search_keyword,review_status,is_visible,review_note,coupang_url,coupang_product_name,affiliate_verified,affiliate_checked_at,affiliate_note,created_at"
         ),
         {"review_status": "eq.pending", "order": "created_at.asc", "limit": "500"},
     )
@@ -423,6 +423,26 @@ div[data-testid="stVerticalBlockBorderWrapper"] > div { border:none !important; 
   -webkit-text-fill-color:#4E5968 !important;
 }
 
+
+/* 쿠팡 제휴 검수 필드 */
+[data-testid="stForm"] [data-testid="stCheckbox"] label,
+[data-testid="stForm"] [data-testid="stCheckbox"] span,
+[data-testid="stForm"] [data-testid="stCheckbox"] p {
+  color:#4E5968 !important;
+  -webkit-text-fill-color:#4E5968 !important;
+  font-weight:700 !important;
+}
+.affiliate-notice {
+  background:#FFF7E8;
+  color:#7A4B00;
+  border:1px solid #FFE0A3;
+  border-radius:14px;
+  padding:12px 14px;
+  margin-bottom:14px;
+  font-size:12.5px;
+  line-height:1.5;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -456,6 +476,19 @@ def render_home():
     </div>
     <div class="notice"><b>데이터 안내</b><br>유튜브 영상 제목·설명과 AI 분석을 바탕으로 정리한 상품입니다. 구매 전 모델명과 판매 정보를 다시 확인해 주세요.</div>
     """, unsafe_allow_html=True)
+
+    has_affiliate_links = any(
+        bool(item.get("affiliate_verified") and item.get("coupang_url"))
+        for item in catalog
+    )
+    if has_affiliate_links:
+        st.markdown(
+            '<div class="affiliate-notice"><b>제휴 링크 안내</b><br>'
+            '이 페이지에는 쿠팡 파트너스 링크가 포함될 수 있으며, '
+            '이에 따른 일정액의 수수료를 제공받을 수 있습니다. '
+            '구매 가격에는 영향을 주지 않습니다.</div>',
+            unsafe_allow_html=True,
+        )
 
     c1, c2 = st.columns([1.45, 1])
     keyword = c1.text_input("상품 검색", placeholder="🔍 상품·브랜드·유튜버 검색", label_visibility="collapsed")
@@ -516,12 +549,25 @@ def render_home():
                 type="primary",
                 use_container_width=True,
             )
-            b2.link_button(
-                "쿠팡에서 검색",
-                f"https://www.coupang.com/np/search?q={encoded}",
-                type="secondary",
-                use_container_width=True,
+            verified_coupang_url = str(item.get("coupang_url") or "").strip()
+            is_verified_affiliate = bool(
+                item.get("affiliate_verified")
+                and verified_coupang_url.startswith("https://link.coupang.com/")
             )
+            if is_verified_affiliate:
+                b2.link_button(
+                    "쿠팡 파트너스 구매",
+                    verified_coupang_url,
+                    type="secondary",
+                    use_container_width=True,
+                )
+            else:
+                b2.link_button(
+                    "쿠팡에서 검색",
+                    f"https://www.coupang.com/np/search?q={encoded}",
+                    type="secondary",
+                    use_container_width=True,
+                )
 
             with st.expander(f"추천 근거와 영상 {len(recs)}건"):
                 for index, rec in enumerate(recs, 1):
@@ -644,6 +690,27 @@ def render_admin():
                     "검색 키워드",
                     value=product.get("search_keyword") or product.get("canonical_name") or "",
                 )
+                st.markdown("**쿠팡 파트너스 연결**")
+                coupang_product_name = st.text_input(
+                    "쿠팡 실제 상품명",
+                    value=product.get("coupang_product_name") or "",
+                    help="쿠팡 판매 페이지에 표시되는 실제 상품명을 입력하세요.",
+                )
+                coupang_url = st.text_input(
+                    "쿠팡 파트너스 URL",
+                    value=product.get("coupang_url") or "",
+                    placeholder="https://link.coupang.com/...",
+                    help="쿠팡 파트너스에서 생성한 링크만 입력하세요.",
+                )
+                affiliate_verified = st.checkbox(
+                    "상품명·모델·옵션과 파트너스 링크 일치 확인",
+                    value=bool(product.get("affiliate_verified")),
+                )
+                affiliate_note = st.text_input(
+                    "제휴 링크 메모",
+                    value=product.get("affiliate_note") or "",
+                    placeholder="예: 70ml 옵션 확인, 색상 피치 문",
+                )
                 review_note = st.text_input(
                     "관리 메모", value=product.get("review_note") or ""
                 )
@@ -660,6 +727,8 @@ def render_admin():
                 normalized = re.sub(r"[^0-9a-z가-힣]+", "", clean_name.lower())
                 if len(normalized) < 4:
                     st.error("상품명이 너무 짧습니다.")
+                elif affiliate_verified and not coupang_url.strip().startswith("https://link.coupang.com/"):
+                    st.error("확인 완료로 표시하려면 https://link.coupang.com/ 으로 시작하는 파트너스 URL을 입력하세요.")
                 else:
                     try:
                         api_patch(
@@ -671,6 +740,18 @@ def render_admin():
                                 "model": edited_model.strip(),
                                 "category": edited_category,
                                 "search_keyword": edited_keyword.strip() or clean_name,
+                                "coupang_product_name": coupang_product_name.strip() or None,
+                                "coupang_url": coupang_url.strip() or None,
+                                "affiliate_verified": bool(
+                                    affiliate_verified
+                                    and coupang_url.strip().startswith("https://link.coupang.com/")
+                                ),
+                                "affiliate_checked_at": (
+                                    datetime.now(timezone.utc).isoformat()
+                                    if affiliate_verified and coupang_url.strip().startswith("https://link.coupang.com/")
+                                    else None
+                                ),
+                                "affiliate_note": affiliate_note.strip() or None,
                                 "review_status": "approved",
                                 "is_visible": True,
                                 "reviewed_at": datetime.now(timezone.utc).isoformat(),
