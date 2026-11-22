@@ -969,6 +969,54 @@ input, select, textarea, option { color-scheme: only light !important; }
   }
 }
 
+
+/* ===== 상품 이미지 높이 축소: PC 210px / 태블릿 190px / 모바일 210px ===== */
+.product-placeholder {
+  width: 100% !important;
+  height: 210px !important;
+  min-height: 210px !important;
+  aspect-ratio: auto !important;
+  border-radius: 15px !important;
+  margin-bottom: 13px !important;
+}
+.product-placeholder span { font-size: 42px !important; }
+.product-placeholder small { font-size: 12px !important; }
+.st-key-product_grid [data-testid="stImage"] {
+  height: 210px !important;
+  overflow: hidden !important;
+  border-radius: 15px !important;
+  margin-bottom: 13px !important;
+}
+.st-key-product_grid [data-testid="stImage"] img {
+  width: 100% !important;
+  height: 210px !important;
+  max-height: 210px !important;
+  aspect-ratio: auto !important;
+  object-fit: contain !important;
+  background: #FFFFFF !important;
+  border-radius: 15px !important;
+  padding: 8px !important;
+}
+@media (max-width: 900px) and (min-width: 601px) {
+  .product-placeholder,
+  .st-key-product_grid [data-testid="stImage"],
+  .st-key-product_grid [data-testid="stImage"] img {
+    height: 190px !important;
+    min-height: 190px !important;
+    max-height: 190px !important;
+  }
+}
+@media (max-width: 600px) {
+  .product-placeholder,
+  .st-key-product_grid [data-testid="stImage"],
+  .st-key-product_grid [data-testid="stImage"] img {
+    height: 210px !important;
+    min-height: 210px !important;
+    max-height: 210px !important;
+  }
+  .product-placeholder span { font-size: 46px !important; }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
