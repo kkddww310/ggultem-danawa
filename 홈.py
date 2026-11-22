@@ -309,6 +309,120 @@ div[data-testid="stVerticalBlockBorderWrapper"] > div { border:none !important; 
   .hero-count { font-size:31px !important; }
 }
 
+
+/* ===== 관리자 검수 화면 가독성 개선 ===== */
+[data-testid="stForm"] {
+  background:#F8FAFC !important;
+  border:1px solid #E7ECF2 !important;
+  border-radius:18px !important;
+  padding:18px !important;
+  box-shadow:none !important;
+}
+
+/* 관리자 폼 라벨 */
+[data-testid="stForm"] [data-testid="stWidgetLabel"],
+[data-testid="stForm"] [data-testid="stWidgetLabel"] p,
+[data-testid="stForm"] label,
+[data-testid="stForm"] label p {
+  color:#4E5968 !important;
+  -webkit-text-fill-color:#4E5968 !important;
+  font-size:13px !important;
+  font-weight:750 !important;
+  opacity:1 !important;
+}
+
+/* 관리자 입력창: 검은 외곽선 제거 */
+[data-testid="stForm"] [data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stForm"] [data-testid="stSelectbox"] div[data-baseweb="select"] {
+  background:#FFFFFF !important;
+  border:1px solid #DDE3EA !important;
+  border-radius:13px !important;
+  outline:none !important;
+  box-shadow:0 1px 2px rgba(16,24,40,.025) !important;
+  min-height:46px !important;
+  overflow:hidden !important;
+}
+[data-testid="stForm"] [data-testid="stTextInput"] div[data-baseweb="input"] > div,
+[data-testid="stForm"] [data-testid="stTextInput"] input,
+[data-testid="stForm"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stForm"] [data-testid="stSelectbox"] div[role="combobox"],
+[data-testid="stForm"] [data-testid="stSelectbox"] div[role="combobox"] > div {
+  background:#FFFFFF !important;
+  border:none !important;
+  outline:none !important;
+  box-shadow:none !important;
+  color:#191F28 !important;
+  -webkit-text-fill-color:#191F28 !important;
+}
+[data-testid="stForm"] [data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stForm"] [data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within {
+  border-color:#72A4FF !important;
+  box-shadow:0 0 0 3px rgba(49,130,246,.12) !important;
+}
+
+/* 관리자 승인/숨김 버튼 */
+[data-testid="stForm"] button[kind="primary"],
+[data-testid="stForm"] button[data-testid="stBaseButton-primary"] {
+  background:#3182F6 !important;
+  border:1px solid #3182F6 !important;
+  color:#FFFFFF !important;
+  min-height:46px !important;
+  border-radius:13px !important;
+}
+[data-testid="stForm"] button[kind="primary"] *,
+[data-testid="stForm"] button[data-testid="stBaseButton-primary"] * {
+  color:#FFFFFF !important;
+  -webkit-text-fill-color:#FFFFFF !important;
+}
+[data-testid="stForm"] button[kind="secondary"],
+[data-testid="stForm"] button[data-testid="stBaseButton-secondary"] {
+  background:#FFF0F2 !important;
+  border:1px solid #FFD5DB !important;
+  color:#C92A2A !important;
+  min-height:46px !important;
+  border-radius:13px !important;
+}
+[data-testid="stForm"] button[kind="secondary"] *,
+[data-testid="stForm"] button[data-testid="stBaseButton-secondary"] * {
+  color:#C92A2A !important;
+  -webkit-text-fill-color:#C92A2A !important;
+}
+[data-testid="stForm"] button:hover { filter:brightness(.985) !important; }
+
+/* 관리자 카드 제목과 안내 박스 */
+[data-testid="stAlert"] {
+  border:none !important;
+  border-radius:14px !important;
+  background:#EAF3FF !important;
+  color:#295FA8 !important;
+}
+[data-testid="stAlert"] * {
+  color:#295FA8 !important;
+  -webkit-text-fill-color:#295FA8 !important;
+}
+
+/* 상단 내비게이션 버튼 대비 */
+.stButton > button[kind="primary"],
+.stButton > button[data-testid="stBaseButton-primary"] {
+  background:#3182F6 !important;
+  color:#FFFFFF !important;
+}
+.stButton > button[kind="primary"] *,
+.stButton > button[data-testid="stBaseButton-primary"] * {
+  color:#FFFFFF !important;
+  -webkit-text-fill-color:#FFFFFF !important;
+}
+.stButton > button[kind="secondary"],
+.stButton > button[data-testid="stBaseButton-secondary"] {
+  background:#EEF1F5 !important;
+  color:#4E5968 !important;
+}
+.stButton > button[kind="secondary"] *,
+.stButton > button[data-testid="stBaseButton-secondary"] * {
+  color:#4E5968 !important;
+  -webkit-text-fill-color:#4E5968 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
