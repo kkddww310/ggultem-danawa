@@ -1,4 +1,5 @@
 import html
+import json
 import re
 from collections import Counter
 from datetime import datetime, timezone
@@ -65,6 +66,17 @@ def api_get(table, fields="*", params=None):
     return response.json()
 
 
+def api_post(table, values):
+    response = requests.post(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=headers("return=minimal"),
+        json=values,
+        timeout=10,
+    )
+    if not response.ok:
+        raise RuntimeError(f"{table} 저장 실패: HTTP {response.status_code}")
+
+
 def api_get_all(table, fields="*", params=None, max_rows=10000):
     rows = []
     offset = 0
@@ -107,6 +119,10 @@ def safe(value):
     return html.escape(str(value or ""), quote=True)
 
 
+def norm_key(value):
+    return re.sub(r"[^0-9a-z가-힣]+", "", str(value or "").lower())
+
+
 def count_by(rows, key):
     return Counter(str(row.get(key) or "unknown") for row in rows)
 
@@ -116,6 +132,70 @@ def is_meaningful_point(text):
     if len(cleaned) < 2:
         return False
     return not any(pattern in cleaned for pattern in INVALID_POINT_PATTERNS)
+
+
+def log_event(event_type, product_id=None, product_name=None, search_query=None):
+    """클릭 및 검색 이벤트를 Supabase click_logs 테이블에 조용히 기록한다."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return
+    try:
+        payload = {
+            "event_type": event_type,
+            "product_id": product_id or None,
+            "product_name": (str(product_name).strip()[:200] if product_name else None),
+            "search_query": (str(search_query).strip()[:120] if search_query else None),
+        }
+        api_post("click_logs", [payload])
+    except Exception:
+        pass
+
+
+def handle_click_redirect():
+    """외부 쇼핑몰 링크(?go=coupang|naver&pid=...) 클릭 시 로그를 남기고 즉시 이동시킨다."""
+    go_type = str(st.query_params.get("go", "")).strip()
+    go_pid = str(st.query_params.get("pid", "")).strip()
+    if go_type not in {"coupang", "naver"} or not go_pid:
+        return
+
+    rows = []
+    try:
+        rows = api_get(
+            "products",
+            "product_id,canonical_name,search_keyword,coupang_url,affiliate_verified",
+            {"product_id": f"eq.{go_pid}", "limit": "1"},
+        )
+    except Exception:
+        rows = []
+
+    product = rows[0] if rows else {}
+    product_name = str(product.get("canonical_name") or product.get("search_keyword") or "").strip()
+    query_name = quote(product_name)
+
+    if go_type == "coupang":
+        affiliate = bool(
+            product.get("affiliate_verified")
+            and str(product.get("coupang_url") or "").startswith("https://link.coupang.com/")
+        )
+        target_url = product["coupang_url"] if affiliate else f"https://www.coupang.com/np/search?q={query_name}"
+        event_type = "coupang_click"
+    else:
+        target_url = f"https://search.shopping.naver.com/search/all?query={query_name}"
+        event_type = "naver_click"
+
+    log_event(event_type, product_id=go_pid if product else None, product_name=product_name or None)
+    safe_url = html.escape(target_url, quote=True)
+    js_url = json.dumps(target_url)
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0;url={safe_url}">'
+        f'<script>window.location.replace({js_url});</script>'
+        f'<div style="padding:32px 16px;text-align:center;font-size:14px;color:#4E5968">'
+        f'쇼핑몰 페이지로 이동 중입니다... <a href="{safe_url}">바로 이동하기</a></div>',
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+
+handle_click_redirect()
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -182,7 +262,19 @@ def load_admin_data():
         "recommendation_id,product_id,video_id,channel_id,confidence,created_at",
         max_rows=10000,
     )
-    return products, videos, channels, queries, recs
+    try:
+        click_logs = api_get_all(
+            "click_logs",
+            "log_id,event_type,product_id,product_name,search_query,created_at",
+            {"order": "created_at.desc"},
+            max_rows=10000,
+        )
+        click_logs_ready = True
+    except Exception:
+        click_logs = []
+        click_logs_ready = False
+
+    return products, videos, channels, queries, recs, click_logs, click_logs_ready
 
 
 st.markdown("""
@@ -223,7 +315,7 @@ html,body,.stApp{background:var(--canvas);color:var(--ink);overflow-x:hidden!imp
 .stat-pill{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #E5EAF2;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;color:var(--sub)}
 .stat-pill strong{color:var(--ink);font-weight:850}
 
-/* 검색창 & 셀렉트박스: 브랜드 블루 톤으로 통일 */
+/* 검색창 & 셀렉트박스 */
 div[data-testid="stTextInput"] div[data-baseweb="input"],
 div[data-testid="stSelectbox"] div[data-baseweb="select"]{
   border:1.5px solid #DCE3EC!important;
@@ -368,26 +460,51 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .purchase-provided{color:#8A5A00;background:#FFF7E0}.purchase-provided i{background:#E09F00}
 .purchase-ad,.purchase-unknown{color:#B42318;background:#FFF0F0}.purchase-ad i,.purchase-unknown i{background:#E5484D}
 
-/* 장단점 요약 박스 (높이 균일화) */
+/* 장단점 요약 박스 */
 .card-summary-wrap{margin:4px 0 10px;display:flex;flex-direction:column;gap:5px;min-height:74px;justify-content:center}
 .st-key-product_grid .summary-line{display:block!important;margin:0!important;padding:7px 9px!important;border-radius:8px;font-size:12px!important;line-height:1.42!important;word-break:keep-all!important}
 .summary-pro{background:#F0F9F4;color:#15653E}
 .summary-con{background:#FFF4F4;color:#A61B22}
 .summary-reason{background:#F5F7FA;color:#4E5968}
 
-/* 쇼핑 버튼 가로 2열 강제 (모바일 포함) */
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"]{
-  display:grid!important;
-  grid-template-columns:1fr 1fr!important;
-  gap:8px!important;
-  width:100%!important;
+/* 쇼핑 버튼 2열 그리드 */
+.shop-btn-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  width:100%;
+  margin-top:2px;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stColumn"],
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="column"]{
-  width:100%!important;
-  min-width:0!important;
+.shop-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:38px;
+  padding:5px 6px;
+  border-radius:10px;
+  font-size:12.5px;
+  font-weight:750;
+  text-decoration:none!important;
+  white-space:nowrap;
+  transition:all .15s;
 }
-.st-key-product_grid [data-testid="stLinkButton"] a{min-height:38px!important;padding:5px 6px!important;white-space:nowrap!important;font-size:12.5px!important;border-radius:10px!important}
+.shop-btn-primary{
+  background:var(--brand)!important;
+  border:1px solid var(--brand)!important;
+  color:#fff!important;
+}
+.shop-btn-primary:hover{
+  background:var(--brand-dark)!important;
+  border-color:var(--brand-dark)!important;
+}
+.shop-btn-secondary{
+  background:#F2F4F7!important;
+  border:1px solid #E5E8EB!important;
+  color:#333D4B!important;
+}
+.shop-btn-secondary:hover{
+  background:#E8ECF2!important;
+}
 
 /* 상세 비교 아코디언 */
 .st-key-product_grid [data-testid="stExpander"]{margin-top:8px!important;border:1px solid #ECEEF2!important;border-radius:10px!important;background:#FAFBFD!important}
@@ -410,7 +527,8 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .metric{background:#fff;border:1px solid #EAECEF;border-radius:15px;padding:14px;min-height:90px}
 .metric-label{color:var(--muted);font-size:12px;font-weight:700}
 .metric-value{color:var(--brand);font-size:24px;font-weight:900;margin-top:4px}
-.status-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #EDF1F6;font-size:13px}
+.status-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #EDF1F6;font-size:13px}
+.status-row:last-child{border-bottom:0}
 .error-box{background:#FFF0F0;color:#A61B22;padding:10px;border-radius:10px;font-size:12px;margin:6px 0;word-break:break-word}
 
 /* 태블릿 & 모바일 반응형 */
@@ -452,7 +570,6 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-# URL에 ?admin=1 이 들어오면 관리자 메뉴 표시
 admin_query = str(st.query_params.get("admin", "")).strip() == "1"
 if admin_query and not st.session_state.get("show_admin_bar"):
     st.session_state.show_admin_bar = True
@@ -493,8 +610,21 @@ def require_admin():
     return False
 
 
+def is_single_product_video(product, rec):
+    """영상 제목에 브랜드나 모델명이 직접 포함되어 단품/집중 리뷰인지 판별한다."""
+    title_norm = norm_key((rec.get("video") or {}).get("title"))
+    if not title_norm:
+        return False
+    brand_norm = norm_key(product.get("brand"))
+    model_norm = norm_key(product.get("model"))
+    return bool(
+        (len(brand_norm) >= 2 and brand_norm in title_norm)
+        or (len(model_norm) >= 2 and model_norm in title_norm)
+    )
+
+
 def render_product_visual(product):
-    """검증 상품 이미지 -> 대표 추천 영상 썸네일(채널 오버레이 포함) -> 카테고리 기본 이미지 순으로 표시."""
+    """1순위: 관리자 검증 이미지 -> 2순위: 단품 리뷰 영상 썸네일 -> 3순위: 최고 조회수 영상 썸네일."""
     image_url = str(product.get("image_url") or "").strip()
     if product.get("image_verified") and image_url.startswith(("https://", "http://")):
         st.image(image_url, use_container_width=True)
@@ -504,8 +634,9 @@ def render_product_visual(product):
     ranked = sorted(
         recommendations,
         key=lambda rec: (
-            float(rec.get("confidence") or 0),
+            1 if is_single_product_video(product, rec) else 0,
             int((rec.get("video") or {}).get("view_count") or 0),
+            float(rec.get("confidence") or 0),
             str((rec.get("video") or {}).get("published_at") or ""),
         ),
         reverse=True,
@@ -571,6 +702,7 @@ def render_purchase_badges(counts):
 
 def render_product_card(product):
     recs = product["recommendations"]
+    pid = safe(product.get("product_id"))
     with st.container(border=True):
         render_product_visual(product)
         st.markdown(
@@ -613,30 +745,22 @@ def render_product_card(product):
         if summary_blocks:
             st.markdown(f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>', unsafe_allow_html=True)
 
-        query_name = quote(str(product.get("canonical_name") or product.get("search_keyword") or ""))
         affiliate = bool(
             product.get("affiliate_verified")
             and str(product.get("coupang_url") or "").startswith("https://link.coupang.com/")
         )
-        coupang_url = (
-            product.get("coupang_url")
-            if affiliate
-            else f"https://www.coupang.com/np/search?q={query_name}"
+        naver_cls = "shop-btn shop-btn-secondary" if affiliate else "shop-btn shop-btn-primary"
+        coupang_cls = "shop-btn shop-btn-primary" if affiliate else "shop-btn shop-btn-secondary"
+        coupang_label = "쿠팡 최저가" if affiliate else "쿠팡 검색"
+
+        st.markdown(
+            '<div class="shop-btn-grid">'
+            f'<a class="{naver_cls}" href="?go=naver&pid={pid}" target="_blank" rel="noopener noreferrer">네이버쇼핑</a>'
+            f'<a class="{coupang_cls}" href="?go=coupang&pid={pid}" target="_blank" rel="noopener noreferrer">{coupang_label}</a>'
+            '</div>',
+            unsafe_allow_html=True,
         )
-        shop_left, shop_right = st.columns(2, gap="small")
-        with shop_left:
-            st.link_button(
-                "네이버쇼핑",
-                f"https://search.shopping.naver.com/search/all?query={query_name}",
-                type="primary",
-                use_container_width=True,
-            )
-        with shop_right:
-            st.link_button(
-                "쿠팡 최저가" if affiliate else "쿠팡 검색",
-                coupang_url,
-                use_container_width=True,
-            )
+
         with st.expander(f"영상 근거 · 장단점 비교 ({len(recs)}개)"):
             exp_parts = []
             if summary["pros"] or summary["cons"]:
@@ -690,20 +814,28 @@ def render_home():
     category = b.selectbox("카테고리", ["전체 카테고리"] + categories, label_visibility="collapsed")
     sort_by = c.selectbox("정렬", ["추천 많은순", "최신 등록순"], label_visibility="collapsed")
 
+    clean_kw = keyword.strip()
+    if len(clean_kw) >= 2 and clean_kw != st.session_state.get("last_logged_keyword"):
+        st.session_state.last_logged_keyword = clean_kw
+        log_event("search", search_query=clean_kw)
+
     shown = []
     for product in products:
         names = " ".join(r.get("channel", {}).get("channel_name", "") for r in product["recommendations"])
         text = " ".join([product.get("canonical_name", ""), product.get("brand", ""), product.get("model", ""), names]).lower()
         if category != "전체 카테고리" and (product.get("category") or "기타") != category:
             continue
-        if keyword and keyword.lower() not in text:
+        if clean_kw and clean_kw.lower() not in text:
             continue
         shown.append(product)
 
     if sort_by == "최신 등록순":
         shown.sort(key=lambda p: str(p.get("created_at") or ""), reverse=True)
 
-    st.markdown(f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>네이버 · 쿠팡 실시간 비교</span></div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>네이버 · 쿠팡에서 가격 확인</span></div>',
+        unsafe_allow_html=True,
+    )
 
     page_size = 24
     pages = max(1, (len(shown) + page_size - 1) // page_size)
@@ -739,7 +871,7 @@ def render_home():
 def render_dashboard():
     if not require_admin():
         return
-    products, videos, channels, queries, recs = load_admin_data()
+    products, videos, channels, queries, recs, click_logs, click_logs_ready = load_admin_data()
     ps, vs = count_by(products, "review_status"), count_by(videos, "analysis_status")
     active = sum(1 for c in channels if c.get("status") == "active")
     qerrors = sum(1 for q in queries if int(q.get("error_count") or 0) > 0 or q.get("last_error"))
@@ -755,6 +887,69 @@ def render_dashboard():
             f'<div class="metric-value">{value:,}</div><div class="brand-eyebrow">{sub}</div></div>',
             unsafe_allow_html=True,
         )
+
+    st.subheader("방문자 클릭 · 검색 통계")
+    if not click_logs_ready:
+        st.info("Supabase에 click_logs 테이블을 생성하면 상품별 쿠팡·네이버 클릭 순위와 방문자 검색어 통계가 자동으로 집계됩니다.")
+    else:
+        coupang_clicks = [x for x in click_logs if x.get("event_type") == "coupang_click"]
+        naver_clicks = [x for x in click_logs if x.get("event_type") == "naver_click"]
+        search_logs = [x for x in click_logs if x.get("event_type") == "search" and x.get("search_query")]
+
+        c_m1, c_m2, c_m3 = st.columns(3)
+        for col, (lbl, val) in zip(
+            [c_m1, c_m2, c_m3],
+            [("쿠팡 클릭", len(coupang_clicks)), ("네이버쇼핑 클릭", len(naver_clicks)), ("방문자 검색", len(search_logs))],
+        ):
+            col.markdown(
+                f'<div class="metric"><div class="metric-label">{lbl}</div>'
+                f'<div class="metric-value">{val:,}</div></div>',
+                unsafe_allow_html=True,
+            )
+
+        product_lookup = {p["product_id"]: p for p in products}
+        click_counts = Counter()
+        coupang_by_item = Counter()
+        naver_by_item = Counter()
+        label_by_item = {}
+        for row in coupang_clicks + naver_clicks:
+            key = row.get("product_id") or row.get("product_name") or "unknown"
+            click_counts[key] += 1
+            if row.get("event_type") == "coupang_click":
+                coupang_by_item[key] += 1
+            else:
+                naver_by_item[key] += 1
+            p_info = product_lookup.get(row.get("product_id"))
+            label_by_item[key] = (p_info or {}).get("canonical_name") or row.get("product_name") or "이름 없음"
+
+        cl_left, cl_right = st.columns(2)
+        with cl_left:
+            with st.container(border=True):
+                st.markdown("**클릭 많은 상품 TOP 15 (쿠팡 링크 우선 대상)**")
+                if not click_counts:
+                    st.caption("아직 기록된 상품 클릭이 없습니다.")
+                for key, total in click_counts.most_common(15):
+                    p_info = product_lookup.get(key) or {}
+                    linked = "✅ 제휴연결" if p_info.get("affiliate_verified") else "미연결"
+                    st.markdown(
+                        f'<div class="status-row">'
+                        f'<span>{safe(label_by_item.get(key))} <small style="color:#8B95A1">({linked})</small></span>'
+                        f'<b>쿠팡 {coupang_by_item[key]} · 네이버 {naver_by_item[key]}</b>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+        with cl_right:
+            with st.container(border=True):
+                st.markdown("**방문자 인기 검색어 TOP 15**")
+                sq_counts = Counter(str(r.get("search_query")).strip() for r in search_logs)
+                if not sq_counts:
+                    st.caption("아직 기록된 검색어가 없습니다.")
+                for q_text, cnt in sq_counts.most_common(15):
+                    st.markdown(
+                        f'<div class="status-row"><span>{safe(q_text)}</span><b>{cnt:,}회</b></div>',
+                        unsafe_allow_html=True,
+                    )
+
     st.subheader("영상 처리 현황")
     l, r = st.columns(2)
     with l:
@@ -790,6 +985,17 @@ def product_form(product, prefix, allow_hide=False):
         current = product.get("category") if product.get("category") in CATEGORIES else "기타"
         category = st.selectbox("카테고리", CATEGORIES, index=CATEGORIES.index(current), key=f"{prefix}_cat_{pid}")
         keyword = st.text_input("검색 키워드", value=product.get("search_keyword") or product.get("canonical_name") or "", key=f"{prefix}_kw_{pid}")
+        coupang_url = st.text_input(
+            "쿠팡 파트너스 링크",
+            value=product.get("coupang_url") or "",
+            placeholder="https://link.coupang.com/...",
+            key=f"{prefix}_cp_{pid}",
+        )
+        affiliate_verified = st.checkbox(
+            "쿠팡 제휴 링크 확인 완료",
+            value=bool(product.get("affiliate_verified")),
+            key=f"{prefix}_aff_{pid}",
+        )
         image_url = st.text_input("이미지 URL", value=product.get("image_url") or "", placeholder="https://...", key=f"{prefix}_img_{pid}")
         source = st.selectbox(
             "이미지 출처",
@@ -807,6 +1013,9 @@ def product_form(product, prefix, allow_hide=False):
     if not name.strip() or not brand.strip():
         st.error("상품명과 브랜드를 입력하세요.")
         return
+    if affiliate_verified and not coupang_url.strip().startswith("https://link.coupang.com/"):
+        st.error("쿠팡 제휴 링크는 https://link.coupang.com/ 으로 시작해야 합니다.")
+        return
     if verified and not image_url.strip().startswith(("http://", "https://")):
         st.error("확인된 이미지는 http 또는 https URL이 필요합니다.")
         return
@@ -819,6 +1028,8 @@ def product_form(product, prefix, allow_hide=False):
             "model": model.strip(),
             "category": category,
             "search_keyword": keyword.strip() or name.strip(),
+            "coupang_url": coupang_url.strip() or None,
+            "affiliate_verified": bool(affiliate_verified and coupang_url.strip().startswith("https://link.coupang.com/")),
             "image_url": image_url.strip() or None,
             "image_source": source or None,
             "image_verified": bool(verified and image_url.strip()),
@@ -839,7 +1050,7 @@ def product_form(product, prefix, allow_hide=False):
 def render_review():
     if not require_admin():
         return
-    products, _, _, _, _ = load_admin_data()
+    products, _, _, _, _, _, _ = load_admin_data()
     pending = [p for p in products if p.get("review_status") == "pending"]
     st.subheader(f"검수 대기 상품 {len(pending)}개")
     if not pending:
@@ -855,10 +1066,10 @@ def render_review():
 def render_manage():
     if not require_admin():
         return
-    products, _, _, _, _ = load_admin_data()
+    products, _, _, _, _, _, _ = load_admin_data()
     items = [p for p in products if p.get("review_status") in {"approved", "hidden"}]
     st.subheader("상품 관리")
-    st.caption("승인·숨김 상품을 검색해 이미지, 상품 정보와 공개 상태를 수정합니다.")
+    st.caption("승인·숨김 상품을 검색해 쿠팡 제휴 링크, 이미지, 상품 정보와 공개 상태를 수정합니다.")
     c1, c2 = st.columns([1.7, 1])
     keyword = c1.text_input("관리 상품 검색", placeholder="상품명·브랜드·모델 검색", label_visibility="collapsed", key="manage_search")
     status = c2.selectbox("관리 상태", ["전체", "공개", "숨김"], label_visibility="collapsed", key="manage_status")
