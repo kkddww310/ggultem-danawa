@@ -207,7 +207,7 @@ def serialize_extra_partner_links(links, memo=""):
 
 
 def detect_product_malls(product):
-    """상품의 카테고리·키워드·영상 근거·등록된 파트너 링크를 분석해 노출할 쇼핑몰 버튼을 자동 결정한다."""
+    """가독성을 위해 한 줄 최대 3버튼(네이버 + 쿠팡 + 대표 특화몰 1곳)을 자동 결정한다."""
     extra_links, _ = parse_extra_partner_links(product)
     has_coupang_partner = bool(
         product.get("affiliate_verified")
@@ -237,36 +237,26 @@ def detect_product_malls(product):
         ]
     ).lower()
 
-    selected_extra = []
-
-    def add_mall(mall_key):
-        if mall_key not in selected_extra:
-            selected_extra.append(mall_key)
-
-    # 1순위: 관리자가 파트너스 링크를 직접 등록한 쇼핑몰은 무조건 노출
-    for mall_key in EXTRA_MALLS:
-        if extra_links.get(mall_key):
-            add_mall(mall_key)
-
-    # 2순위: 유튜버 리뷰 영상/제목에 직접 언급된 쇼핑몰 자동 감지
-    if any(k in rec_corpus for k in ("무신사", "musinsa")):
-        add_mall("musinsa")
-    if any(k in rec_corpus for k in ("지그재그", "zigzag")):
-        add_mall("zigzag")
-    if any(k in rec_corpus for k in ("에이블리", "ably")):
-        add_mall("ably")
-
-    # 3순위: 카테고리별 특화 쇼핑몰 자동 매칭
-    if category == "패션":
-        add_mall("musinsa")
-        add_mall("zigzag")
-        if any(k in rec_corpus for k in ("원피스", "블라우스", "스커트", "가디건", "니트", "여성", "코디", "룩북", "가방", "백", "귀걸이", "목걸이")):
-            add_mall("ably")
-    elif category == "뷰티":
-        add_mall("zigzag")
-        add_mall("ably")
-        if any(k in rec_corpus for k in ("남성", "옴므", "맨즈", "향수", "선크림", "쉐이빙")):
-            add_mall("musinsa")
+    # 1순위: 관리자가 파트너스 링크를 직접 등록한 추가 쇼핑몰이 있으면 해당 몰 표시
+    registered_malls = [mall for mall in EXTRA_MALLS if extra_links.get(mall)]
+    if registered_malls:
+        selected_extra = registered_malls
+    else:
+        # 2순위: 자동 추천은 가독성을 위해 가장 적합한 대표 쇼핑몰 1곳만 선별
+        picked = None
+        if any(k in rec_corpus for k in ("무신사", "musinsa")):
+            picked = "musinsa"
+        elif any(k in rec_corpus for k in ("지그재그", "zigzag")):
+            picked = "zigzag"
+        elif any(k in rec_corpus for k in ("에이블리", "ably")):
+            picked = "ably"
+        elif category == "패션":
+            womens_keywords = ("가방", "숄더백", "토트백", "원피스", "블라우스", "스커트", "가디건", "니트", "부츠", "귀걸이", "목걸이", "여성")
+            picked = "zigzag" if any(k in rec_corpus for k in womens_keywords) else "musinsa"
+        elif category == "뷰티":
+            mens_keywords = ("남성", "옴므", "맨즈", "쉐이빙")
+            picked = "musinsa" if any(k in rec_corpus for k in mens_keywords) else "zigzag"
+        selected_extra = [picked] if picked else []
 
     for mall_key in selected_extra:
         has_partner = bool(extra_links.get(mall_key))
@@ -700,33 +690,34 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .summary-con{background:#FFF4F4;color:#A61B22}
 .summary-reason{background:#F5F7FA;color:#4E5968}
 
-/* 쇼핑몰 고유 브랜드 컬러 버튼 그리드 (네이버·쿠팡·무신사·지그재그·에이블리) */
+/* 쇼핑몰 고유 브랜드 컬러 버튼 (1줄 2~3열 깔끔 배치) */
 .shop-btn-grid{
   display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:8px;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
   width:100%;
   margin-top:4px;
+}
+.shop-btn-grid.cols-3{
+  grid-template-columns:repeat(3,minmax(0,1fr));
 }
 .shop-btn{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  min-height:38px;
-  padding:5px 8px;
-  border-radius:10px;
-  font-size:12.5px;
+  min-width:0;
+  min-height:37px;
+  padding:4px 5px;
+  border-radius:9px;
+  font-size:12px;
   font-weight:800;
   text-decoration:none!important;
   white-space:nowrap;
-  letter-spacing:-.01em;
-  transition:filter .15s,transform .1s;
+  letter-spacing:-.02em;
+  transition:filter .15s;
 }
 .shop-btn:hover{
-  filter:brightness(0.93);
-}
-.shop-btn:last-child:nth-child(odd){
-  grid-column:1 / -1;
+  filter:brightness(0.92);
 }
 .shop-btn-naver{
   background:#03C75A!important;
@@ -1148,11 +1139,12 @@ def render_product_card(product):
             st.markdown(f'<div class="{wrap_cls}">{"".join(summary_blocks)}</div>', unsafe_allow_html=True)
 
         mall_buttons = detect_product_malls(product)
+        grid_cls = "shop-btn-grid cols-3" if len(mall_buttons) >= 3 else "shop-btn-grid"
         btn_html = "".join(
             f'<a class="shop-btn {safe(btn["css"])}" href="?go={safe(btn["mall"])}&pid={pid}" target="_blank" rel="noopener noreferrer">{safe(btn["label"])}</a>'
             for btn in mall_buttons
         )
-        st.markdown(f'<div class="shop-btn-grid">{btn_html}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="{grid_cls}">{btn_html}</div>', unsafe_allow_html=True)
 
         with st.expander(f"영상 근거 · 장단점 비교 ({len(recs)}개)"):
             exp_parts = []
