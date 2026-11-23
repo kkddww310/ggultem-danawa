@@ -381,7 +381,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]{border:1px solid #EAECEF!importa
 div[data-testid="stForm"]{border:1px solid #DCE7F7!important;background:#F8FAFD!important;border-radius:16px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드 & 카드 (좌우 외곽선 정렬 + 상단 공백 제거) */
+/* 상품 그리드 & 카드 (상·좌·우 균일 여백 12px + 동심원 곡률 18px/12px) */
 .st-key-product_grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important}
 .st-key-product_grid [data-testid="stHorizontalBlock"]{
   display:flex!important;
@@ -407,52 +407,29 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{
   width:100%!important;
   box-sizing:border-box!important;
-  border:1px solid #E6E9EF!important;
+  border:1px solid #E5E9F0!important;
   background:#fff!important;
   border-radius:18px!important;
-  box-shadow:0 6px 20px rgba(15,23,42,.045)!important;
-  padding:0 14px 14px!important;
+  box-shadow:0 4px 18px rgba(15,23,42,.04)!important;
+  padding:12px 12px 14px!important;
   margin-bottom:14px!important;
-  overflow:hidden!important;
-}
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div{
-  padding:0!important;
-  margin:0!important;
-  border-radius:17px!important;
-  overflow:hidden!important;
 }
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{
-  padding-top:0!important;
-  margin-top:0!important;
-  gap:0!important;
-}
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child,
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child > div,
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child [data-testid="stMarkdownContainer"],
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child [data-testid="stMarkdownContainer"] > p{
-  padding-top:0!important;
-  margin-top:0!important;
-  margin-bottom:0!important;
+  gap:8px!important;
 }
 
-/* 썸네일 영역: 상단 테두리에 0px 밀착 + 동일한 곡률 */
+/* 썸네일 영역: 가림 없이 선명하게 + 카드 테두리와 동심원 곡률(12px) */
 .video-thumbnail-wrap{
   position:relative;
   display:block;
-  width:calc(100% + 28px)!important;
+  width:100%!important;
   aspect-ratio:16 / 9!important;
-  margin:0 -14px 12px!important;
-  border-radius:17px 17px 0 0!important;
-  background:#111827!important;
+  margin:0!important;
+  border-radius:12px!important;
+  border:1px solid rgba(15,23,42,.07)!important;
+  background:#F1F4F8!important;
   overflow:hidden!important;
-  -webkit-mask-image:-webkit-radial-gradient(white,black);
-}
-.video-thumbnail-wrap::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  background:linear-gradient(180deg,rgba(0,0,0,0) 58%,rgba(0,0,0,.55) 100%);
-  pointer-events:none;
+  box-sizing:border-box!important;
 }
 .video-thumbnail{
   display:block;
@@ -460,61 +437,64 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   height:100%!important;
   object-fit:cover!important;
   object-position:center center!important;
-  border-radius:17px 17px 0 0!important;
 }
-.thumb-chip{
-  position:absolute;
-  left:10px;
-  bottom:9px;
-  z-index:2;
-  display:inline-flex;
-  align-items:center;
-  gap:5px;
-  max-width:calc(100% - 20px);
-  padding:4px 9px;
-  border-radius:999px;
-  background:rgba(17,24,39,.78);
-  backdrop-filter:blur(4px);
-  color:#fff;
-  font-size:11px;
-  font-weight:700;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.thumb-chip b{color:#60A5FA;font-size:10px}
 .product-placeholder{
-  width:calc(100% + 28px)!important;
+  width:100%!important;
   aspect-ratio:16 / 9!important;
-  margin:0 -14px 12px!important;
-  border-radius:17px 17px 0 0!important;
+  margin:0!important;
+  border-radius:12px!important;
+  border:1px solid rgba(15,23,42,.06)!important;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   gap:6px;
   overflow:hidden!important;
+  box-sizing:border-box!important;
 }
 .product-placeholder span{font-size:38px}
 .product-placeholder small{font-size:12px;font-weight:800}
-.st-key-product_grid [data-testid="stImage"]{
-  width:calc(100% + 28px)!important;
-  margin:0 -14px 12px!important;
-  border-radius:17px 17px 0 0!important;
-  overflow:hidden!important;
+
+/* 썸네일 하단 채널 출처 + 브랜드/카테고리 한 줄 바 */
+.card-source-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  margin:8px 0 3px;
+  min-width:0;
 }
-.st-key-product_grid [data-testid="stImage"] img{
-  width:100%!important;
-  aspect-ratio:16 / 9!important;
-  object-fit:cover!important;
-  border-radius:17px 17px 0 0!important;
-  padding:0!important;
+.source-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  min-width:0;
+  max-width:62%;
+  padding:2px 7px;
+  border-radius:6px;
+  background:#F2F5FA;
+  color:#333D4B;
+  font-size:11px;
+  font-weight:750;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.source-chip b{color:#FF0033;font-size:9px;flex-shrink:0}
+.brand-eyebrow{
+  font-size:11px;
+  font-weight:700;
+  color:var(--muted);
+  letter-spacing:-.01em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  text-align:right;
 }
 
-/* 카드 타이포그래피 & 뱃지 (2줄 기준 높이 통일로 쇼핑 버튼 가로 정렬) */
-.brand-eyebrow{font-size:11px;font-weight:750;color:var(--muted);letter-spacing:-.01em;margin-bottom:3px}
+/* 카드 타이포그래피 & 뱃지 */
 .product-title{font-size:15.5px;font-weight:850;color:var(--ink);line-height:1.38;height:43px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.card-meta-row{display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;gap:4px;margin:8px 0 9px;min-height:46px}
+.card-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:7px 0 8px}
 .badge{display:inline-flex;align-items:center;height:21px;color:#245FB5;background:#EDF4FF;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot i{display:inline-block;width:5px;height:5px;border-radius:50%}
@@ -523,7 +503,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .purchase-ad,.purchase-unknown{color:#B42318;background:#FFF0F0}.purchase-ad i,.purchase-unknown i{background:#E5484D}
 
 /* 장단점 요약 박스 */
-.card-summary-wrap{margin:2px 0 11px;display:flex;flex-direction:column;gap:5px;height:78px;justify-content:flex-start;overflow:hidden}
+.card-summary-wrap{margin:0;display:flex;flex-direction:column;gap:5px;height:74px;justify-content:flex-start;overflow:hidden}
 .st-key-product_grid .summary-line{display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0!important;padding:7px 9px!important;border-radius:8px;font-size:12px!important;line-height:1.4!important;word-break:keep-all!important}
 .card-summary-wrap.has-two .summary-line{-webkit-line-clamp:1!important;padding:6px 9px!important}
 .summary-pro{background:#F0F9F4;color:#15653E}
@@ -570,7 +550,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 }
 
 /* 상세 비교 아코디언 */
-.st-key-product_grid [data-testid="stExpander"]{margin-top:9px!important;border:1px solid #ECEEF2!important;border-radius:10px!important;background:#FAFBFD!important}
+.st-key-product_grid [data-testid="stExpander"]{margin-top:0!important;border:1px solid #ECEEF2!important;border-radius:10px!important;background:#FAFBFD!important}
 .st-key-product_grid [data-testid="stExpander"] summary{min-height:35px!important;padding:5px 10px!important;font-size:12.5px!important;font-weight:700!important;color:var(--sub)!important}
 .st-key-product_grid [data-testid="stExpanderDetails"]{padding:10px 11px!important;max-height:240px!important;overflow-y:auto!important;background:#fff!important}
 .exp-section-title{font-size:11px;font-weight:800;color:var(--muted);margin:0 0 5px}
@@ -655,7 +635,6 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
     padding:0!important;
   }
   .st-key-product_grid .product-title{height:auto!important;min-height:0!important}
-  .st-key-product_grid .card-meta-row{min-height:0!important}
   .card-summary-wrap{height:auto!important;min-height:0!important}
 }
 </style>
@@ -722,13 +701,7 @@ def is_single_product_video(product, rec):
     )
 
 
-def render_product_visual(product):
-    """1순위: 관리자 검증 이미지 -> 2순위: 단품 리뷰 영상 썸네일 -> 3순위: 최고 조회수 영상 썸네일."""
-    image_url = str(product.get("image_url") or "").strip()
-    if product.get("image_verified") and image_url.startswith(("https://", "http://")):
-        st.image(image_url, use_container_width=True)
-        return
-
+def get_representative_rec(product):
     recommendations = product.get("recommendations") or []
     ranked = sorted(
         recommendations,
@@ -740,16 +713,30 @@ def render_product_visual(product):
         ),
         reverse=True,
     )
-    representative = next((rec for rec in ranked if rec.get("video_id")), None)
+    return next((rec for rec in ranked if rec.get("video_id")), None)
+
+
+def render_product_visual(product, representative=None):
+    """1순위: 관리자 검증 이미지 -> 2순위: 단품 리뷰 영상 썸네일 -> 3순위: 최고 조회수 영상 썸네일."""
+    image_url = str(product.get("image_url") or "").strip()
+    if product.get("image_verified") and image_url.startswith(("https://", "http://")):
+        st.markdown(
+            '<div class="video-thumbnail-wrap">'
+            f'<img class="video-thumbnail" src="{safe(image_url)}" alt="{safe(product.get("canonical_name"))}">'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    if representative is None:
+        representative = get_representative_rec(product)
     if representative:
         video_id = safe(representative["video_id"])
-        channel_name = safe((representative.get("channel") or {}).get("channel_name") or "유튜버 추천")
         hd_url = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
         fallback_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
         st.markdown(
             '<div class="video-thumbnail-wrap">'
             f'<img class="video-thumbnail" src="{hd_url}" onerror="this.onerror=null;this.src=\'{fallback_url}\';" alt="추천 영상 썸네일">'
-            f'<span class="thumb-chip"><b>▶</b> {channel_name}</span>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -802,14 +789,23 @@ def render_purchase_badges(counts):
 def render_product_card(product):
     recs = product["recommendations"]
     pid = safe(product.get("product_id"))
+    representative = get_representative_rec(product)
+    channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
+    rep_channel = ((representative or {}).get("channel") or {}).get("channel_name") or (
+        ((recs[0].get("channel") or {}).get("channel_name") if recs else "") or "유튜버 추천"
+    )
+    source_label = f"{rep_channel} 외 {channel_count - 1}명" if channel_count > 1 else rep_channel
+
     with st.container(border=True):
-        render_product_visual(product)
+        render_product_visual(product, representative=representative)
         st.markdown(
-            f'<div class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</div>'
+            '<div class="card-source-bar">'
+            f'<span class="source-chip"><b>▶</b> {safe(source_label)}</span>'
+            f'<span class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
+            '</div>'
             f'<div class="product-title">{safe(product.get("canonical_name"))}</div>',
             unsafe_allow_html=True,
         )
-        channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
         confidence = max([float(r.get("confidence") or 0) for r in recs] or [0])
         summary = recommendation_summary(recs)
         purchase_html = render_purchase_badges(summary["purchase_counts"])
