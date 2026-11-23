@@ -84,9 +84,9 @@ def api_get_all(table, fields="*", params=None, max_rows=10000):
 def fetch_by_ids(table, fields, id_col, ids):
     clean_ids = list(dict.fromkeys(str(i).strip() for i in ids if i))
     rows = []
-    for start in range(0, len(clean_ids), 100):
-        chunk = clean_ids[start:start + 100]
-        rows.extend(api_get(table, fields, {id_col: f"in.({','.join(chunk)})", "limit": str(len(chunk))}))
+    for start in range(0, len(clean_ids), 50):
+        chunk = clean_ids[start:start + 50]
+        rows.extend(api_get(table, fields, {id_col: f"in.({','.join(chunk)})", "limit": "1000"}))
     return rows
 
 
@@ -126,14 +126,12 @@ def load_public_data():
         {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc"},
         max_rows=3000,
     )
-    product_ids = [p.get("product_id") for p in products if p.get("product_id")]
-    recs = fetch_by_ids(
+    recs = api_get_all(
         "recommendations",
         "recommendation_id,product_id,video_id,channel_id,reason,pros,cons,evidence,confidence,purchase_type,created_at",
-        "product_id",
-        product_ids,
+        {"order": "created_at.desc"},
+        max_rows=10000,
     )
-    recs.sort(key=lambda r: str(r.get("created_at") or ""), reverse=True)
     video_ids = [r.get("video_id") for r in recs if r.get("video_id")]
     channel_ids = [r.get("channel_id") for r in recs if r.get("channel_id")]
     videos = fetch_by_ids("videos", "video_id,title,view_count,published_at", "video_id", video_ids)
