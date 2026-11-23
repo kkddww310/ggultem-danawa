@@ -14,7 +14,7 @@ TOTAL_FETCH_LIMIT = 20
 BATCH_SIZE = 5
 MIN_CONFIDENCE = 0.70
 MAX_ATTEMPTS = 2
-RETRY_SECONDS = (4,)
+GEMINI_MIN_INTERVAL_SEC = 13.0
 
 GENERIC_TERMS = {
     "사레레밴드", "운동밴드", "저항밴드", "고무밴드", "문틀철봉", "철봉",
@@ -85,27 +85,25 @@ TOP_PICK_EVIDENCE_PATTERN = re.compile(
 
 
 class AllProvidersRateLimited(RuntimeError):
-    """설정된 모든 무료 LLM 제공자의 한도가 소진된 상태."""
+    """설정된 모든 무료 LLM 제공자의 일일 한도가 소진된 상태."""
+
+
+class TemporaryProviderUnavailable(RuntimeError):
+    """무료 LLM 서버의 일시적 과부하(503) 또는 분당 요청 제한으로 잠시 대기해야 하는 상태."""
 
 
 def get_providers():
     providers = []
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     if gemini_key:
-        primary_gemini = os.getenv("GEMINI_MODEL", "gemini-3.8-flash-lite").strip() or "gemini-3.8-flash-lite"
-        gemini_models = [primary_gemini]
-        for fallback_model in ("gemini-3.8-flash", "gemini-3.8-flash-lite"):
-            if fallback_model not in gemini_models:
-                gemini_models.append(fallback_model)
-
-        for idx, model_name in enumerate(gemini_models, start=1):
-            providers.append({
-                "name": f"gemini_{idx}",
-                "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-                "api_key": gemini_key,
-                "model": model_name,
-                "extra_headers": {},
-            })
+        providers.append({
+            "name": "gemini",
+            "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            "api_key": gemini_key,
+            "model": os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash",
+            "min_interval": GEMINI_MIN_INTERVAL_SEC,
+            "extra_headers": {},
+        })
 
     or_key = str(OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")).strip()
     if or_key:
@@ -114,6 +112,7 @@ def get_providers():
             "url": "https://openrouter.ai/api/v1/chat/completions",
             "api_key": or_key,
             "model": os.getenv("OPENROUTER_MODEL", "openrouter/free").strip() or "openrouter/free",
+            "min_interval": 1.0,
             "extra_headers": {
                 "HTTP-Referer": "https://github.com/kkddww310/ggultem-danawa",
                 "X-Title": "Ggultem Danawa Collector",
@@ -127,6 +126,7 @@ def get_providers():
             "url": "https://api.groq.com/openai/v1/chat/completions",
             "api_key": groq_key,
             "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b",
+            "min_interval": 2.0,
             "extra_headers": {},
         })
     return providers
@@ -157,7 +157,7 @@ def build_video_source_text(video):
 
 
 def compact_source_for_batch(video, max_head=750, max_extra_lines=25):
-    """배치 호출 시 토큰 한도(특히 Groq TPM)를 넘기지 않도록 핵심 줄만 압축한다."""
+    """배치 호출 시 토큰 한도를 넘기지 않도록 핵심 줄만 압축한다."""
     full_text = build_video_source_text(video)
     head = full_text[:max_head]
     extra = []
@@ -357,15 +357,24 @@ def build_batch_prompt(videos):
 {json.dumps(payload, ensure_ascii=False)}'''
 
 
-def call_llm_with_fallback(prompt, providers, exhausted_providers):
+def call_llm_with_fallback(prompt, providers, exhausted_providers, last_call_ts):
     available = [p for p in providers if p["name"] not in exhausted_providers]
     if not available:
-        raise AllProvidersRateLimited("모든 무료 LLM 제공자의 한도가 소진되었습니다.")
+        raise AllProvidersRateLimited("모든 무료 LLM 제공자의 일일 한도가 소진되었습니다.")
 
     errors = []
+    transient_failures = 0
+
     for provider in available:
         name = provider["name"]
+        min_interval = float(provider.get("min_interval") or 0.0)
+
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            elapsed = time.time() - last_call_ts.get(name, 0.0)
+            if elapsed < min_interval:
+                time.sleep(min_interval - elapsed)
+
+            last_call_ts[name] = time.time()
             try:
                 headers = {
                     "Authorization": f"Bearer {provider['api_key']}",
@@ -390,23 +399,30 @@ def call_llm_with_fallback(prompt, providers, exhausted_providers):
                     print(f"LLM request failed | {error_text}")
 
                     if response.status_code == 429:
+                        transient_failures += 1
                         body_lower = body.lower()
-                        if any(m in body_lower for m in ("per-day", "per day", "daily", "quota", "limit exceeded")):
+                        is_daily = any(
+                            m in body_lower
+                            for m in ("per-day", "per day", "daily", "free-models-per-day", "openrouter_free_tier_daily")
+                        )
+                        if is_daily:
                             exhausted_providers.add(name)
                             break
                         if attempt < MAX_ATTEMPTS:
-                            time.sleep(RETRY_SECONDS[attempt - 1])
+                            time.sleep(20)
                             continue
-                        exhausted_providers.add(name)
                         break
 
                     if response.status_code in {401, 402, 403, 404}:
                         exhausted_providers.add(name)
                         break
 
-                    if response.status_code >= 500 and attempt < MAX_ATTEMPTS:
-                        time.sleep(RETRY_SECONDS[attempt - 1])
-                        continue
+                    if response.status_code >= 500:
+                        transient_failures += 1
+                        if attempt < MAX_ATTEMPTS:
+                            time.sleep(6)
+                            continue
+                        break
                     break
 
                 payload = response.json()
@@ -419,11 +435,12 @@ def call_llm_with_fallback(prompt, providers, exhausted_providers):
                 return parsed
 
             except (requests.Timeout, ValueError, KeyError, json.JSONDecodeError) as error:
+                transient_failures += 1
                 error_text = f"provider={name} model={provider['model']} attempt={attempt} parse_or_timeout: {error}"
                 errors.append(error_text)
                 print(f"LLM response failed | {error_text}")
                 if attempt < MAX_ATTEMPTS:
-                    time.sleep(RETRY_SECONDS[attempt - 1])
+                    time.sleep(5)
                     continue
                 break
             except Exception as error:
@@ -433,14 +450,16 @@ def call_llm_with_fallback(prompt, providers, exhausted_providers):
                 break
 
     if all(p["name"] in exhausted_providers for p in providers):
-        raise AllProvidersRateLimited("모든 무료 LLM 제공자의 한도가 소진되었습니다.")
+        raise AllProvidersRateLimited("모든 무료 LLM 제공자의 일일 한도가 소진되었습니다.")
+    if transient_failures > 0:
+        raise TemporaryProviderUnavailable("무료 LLM 서버 일시 과부하 또는 분당 한도: " + " || ".join(errors[-4:]))
     raise RuntimeError("LLM 호출 실패: " + " || ".join(errors[-6:]))
 
 
-def extract_for_chunk(videos, providers, exhausted_providers):
+def extract_for_chunk(videos, providers, exhausted_providers, last_call_ts):
     """영상 묶음을 한 번에 호출하고, 누락된 video_id만 단건으로 보완한다."""
     prompt = build_batch_prompt(videos)
-    parsed = call_llm_with_fallback(prompt, providers, exhausted_providers)
+    parsed = call_llm_with_fallback(prompt, providers, exhausted_providers, last_call_ts)
 
     results_by_id = {}
     if isinstance(parsed, dict) and isinstance(parsed.get("results"), list):
@@ -454,7 +473,7 @@ def extract_for_chunk(videos, providers, exhausted_providers):
 
     missing = [v for v in videos if v["video_id"] not in results_by_id]
     for video in missing:
-        single_parsed = call_llm_with_fallback(build_batch_prompt([video]), providers, exhausted_providers)
+        single_parsed = call_llm_with_fallback(build_batch_prompt([video]), providers, exhausted_providers, last_call_ts)
         items = []
         if isinstance(single_parsed, dict) and isinstance(single_parsed.get("results"), list):
             for entry in single_parsed["results"]:
@@ -584,6 +603,7 @@ def main():
     )
 
     exhausted_providers = set()
+    last_call_ts = {}
     processed = saved_total = rejected_total = failures = 0
 
     for start in range(0, len(videos), BATCH_SIZE):
@@ -592,9 +612,9 @@ def main():
             video["creator_comments"] = get_creator_comments(video["video_id"], video["channel_id"])
 
         try:
-            extracted_map = extract_for_chunk(chunk, providers, exhausted_providers)
-        except AllProvidersRateLimited as error:
-            print(f"All free providers rate limited | batch_stopped=true | detail={str(error)[:400]}")
+            extracted_map = extract_for_chunk(chunk, providers, exhausted_providers, last_call_ts)
+        except (AllProvidersRateLimited, TemporaryProviderUnavailable) as error:
+            print(f"Batch paused (remaining videos kept queued) | detail={str(error)[:400]}")
             break
         except Exception as error:
             for video in chunk:
