@@ -7,12 +7,13 @@ import requests
 
 from collector.config import OPENROUTER_API_KEY
 from collector.database import select, upsert, update
+from collector.youtube_api import get_creator_comments
 
 MODELS = ("openrouter/free",)
 BATCH_LIMIT = 12
 MIN_CONFIDENCE = 0.87
-MAX_ATTEMPTS = 3
-RETRY_SECONDS = (5, 12)
+MAX_ATTEMPTS = 2
+RETRY_SECONDS = (5,)
 
 GENERIC_TERMS = {
     "사레레밴드", "운동밴드", "저항밴드", "고무밴드", "문틀철봉", "철봉",
@@ -25,6 +26,9 @@ GENERIC_TERMS = {
     "선크림", "크림", "세럼", "토너", "향수", "드라이기", "고데기",
     "주방용품", "조리도구", "프라이팬", "냄비", "에어프라이어", "커피머신",
     "믹서기", "정수기", "식기세척기", "운동화", "신발", "가방", "캐리어",
+    "패딩", "경량패딩", "자켓", "코트", "니트", "맨투맨", "후드티",
+    "셔츠", "바지", "슬랙스", "청바지", "데님", "치마", "스커트",
+    "원피스", "양말", "모자", "벨트", "안경", "선글라스", "아우터", "상의", "하의",
     "캠핑용품", "차량용품", "육아용품", "강아지용품", "고양이용품",
     "추천템", "필수템", "꿀템", "아이템", "제품", "상품",
 }
@@ -32,7 +36,8 @@ UNKNOWN_MODELS = {"", "확인되지않음", "미확인", "unknown", "없음", "�
 COMPOSITE_MARKERS = ("+", "/", "&", " 세트", " 패키지", " 외 ", " 등 ")
 INVALID_POINT_PATTERNS = (
     "원문에", "명시됨", "후기는 없음", "후기 없음", "언급 없음",
-    "정보가 없음", "확인되지 않", "알 수 없", "단점 없음", "장점 없음",
+    "정보가 없음", "정보 없음", "정보 부족", "확인되지 않", "알 수 없",
+    "단점 없음", "장점 없음", "가격 정보", "가격 미공개", "가격이 공개", "가격 알 수",
 )
 
 STANDARD_CATEGORIES = {
@@ -44,6 +49,7 @@ CATEGORY_ALIASES = {
     "전자기기": "IT·전자", "디지털": "IT·전자",
     "기타뷰티": "뷰티", "뷰티기타": "뷰티", "화장품": "뷰티",
     "코스메틱": "뷰티", "beauty": "뷰티",
+    "의류": "패션", "잡화": "패션", "코디": "패션", "fashion": "패션",
     "주방생활살림": "생활·살림", "생활살림주방": "생활·살림",
     "가전": "생활·살림", "생활가전": "생활·살림", "살림": "생활·살림",
     "생활": "생활·살림", "주방가전": "주방", "조리": "주방",
@@ -52,11 +58,10 @@ CATEGORY_ALIASES = {
     "아동": "육아", "유아": "육아", "차량": "자동차",
 }
 
-# 용량·수량·색상·호수·세대·모델 번호 중 하나가 있으면 검색 가능한 구체 옵션으로 본다.
 SPECIFIC_OPTION_PATTERN = re.compile(
     r"(?:\b\d+(?:\.\d+)?\s?(?:ml|l|g|kg|mg|tb|gb|w|mah|hz|인치|매|개|호|번|세대)\b"
     r"|\b[A-Za-z]{1,15}[- ]?\d+[A-Za-z0-9-]*\b"
-    r"|(?:핑크골드|베이지|브라운|뉴트럴|피치|로즈|블랙|화이트|레드|블루|그린|퍼플|코랄))",
+    r"|(?:핑크골드|베이지|브라운|뉴트럴|피치|로즈|블랙|화이트|레드|블루|그린|퍼플|코랄|네이비|차콜|카키|아이보리))",
     re.I,
 )
 
@@ -76,10 +81,20 @@ def normalize_brand(value):
         "samsung": "삼성", "apple": "애플", "anker": "앤커",
         "ugreen": "유그린", "lg electronics": "lg", "lge": "lg",
         "xiaomi": "샤오미", "sony": "소니", "bose": "보스",
+        "uniqlo": "유니클로", "zara": "자라", "musinsa": "무신사",
     }
     for source, target in replacements.items():
         text = text.replace(source, target)
     return normalize_text(text)
+
+
+def build_video_source_text(video):
+    desc = str(video.get("description") or "").strip()
+    comments = video.get("creator_comments") or []
+    if comments:
+        joined_comments = "\n\n".join(comments)
+        return f"{desc}\n\n[채널 주인 고정/작성 댓글]\n{joined_comments}".strip()
+    return desc
 
 
 def extract_json(text):
@@ -116,17 +131,21 @@ def clean_points(values):
     return cleaned_list[:4]
 
 
-def has_specific_model(model):
+def has_specific_model(model, category=""):
     normalized = normalize_text(model)
-    if normalized in UNKNOWN_MODELS or is_generic(model) or len(normalized) < 2:
+    if normalized in UNKNOWN_MODELS or len(normalized) < 2:
         return False
     if re.search(r"[a-z가-힣]*\d+[a-z0-9가-힣]*", normalized, flags=re.I):
         return True
-    return len(normalized) >= 6
+    # 패션·뷰티·생활 카테고리는 브랜드와 함께 쓰인 4자 이상 구체 품목/라인명을 허용한다.
+    if category in {"패션", "뷰티", "생활·살림", "주방", "운동·건강", "육아", "반려동물"}:
+        return len(normalized) >= 4
+    return len(normalized) >= 5
 
 
 def source_contains_identity(video, name, brand, model):
-    source = normalize_text(f"{video.get('title', '')} {video.get('description', '')}")
+    full_source = f"{video.get('title', '')} {build_video_source_text(video)}"
+    source = normalize_text(full_source)
     name_key = normalize_text(name)
     brand_key = normalize_brand(brand)
     model_key = normalize_text(model)
@@ -146,6 +165,8 @@ def standardize_category(value, name=""):
     product_name = str(name or "").lower()
     if any(word in product_name for word in ("토너", "세럼", "쿠션", "크림", "마스크", "선크림", "틴트", "파운데이션", "고데기", "향수")):
         return "뷰티"
+    if any(word in product_name for word in ("패딩", "자켓", "코트", "니트", "팬츠", "슬랙스", "데님", "부츠", "스니커즈", "백팩", "가방")):
+        return "패션"
     if any(word in product_name for word in ("냄비", "프라이팬", "식기", "블렌더", "믹서기", "커피머신", "토스터", "에어프라이어")):
         return "주방"
     if any(word in product_name for word in ("청소기", "냉장고", "세탁기", "건조기", "가습기", "제습기", "매트")):
@@ -163,21 +184,22 @@ def concrete_searchable_product(video, item):
         return False
     if not item["brand_key"] or is_generic(item["brand"]):
         return False
-    if is_generic(item["name"]) or is_generic(item["model"]):
+    if is_generic(item["name"]):
         return False
     if any(marker in item["name"].lower() for marker in COMPOSITE_MARKERS):
         return False
     if not source_contains_identity(video, item["name"], item["brand"], item["model"]):
         return False
-    if len(item["model_key"]) < 6:
+    if len(item["model_key"]) < 4:
         return False
-    return has_specific_option(item["name"], item["model"])
+    return has_specific_option(item["name"], item["model"]) or item["category"] in {"패션", "뷰티"}
 
 
 def validate_product(video, raw):
     name = str(raw.get("name", "")).strip()
     brand = str(raw.get("brand", "")).strip()
     model = str(raw.get("model", "")).strip()
+    category = standardize_category(raw.get("category", "기타"), name)
     try:
         confidence = max(0.0, min(1.0, float(raw.get("confidence", 0) or 0)))
     except (TypeError, ValueError):
@@ -193,10 +215,10 @@ def validate_product(video, raw):
         return False, None, "일반 품목명"
     if not brand or is_generic(brand):
         return False, None, "유효한 브랜드 없음"
-    if not has_specific_model(model):
-        return False, None, "정확한 모델명 없음"
+    if not has_specific_model(model, category):
+        return False, None, "정확한 모델/제품명 없음"
     if not source_contains_identity(video, name, brand, model):
-        return False, None, "원문에서 브랜드와 모델 확인 불가"
+        return False, None, "원문에서 브랜드와 제품명 확인 불가"
 
     item = {
         "name": name,
@@ -206,7 +228,7 @@ def validate_product(video, raw):
         "brand_key": normalize_brand(brand),
         "model_key": normalize_text(model),
         "keyword": str(raw.get("keyword", "")).strip() or name,
-        "category": standardize_category(raw.get("category", "기타"), name),
+        "category": category,
         "reason": str(raw.get("reason", "")).strip(),
         "pros": clean_points(raw.get("pros", [])),
         "cons": clean_points(raw.get("cons", [])),
@@ -218,23 +240,25 @@ def validate_product(video, raw):
 
 
 def build_prompt(video):
+    source_text = build_video_source_text(video)[:11000]
     return f'''너는 유튜브 영상에서 실제 판매 제품을 식별하는 상품 데이터 검수자다.
-제목과 설명에 직접 명시된 브랜드와 정확한 모델이 있는 단일 제품만 추출하라.
-일반 품목명, 운동 도구 통칭, 여러 물건을 + 또는 /로 묶은 표현은 반환하지 마라.
-브랜드나 모델을 추측하지 마라.
-pros와 cons에는 실제 제품의 특징·효능·사용감·가격적 아쉬움만 적고, "원문에 명시됨", "상세 후기 없음" 같은 분석 메모는 절대 넣지 마라. 근거가 없으면 빈 배열 []로 두어라.
+제목, 설명, 채널 주인 댓글에 직접 명시된 브랜드와 구체적인 제품명(또는 모델명)이 있는 단일 제품만 추출하라.
+하울·모음전·룩북·추천템 리스트 영상처럼 여러 제품이 나열된 경우, 일부만 뽑지 말고 언급된 모든 개별 제품을 빠짐없이 추출하라(최대 15개).
+브랜드 없는 일반 품목명이나 여러 물건을 + 또는 /로 묶은 표현은 반환하지 마라.
+브랜드나 제품명을 추측하지 마라.
+pros와 cons에는 실제 제품의 특징·효능·착용감·사용감·가격적 아쉬움만 적고, "원문에 명시됨", "상세 후기 없음", "가격 정보 미공개" 같은 정보 부재 메모는 절대 넣지 마라. 근거가 없으면 빈 배열 []로 두어라.
 
 반드시 JSON 객체 하나만 반환한다.
-{{"items":[{{"name":"브랜드 + 정확한 단일 제품명","brand":"브랜드","model":"정확한 모델명","keyword":"정확한 상품 검색어","category":"IT·전자|뷰티|패션|생활·살림|주방|여행|자동차|운동·건강|육아|반려동물|기타","reason":"소개 이유","pros":["장점"],"cons":["단점"],"evidence":"원문 근거","confidence":0.0,"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음"}}]}}
+{{"items":[{{"name":"브랜드 + 정확한 단일 제품명","brand":"브랜드","model":"모델명 또는 구체 제품명","keyword":"정확한 상품 검색어","category":"IT·전자|뷰티|패션|생활·살림|주방|여행|자동차|운동·건강|육아|반려동물|기타","reason":"소개 이유","pros":["장점"],"cons":["단점"],"evidence":"원문 근거","confidence":0.0,"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음"}}]}}
 
-confidence 0.87 이상이며 브랜드와 모델이 원문에 직접 있을 때만 반환한다.
+confidence 0.87 이상이며 브랜드와 제품명이 원문에 직접 있을 때만 반환한다.
 확정할 수 없으면 {{"items":[]}}만 반환한다.
 
 [제목]
 {video.get("title", "")}
 
-[설명]
-{(video.get("description") or "")[:9000]}'''
+[설명 및 채널 주인 댓글]
+{source_text}'''
 
 
 def call_openrouter(video):
@@ -260,7 +284,7 @@ def call_openrouter(video):
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.0,
                     },
-                    timeout=40,
+                    timeout=45,
                 )
 
                 if response.status_code >= 400:
@@ -301,7 +325,7 @@ def call_openrouter(video):
                 if not isinstance(items, list):
                     raise ValueError("items가 배열이 아닙니다.")
                 print(f"OpenRouter request succeeded | model={model} attempt={attempt} items={len(items)}")
-                return items
+                return items[:15]
 
             except OpenRouterDailyLimitReached:
                 raise
@@ -349,7 +373,8 @@ def find_existing_product(item):
 
 
 def identity_score(video, item):
-    source = normalize_text(f"{video.get('title', '')} {video.get('description', '')}")
+    full_source = f"{video.get('title', '')} {build_video_source_text(video)}"
+    source = normalize_text(full_source)
     score = int(round(item["confidence"] * 40))
     if item["brand_key"] in source:
         score += 20
@@ -357,7 +382,7 @@ def identity_score(video, item):
         score += 25
     if item["normalized_name"] in source:
         score += 10
-    if re.search(r"https?://", str(video.get("description", ""))):
+    if re.search(r"https?://", full_source):
         score += 5
     return min(100, score)
 
@@ -435,6 +460,7 @@ def main():
 
     for video in videos:
         try:
+            video["creator_comments"] = get_creator_comments(video["video_id"], video["channel_id"])
             extracted = call_openrouter(video)
             saved = rejected = 0
 
@@ -453,7 +479,7 @@ def main():
             if saved:
                 status, error = "analyzed", None
             elif rejected:
-                status, error = "rejected_generic", "정확한 브랜드·모델 검증 실패"
+                status, error = "rejected_generic", "정확한 브랜드·제품명 검증 실패"
             else:
                 status, error = "no_product", None
 
