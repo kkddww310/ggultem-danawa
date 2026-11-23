@@ -447,7 +447,7 @@ st.markdown("""
 html,body,.stApp{background:var(--canvas);color:var(--ink);overflow-x:hidden!important}
 .block-container{max-width:1180px;padding:1.1rem 1rem 4rem;box-sizing:border-box}
 
-/* 스트림릿 기본 상단 헤더·선·푸터·숨김 iframe 완전 제거 */
+/* 스트림릿 기본 상단 헤더·선·스크롤 그림자·푸터 완전 제거 */
 #MainMenu,
 footer,
 header,
@@ -475,12 +475,25 @@ header[data-testid="stHeader"],
   margin:0!important;
   padding:0!important;
 }
+.stApp,
 [data-testid="stAppViewContainer"],
 [data-testid="stMain"],
-section.main{
+section.main,
+[data-testid="stMainBlockContainer"]{
   padding-top:0!important;
   margin-top:0!important;
   border-top:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+.stApp::before,.stApp::after,
+[data-testid="stAppViewContainer"]::before,[data-testid="stAppViewContainer"]::after,
+[data-testid="stMain"]::before,[data-testid="stMain"]::after,
+section.main::before,section.main::after{
+  display:none!important;
+  content:none!important;
+  border:0!important;
+  box-shadow:none!important;
 }
 
 /* 서비스 상단 헤더 & 히어로 배너 */
@@ -930,14 +943,35 @@ components.html(
     "  if (!doc.getElementById('ggultem-hide-chrome')) {"
     "    const st = doc.createElement('style');"
     "    st.id = 'ggultem-hide-chrome';"
-    "    st.textContent = 'header, [data-testid=\"stHeader\"], [data-testid=\"stAppHeader\"], [data-testid=\"stDecoration\"], [data-testid=\"stToolbar\"] { display:none!important; height:0!important; border:0!important; box-shadow:none!important; }';"
+    "    st.textContent = '"
+    "      header, [data-testid=\"stHeader\"], [data-testid=\"stAppHeader\"], [data-testid=\"stDecoration\"], [data-testid=\"stToolbar\"] { display:none!important; height:0!important; border:0!important; box-shadow:none!important; }"
+    "      .stApp, [data-testid=\"stAppViewContainer\"], [data-testid=\"stMain\"], section.main, [data-testid=\"stMainBlockContainer\"] { box-shadow:none!important; border-top:0!important; outline:0!important; }"
+    "      [data-testid=\"stMain\"]::before, [data-testid=\"stMain\"]::after, section.main::before, section.main::after { display:none!important; content:none!important; box-shadow:none!important; border:0!important; }"
+    "    ';"
     "    doc.head.appendChild(st);"
     "  }"
-    "  doc.querySelectorAll('header, [data-testid=\"stHeader\"], [data-testid=\"stAppHeader\"], [data-testid=\"stDecoration\"]').forEach(el => {"
-    "    el.style.setProperty('display', 'none', 'important');"
-    "    el.style.setProperty('border', 'none', 'important');"
-    "    el.style.setProperty('box-shadow', 'none', 'important');"
-    "  });"
+    "  const cleanTopChrome = () => {"
+    "    doc.querySelectorAll('header, [data-testid=\"stHeader\"], [data-testid=\"stAppHeader\"], [data-testid=\"stDecoration\"]').forEach(el => {"
+    "      el.style.setProperty('display', 'none', 'important');"
+    "      el.style.setProperty('border', 'none', 'important');"
+    "      el.style.setProperty('box-shadow', 'none', 'important');"
+    "    });"
+    "    doc.querySelectorAll('.stApp, [data-testid=\"stAppViewContainer\"], [data-testid=\"stMain\"], section.main').forEach(el => {"
+    "      el.style.setProperty('box-shadow', 'none', 'important');"
+    "      el.style.setProperty('border-top', '0', 'important');"
+    "    });"
+    "    doc.querySelectorAll('div, section, header').forEach(el => {"
+    "      const r = el.getBoundingClientRect();"
+    "      if (r.top >= -2 && r.top <= 6 && r.height > 0 && r.height <= 5 && r.width >= window.parent.innerWidth * 0.8) {"
+    "        el.style.setProperty('display', 'none', 'important');"
+    "      }"
+    "    });"
+    "  };"
+    "  cleanTopChrome();"
+    "  if (!window.parent.__ggultemChromeObserver) {"
+    "    window.parent.__ggultemChromeObserver = new MutationObserver(cleanTopChrome);"
+    "    window.parent.__ggultemChromeObserver.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });"
+    "  }"
     f"  {scroll_js}"
     "})();"
     "</script>",
@@ -1584,4 +1618,3 @@ try:
         render_manage()
 except Exception as exc:
     st.error(str(exc))
-
