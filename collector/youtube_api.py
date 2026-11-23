@@ -49,3 +49,31 @@ def get_videos(video_ids):
         })
         output.extend(data.get("items", []))
     return output
+
+
+def get_creator_comments(video_id, channel_id, max_results=20):
+    """영상의 댓글 중 채널 주인이 작성한 댓글(고정 댓글 등)만 추출한다."""
+    if not video_id or not channel_id:
+        return []
+    try:
+        data = _get("commentThreads", {
+            "part": "snippet",
+            "videoId": video_id,
+            "maxResults": min(max_results, 50),
+            "order": "relevance",
+            "textFormat": "plainText",
+        })
+    except requests.HTTPError as error:
+        if error.response is not None and error.response.status_code in {403, 404}:
+            return []
+        raise
+
+    comments = []
+    for item in data.get("items", []):
+        top = (item.get("snippet") or {}).get("topLevelComment") or {}
+        snippet = top.get("snippet") or {}
+        author_id = (snippet.get("authorChannelId") or {}).get("value")
+        text = str(snippet.get("textDisplay") or "").strip()
+        if author_id == channel_id and text:
+            comments.append(text)
+    return comments
