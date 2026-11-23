@@ -12,7 +12,7 @@ from collector.youtube_api import get_creator_comments
 
 TOTAL_FETCH_LIMIT = 20
 BATCH_SIZE = 5
-MIN_CONFIDENCE = 0.87
+MIN_CONFIDENCE = 0.70
 MAX_ATTEMPTS = 2
 RETRY_SECONDS = (4,)
 
@@ -90,6 +90,16 @@ class AllProvidersRateLimited(RuntimeError):
 
 def get_providers():
     providers = []
+    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if gemini_key:
+        providers.append({
+            "name": "gemini",
+            "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            "api_key": gemini_key,
+            "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash",
+            "extra_headers": {},
+        })
+
     or_key = str(OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")).strip()
     if or_key:
         providers.append({
@@ -110,16 +120,6 @@ def get_providers():
             "url": "https://api.groq.com/openai/v1/chat/completions",
             "api_key": groq_key,
             "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b",
-            "extra_headers": {},
-        })
-
-    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if gemini_key:
-        providers.append({
-            "name": "gemini",
-            "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-            "api_key": gemini_key,
-            "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash",
             "extra_headers": {},
         })
     return providers
