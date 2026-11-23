@@ -34,7 +34,7 @@ GENERIC_TERMS = {
     "추천템", "필수템", "꿀템", "아이템", "제품", "상품",
 }
 UNKNOWN_MODELS = {"", "확인되지않음", "미확인", "unknown", "없음", "미상"}
-COMPOSITE_MARKERS = ("+", "/", "&", " 세트", " 패키지", " 외 ", " 등 ")
+COMPOSITE_MARKERS = ("+", "/", "&", " 외 ", " 등 ")
 INVALID_POINT_PATTERNS = (
     "원문에", "명시됨", "후기는 없음", "후기 없음", "언급 없음",
     "정보가 없음", "정보 없음", "정보 부족", "확인되지 않", "알 수 없",
@@ -92,13 +92,20 @@ def get_providers():
     providers = []
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     if gemini_key:
-        providers.append({
-            "name": "gemini",
-            "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-            "api_key": gemini_key,
-            "model": os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash",
-            "extra_headers": {},
-        })
+        primary_gemini = os.getenv("GEMINI_MODEL", "gemini-3.8-flash-lite").strip() or "gemini-3.8-flash-lite"
+        gemini_models = [primary_gemini]
+        for fallback_model in ("gemini-3.8-flash", "gemini-3.8-flash-lite"):
+            if fallback_model not in gemini_models:
+                gemini_models.append(fallback_model)
+
+        for idx, model_name in enumerate(gemini_models, start=1):
+            providers.append({
+                "name": f"gemini_{idx}",
+                "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                "api_key": gemini_key,
+                "model": model_name,
+                "extra_headers": {},
+            })
 
     or_key = str(OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")).strip()
     if or_key:
@@ -373,12 +380,12 @@ def call_llm_with_fallback(prompt, providers, exhausted_providers):
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.0,
                     },
-                    timeout=35,
+                    timeout=50,
                 )
 
                 if response.status_code >= 400:
                     body = response.text[:500]
-                    error_text = f"provider={name} attempt={attempt} HTTP {response.status_code}: {body}"
+                    error_text = f"provider={name} model={provider['model']} attempt={attempt} HTTP {response.status_code}: {body}"
                     errors.append(error_text)
                     print(f"LLM request failed | {error_text}")
 
@@ -412,7 +419,7 @@ def call_llm_with_fallback(prompt, providers, exhausted_providers):
                 return parsed
 
             except (requests.Timeout, ValueError, KeyError, json.JSONDecodeError) as error:
-                error_text = f"provider={name} attempt={attempt} parse_or_timeout: {error}"
+                error_text = f"provider={name} model={provider['model']} attempt={attempt} parse_or_timeout: {error}"
                 errors.append(error_text)
                 print(f"LLM response failed | {error_text}")
                 if attempt < MAX_ATTEMPTS:
@@ -420,7 +427,7 @@ def call_llm_with_fallback(prompt, providers, exhausted_providers):
                     continue
                 break
             except Exception as error:
-                error_text = f"provider={name} attempt={attempt} error: {error}"
+                error_text = f"provider={name} model={provider['model']} attempt={attempt} error: {error}"
                 errors.append(error_text)
                 print(f"LLM unexpected error | {error_text}")
                 break
