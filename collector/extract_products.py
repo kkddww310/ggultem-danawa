@@ -74,6 +74,14 @@ SPECIFIC_OPTION_PATTERN = re.compile(
     r"|(?:핑크골드|베이지|브라운|뉴트럴|피치|로즈|블랙|화이트|레드|블루|그린|퍼플|코랄|네이비|차콜|카키|아이보리))",
     re.I,
 )
+COMPARISON_TITLE_PATTERN = re.compile(
+    r"(?:비교|실험|테스트|전부|싹\s?다|다\s?사봤|순위|랭킹|대결|\bvs\b|계급도)",
+    re.I,
+)
+TOP_PICK_EVIDENCE_PATTERN = re.compile(
+    r"(?:[123]\s?[위등]|종합\s?(?:1위|우승|추천)|최종\s?(?:추천|선택|픽)|우승|대상|가성비\s?(?:1위|추천|픽)|베스트|best|top\s?[123]|추천\s?픽)",
+    re.I,
+)
 
 
 class AllProvidersRateLimited(RuntimeError):
@@ -259,6 +267,15 @@ def concrete_searchable_product(video, item):
     if len(item["model_key"]) < 4:
         return False
     return has_specific_option(item["name"], item["model"]) or item["category"] in {"패션", "뷰티"}
+
+
+def needs_comparison_review(video, item):
+    """비교·실험 영상인데 상위권/우승 근거가 명확하지 않으면 관리자 검수 탭으로 보류한다."""
+    title = str(video.get("title") or "")
+    if not COMPARISON_TITLE_PATTERN.search(title):
+        return False
+    reason_and_evidence = f"{item.get('reason', '')} {item.get('evidence', '')}"
+    return not bool(TOP_PICK_EVIDENCE_PATTERN.search(reason_and_evidence))
 
 
 def validate_product(video, raw):
@@ -490,8 +507,19 @@ def save_item(video, item):
         print(f"Merged recommendation into existing product | product_id={product_id} | name={item['name']}")
     else:
         product_id = str(uuid.uuid4())
+        comparison_hold = needs_comparison_review(video, item)
         searchable_approved = concrete_searchable_product(video, item)
-        auto_approved = score >= 93 or searchable_approved
+        auto_approved = (not comparison_hold) and (score >= 93 or searchable_approved)
+
+        if comparison_hold:
+            review_note = "비교·테스트 영상 순위 검수 대기"
+        elif score >= 93:
+            review_note = "자동 검증 93점 이상 공개"
+        elif searchable_approved:
+            review_note = "브랜드·고유 제품명·옵션 확인 자동 공개"
+        else:
+            review_note = "관리자 검수 대기"
+
         upsert(
             "products",
             [{
@@ -510,13 +538,7 @@ def save_item(video, item):
                 "review_status": "approved" if auto_approved else "pending",
                 "is_visible": auto_approved,
                 "reviewed_at": None,
-                "review_note": (
-                    "자동 검증 93점 이상 공개"
-                    if score >= 93
-                    else "브랜드·고유 제품명·옵션 확인 자동 공개"
-                    if searchable_approved
-                    else "관리자 검수 대기"
-                ),
+                "review_note": review_note,
             }],
             "normalized_name",
         )
