@@ -9,7 +9,7 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="꿀템 다나와 · 유튜버 검증 최저가 비교", page_icon="🛍️", layout="wide")
+st.set_page_config(page_title="에디션 픽 EDITION PICK · 검증된 리뷰 큐레이션", page_icon="✦", layout="wide")
 
 
 def secret(name):
@@ -237,12 +237,10 @@ def detect_product_malls(product):
         ]
     ).lower()
 
-    # 1순위: 관리자가 파트너스 링크를 직접 등록한 추가 쇼핑몰이 있으면 해당 몰 표시
     registered_malls = [mall for mall in EXTRA_MALLS if extra_links.get(mall)]
     if registered_malls:
         selected_extra = registered_malls
     else:
-        # 2순위: 자동 추천은 가독성을 위해 가장 적합한 대표 쇼핑몰 1곳만 선별
         picked = None
         if any(k in rec_corpus for k in ("무신사", "musinsa")):
             picked = "musinsa"
@@ -499,9 +497,9 @@ section.main::before,section.main::after{
 /* 서비스 상단 헤더 & 히어로 배너 */
 .top-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .brand-wrap{display:flex;align-items:center;gap:9px}
-.brand-logo{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--brand);color:#fff;font-size:18px;box-shadow:0 4px 12px rgba(49,130,246,.25)}
-.brand-name{font-size:22px;font-weight:900;letter-spacing:-.03em;color:var(--ink)}
-.brand-tag{font-size:11px;font-weight:750;color:var(--brand);background:var(--soft);padding:3px 8px;border-radius:999px}
+.brand-logo{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:#191F28;color:#fff;font-size:16px;font-weight:900;box-shadow:0 4px 12px rgba(25,31,40,.18)}
+.brand-name{font-size:21px;font-weight:900;letter-spacing:-.03em;color:var(--ink)}
+.brand-en{font-size:11px;font-weight:800;letter-spacing:.08em;color:#4E5968;background:#E9EDF3;padding:3px 8px;border-radius:999px}
 .top-sub{font-size:12.5px;font-weight:650;color:var(--muted)}
 
 .hero-banner{
@@ -872,7 +870,6 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
     flex-shrink:0!important;
   }
   .top-disclosure{font-size:10.5px;padding:6px 8px}
-  /* 모바일 검색 필터: 검색창 1줄 + 카테고리/정렬 2열 나란히 */
   .st-key-filter_bar [data-testid="stHorizontalBlock"]{
     display:grid!important;
     grid-template-columns:1fr 1fr!important;
@@ -940,9 +937,9 @@ components.html(
     "<script>"
     "(function(){"
     "  const doc = window.parent.document;"
-    "  if (!doc.getElementById('ggultem-hide-chrome')) {"
+    "  if (!doc.getElementById('edition-hide-chrome')) {"
     "    const st = doc.createElement('style');"
-    "    st.id = 'ggultem-hide-chrome';"
+    "    st.id = 'edition-hide-chrome';"
     "    st.textContent = '"
     "      header, [data-testid=\"stHeader\"], [data-testid=\"stAppHeader\"], [data-testid=\"stDecoration\"], [data-testid=\"stToolbar\"] { display:none!important; height:0!important; border:0!important; box-shadow:none!important; }"
     "      .stApp, [data-testid=\"stAppViewContainer\"], [data-testid=\"stMain\"], section.main, [data-testid=\"stMainBlockContainer\"] { box-shadow:none!important; border-top:0!important; outline:0!important; }"
@@ -968,9 +965,9 @@ components.html(
     "    });"
     "  };"
     "  cleanTopChrome();"
-    "  if (!window.parent.__ggultemChromeObserver) {"
-    "    window.parent.__ggultemChromeObserver = new MutationObserver(cleanTopChrome);"
-    "    window.parent.__ggultemChromeObserver.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });"
+    "  if (!window.parent.__editionChromeObserver) {"
+    "    window.parent.__editionChromeObserver = new MutationObserver(cleanTopChrome);"
+    "    window.parent.__editionChromeObserver.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });"
     "  }"
     f"  {scroll_js}"
     "})();"
@@ -985,18 +982,18 @@ if admin_query and not st.session_state.get("show_admin_bar"):
 st.markdown(
     '<div class="top-nav">'
     '<div class="brand-wrap">'
-    '<span class="brand-logo">🛍️</span>'
-    '<span class="brand-name">꿀템 다나와</span>'
-    '<span class="brand-tag">유튜버 검증</span>'
+    '<span class="brand-logo">✦</span>'
+    '<span class="brand-name">에디션 픽</span>'
+    '<span class="brand-en">EDITION PICK</span>'
     '</div>'
-    '<span class="top-sub">유튜브 실제 리뷰 기반 추천템 · 최저가 비교</span>'
+    '<span class="top-sub">실사용 리뷰 데이터 기반 엄선 아카이브</span>'
     '</div>',
     unsafe_allow_html=True,
 )
 
 if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
     nav = st.columns(4)
-    for column, key, label in zip(nav, ["home", "dashboard", "review", "manage"], ["꿀템 홈", "운영 통계", "상품 검수", "상품 관리"]):
+    for column, key, label in zip(nav, ["home", "dashboard", "review", "manage"], ["에디션 홈", "운영 통계", "상품 검수", "상품 관리"]):
         if column.button(label, type="primary" if st.session_state.page == key else "secondary", use_container_width=True):
             st.session_state.page = key
             st.rerun()
@@ -1217,12 +1214,12 @@ def render_home():
     video_ids = {r.get("video_id") for p in products for r in p["recommendations"] if r.get("video_id")}
     st.markdown(
         '<div class="hero-banner">'
-        '<div class="hero-kicker">실제 리뷰 영상 기반 자동 큐레이션</div>'
-        f'<div class="hero-headline">유튜버가 직접 검증한 꿀템 <b>{len(products):,}개</b></div>'
+        '<div class="hero-kicker">실제 리뷰 영상 데이터 기반 엄선 큐레이션</div>'
+        f'<div class="hero-headline">에디션 픽이 검증한 추천 아이템 <b>{len(products):,}개</b></div>'
         '<div class="hero-stats">'
         f'<span class="stat-pill">📺 분석 채널 <strong>{len(channel_ids):,}개</strong></span>'
         f'<span class="stat-pill">🎬 근거 영상 <strong>{len(video_ids):,}개</strong></span>'
-        '<span class="stat-pill">⚡ 매일 자동 업데이트</span>'
+        '<span class="stat-pill">✦ 매일 자동 업데이트</span>'
         '</div>'
         '</div>'
         '<div class="top-disclosure">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</div>',
@@ -1276,7 +1273,7 @@ def render_home():
         shown.sort(key=lambda p: str(p.get("created_at") or ""), reverse=True)
 
     st.markdown(
-        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>쇼핑몰별 최저가 바로 비교</span></div>',
+        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>공식 쇼핑몰별 최저가 비교</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -1320,7 +1317,7 @@ def render_home():
     st.markdown(
         '<div class="site-footer">'
         '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.'
-        '<span class="site-footer-sub">꿀템 다나와는 유튜브 공개 리뷰 영상을 분석해 상품 정보를 제공하며, 실제 가격·재고 및 거래 조건은 각 쇼핑몰 페이지를 따릅니다.</span>'
+        '<span class="site-footer-sub">에디션 픽(EDITION PICK)은 유튜브 공개 리뷰 영상을 분석해 상품 정보를 제공하며, 실제 가격·재고 및 거래 조건은 각 쇼핑몰 페이지를 따릅니다.</span>'
         '</div>',
         unsafe_allow_html=True,
     )
