@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="꿀템 다나와 · 유튜버 검증 최저가 비교", page_icon="🛍️", layout="wide")
 
@@ -157,6 +158,17 @@ def matches_search(searchable_text, query):
         if not any(cand in searchable_text for cand in candidates):
             return False
     return True
+
+
+def get_page_numbers(current_page, total_pages):
+    """현재 페이지 기준으로 바로 이동할 페이지 번호 목록(최대 5개)을 만든다."""
+    if total_pages <= 5:
+        return list(range(1, total_pages + 1))
+    if current_page <= 3:
+        return [1, 2, 3, 4, total_pages]
+    if current_page >= total_pages - 2:
+        return [1, total_pages - 3, total_pages - 2, total_pages - 1, total_pages]
+    return [1, current_page - 1, current_page, current_page + 1, total_pages]
 
 
 def log_event(event_type, product_id=None, product_name=None, search_query=None):
@@ -492,9 +504,9 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   text-align:right;
 }
 
-/* 카드 타이포그래피 & 뱃지 */
+/* 카드 타이포그래피 & 뱃지 (2줄 기준 최소 높이 통일로 버튼 가로 정렬) */
 .product-title{font-size:15.5px;font-weight:850;color:var(--ink);line-height:1.38;height:43px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.card-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:7px 0 8px}
+.card-meta-row{display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;gap:4px;margin:7px 0 6px;min-height:46px}
 .badge{display:inline-flex;align-items:center;height:21px;color:#245FB5;background:#EDF4FF;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot i{display:inline-block;width:5px;height:5px;border-radius:50%}
@@ -566,6 +578,46 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .exp-video-title{font-size:11px;color:var(--muted);line-height:1.35;margin-bottom:3px}
 .exp-evidence{font-size:12px;color:#333D4B;line-height:1.4;word-break:keep-all}
 
+/* 페이지네이션 번호 바 (PC·모바일 공통 1줄 가로 정렬) */
+.st-key-pagination_bar{margin:10px 0 4px!important}
+.st-key-pagination_bar [data-testid="stHorizontalBlock"]{
+  display:flex!important;
+  flex-direction:row!important;
+  flex-wrap:nowrap!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:6px!important;
+  width:100%!important;
+  max-width:460px!important;
+  margin:0 auto!important;
+}
+.st-key-pagination_bar [data-testid="stColumn"],
+.st-key-pagination_bar [data-testid="column"]{
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:38px!important;
+  max-width:none!important;
+  padding:0!important;
+  margin:0!important;
+}
+.st-key-pagination_bar .stButton>button{
+  min-width:38px!important;
+  min-height:38px!important;
+  padding:0 11px!important;
+  border-radius:10px!important;
+  font-size:13px!important;
+  font-weight:800!important;
+}
+.st-key-pagination_bar .stButton>button[kind="secondary"]{
+  background:#fff!important;
+  border:1px solid #DCE3EC!important;
+  color:#333D4B!important;
+}
+.st-key-pagination_bar .stButton>button[kind="secondary"]:hover{
+  border-color:var(--brand)!important;
+  color:var(--brand)!important;
+}
+
 /* 관리자 통계 카드 */
 .metric{background:#fff;border:1px solid #EAECEF;border-radius:15px;padding:14px;min-height:90px}
 .metric-label{color:var(--muted);font-size:12px;font-weight:700}
@@ -635,7 +687,12 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
     padding:0!important;
   }
   .st-key-product_grid .product-title{height:auto!important;min-height:0!important}
+  .st-key-product_grid .card-meta-row{min-height:0!important}
   .card-summary-wrap{height:auto!important;min-height:0!important}
+  .st-key-pagination_bar [data-testid="stHorizontalBlock"]{gap:4px!important}
+  .st-key-pagination_bar [data-testid="stColumn"],
+  .st-key-pagination_bar [data-testid="column"]{min-width:34px!important}
+  .st-key-pagination_bar .stButton>button{min-width:34px!important;min-height:36px!important;padding:0 8px!important;font-size:12.5px!important}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -646,6 +703,16 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 if "page" not in st.session_state:
     st.session_state.page = "home"
+
+if st.session_state.pop("scroll_to_top", False):
+    components.html(
+        "<script>"
+        "const main = window.parent.document.querySelector('section.main');"
+        "if (main) main.scrollTo({top: 0, behavior: 'smooth'});"
+        "window.parent.scrollTo({top: 0, behavior: 'smooth'});"
+        "</script>",
+        height=0,
+    )
 
 admin_query = str(st.query_params.get("admin", "")).strip() == "1"
 if admin_query and not st.session_state.get("show_admin_bar"):
@@ -969,14 +1036,29 @@ def render_home():
                     render_product_card(product)
 
     if pages > 1:
-        p1, p2, p3 = st.columns([1, 1.2, 1])
-        if p1.button("← 이전 페이지", disabled=page <= 1, use_container_width=True):
-            st.session_state.catalog_page = page - 1
-            st.rerun()
-        p2.markdown(f'<div style="text-align:center;padding:10px;font-size:13px;font-weight:750;color:#4E5968">{page} / {pages}</div>', unsafe_allow_html=True)
-        if p3.button("다음 페이지 →", disabled=page >= pages, use_container_width=True):
-            st.session_state.catalog_page = page + 1
-            st.rerun()
+        page_nums = get_page_numbers(page, pages)
+        with st.container(key="pagination_bar"):
+            p_cols = st.columns(len(page_nums) + 2)
+            if p_cols[0].button("‹", key="page_prev", disabled=page <= 1, use_container_width=True):
+                st.session_state.catalog_page = page - 1
+                st.session_state.scroll_to_top = True
+                st.rerun()
+            for idx, num in enumerate(page_nums, start=1):
+                is_curr = num == page
+                if p_cols[idx].button(
+                    str(num),
+                    key=f"page_num_{num}",
+                    type="primary" if is_curr else "secondary",
+                    use_container_width=True,
+                ):
+                    if not is_curr:
+                        st.session_state.catalog_page = num
+                        st.session_state.scroll_to_top = True
+                        st.rerun()
+            if p_cols[-1].button("›", key="page_next", disabled=page >= pages, use_container_width=True):
+                st.session_state.catalog_page = page + 1
+                st.session_state.scroll_to_top = True
+                st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
     _, admin_col = st.columns([5, 1])
