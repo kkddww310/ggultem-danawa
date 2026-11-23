@@ -96,7 +96,7 @@ def get_providers():
             "name": "gemini",
             "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
             "api_key": gemini_key,
-            "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash",
+            "model": os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash",
             "extra_headers": {},
         })
 
