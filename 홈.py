@@ -1191,7 +1191,7 @@ def render_home():
         '<span class="stat-pill">⚡ 매일 자동 업데이트</span>'
         '</div>'
         '</div>'
-        '<div class="top-disclosure">이 포스팅은 쿠팡 파트너스 등 제휴 마케팅 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</div>',
+        '<div class="top-disclosure">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</div>',
         unsafe_allow_html=True,
     )
     with st.container(key="filter_bar"):
@@ -1584,3 +1584,4 @@ try:
         render_manage()
 except Exception as exc:
     st.error(str(exc))
+
