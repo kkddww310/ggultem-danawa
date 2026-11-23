@@ -135,7 +135,7 @@ def norm_key(value):
 
 def clean_evidence_text(value):
     text = re.sub(r"https?://\S+", "", str(value or ""))
-    text = re.sub(r"\s+", " ", text).strip(" ·,-")
+    text = re.sub(r"\s+", " ", text).strip(" ·,-/")
     return text
 
 
@@ -381,12 +381,32 @@ div[data-testid="stVerticalBlockBorderWrapper"]{border:1px solid #EAECEF!importa
 div[data-testid="stForm"]{border:1px solid #DCE7F7!important;background:#F8FAFD!important;border-radius:16px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드 & 카드 (상단 공백 완전 제거 + 외곽 곡률 18px 일치) */
-.st-key-product_grid [data-testid="stHorizontalBlock"]{gap:16px!important;align-items:stretch!important;width:100%!important;margin:0!important}
+/* 상품 그리드 & 카드 (좌우 외곽선 정렬 + 상단 공백 제거) */
+.st-key-product_grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important}
+.st-key-product_grid [data-testid="stHorizontalBlock"]{
+  display:flex!important;
+  gap:16px!important;
+  align-items:stretch!important;
+  width:100%!important;
+  max-width:100%!important;
+  margin:0!important;
+  padding:0!important;
+  box-sizing:border-box!important;
+}
 .st-key-product_grid [data-testid="stColumn"],
-.st-key-product_grid [data-testid="column"]{min-width:0!important;display:flex!important;flex-direction:column!important}
+.st-key-product_grid [data-testid="column"]{
+  flex:1 1 0%!important;
+  width:0!important;
+  min-width:0!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  box-sizing:border-box!important;
+}
 
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{
+  width:100%!important;
+  box-sizing:border-box!important;
   border:1px solid #E6E9EF!important;
   background:#fff!important;
   border-radius:18px!important;
@@ -491,10 +511,10 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   padding:0!important;
 }
 
-/* 카드 타이포그래피 & 뱃지 */
+/* 카드 타이포그래피 & 뱃지 (2줄 기준 높이 통일로 쇼핑 버튼 가로 정렬) */
 .brand-eyebrow{font-size:11px;font-weight:750;color:var(--muted);letter-spacing:-.01em;margin-bottom:3px}
 .product-title{font-size:15.5px;font-weight:850;color:var(--ink);line-height:1.38;height:43px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.card-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:8px 0 9px}
+.card-meta-row{display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;gap:4px;margin:8px 0 9px;min-height:46px}
 .badge{display:inline-flex;align-items:center;height:21px;color:#245FB5;background:#EDF4FF;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot i{display:inline-block;width:5px;height:5px;border-radius:50%}
@@ -578,7 +598,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 @media(max-width:900px) and (min-width:641px){
   .st-key-product_grid [data-testid="stHorizontalBlock"]{flex-wrap:wrap!important}
   .st-key-product_grid [data-testid="stColumn"],
-  .st-key-product_grid [data-testid="column"]{flex:0 0 calc(50% - 8px)!important;min-width:calc(50% - 8px)!important}
+  .st-key-product_grid [data-testid="column"]{flex:0 0 calc(50% - 8px)!important;width:calc(50% - 8px)!important;min-width:calc(50% - 8px)!important}
 }
 @media(max-width:640px){
   .block-container{padding:.55rem .75rem 3rem!important;width:100%!important;max-width:100%!important}
@@ -635,6 +655,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
     padding:0!important;
   }
   .st-key-product_grid .product-title{height:auto!important;min-height:0!important}
+  .st-key-product_grid .card-meta-row{min-height:0!important}
   .card-summary-wrap{height:auto!important;min-height:0!important}
 }
 </style>
