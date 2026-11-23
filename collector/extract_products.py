@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import time
 import uuid
@@ -9,11 +10,11 @@ from collector.config import OPENROUTER_API_KEY
 from collector.database import select, upsert, update
 from collector.youtube_api import get_creator_comments
 
-MODELS = ("openrouter/free",)
-BATCH_LIMIT = 12
+TOTAL_FETCH_LIMIT = 20
+BATCH_SIZE = 5
 MIN_CONFIDENCE = 0.87
 MAX_ATTEMPTS = 2
-RETRY_SECONDS = (5,)
+RETRY_SECONDS = (4,)
 
 GENERIC_TERMS = {
     "사레레밴드", "운동밴드", "저항밴드", "고무밴드", "문틀철봉", "철봉",
@@ -57,6 +58,15 @@ CATEGORY_ALIASES = {
     "펫": "반려동물", "반려견": "반려동물", "반려묘": "반려동물",
     "아동": "육아", "유아": "육아", "차량": "자동차",
 }
+BRAND_ALIASES = {
+    "dyson": "다이슨", "shark": "샤크", "logitech": "로지텍",
+    "samsung": "삼성", "apple": "애플", "anker": "앤커",
+    "ugreen": "유그린", "lg electronics": "lg", "lge": "lg",
+    "xiaomi": "샤오미", "sony": "소니", "bose": "보스",
+    "uniqlo": "유니클로", "zara": "자라", "musinsa": "무신사",
+    "insilence": "인사일런스", "spao": "스파오", "cos": "코스",
+    "nike": "나이키", "adidas": "아디다스", "newbalance": "뉴발란스",
+}
 
 SPECIFIC_OPTION_PATTERN = re.compile(
     r"(?:\b\d+(?:\.\d+)?\s?(?:ml|l|g|kg|mg|tb|gb|w|mah|hz|인치|매|개|호|번|세대)\b"
@@ -66,26 +76,60 @@ SPECIFIC_OPTION_PATTERN = re.compile(
 )
 
 
-class OpenRouterDailyLimitReached(RuntimeError):
-    """OpenRouter 무료 일일 한도가 소진된 상태."""
+class AllProvidersRateLimited(RuntimeError):
+    """설정된 모든 무료 LLM 제공자의 한도가 소진된 상태."""
+
+
+def get_providers():
+    providers = []
+    or_key = str(OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")).strip()
+    if or_key:
+        providers.append({
+            "name": "openrouter",
+            "url": "https://openrouter.ai/api/v1/chat/completions",
+            "api_key": or_key,
+            "model": os.getenv("OPENROUTER_MODEL", "openrouter/free").strip() or "openrouter/free",
+            "extra_headers": {
+                "HTTP-Referer": "https://github.com/kkddww310/ggultem-danawa",
+                "X-Title": "Ggultem Danawa Collector",
+            },
+        })
+
+    groq_key = os.getenv("GROQ_API_KEY", "").strip()
+    if groq_key:
+        providers.append({
+            "name": "groq",
+            "url": "https://api.groq.com/openai/v1/chat/completions",
+            "api_key": groq_key,
+            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b",
+            "extra_headers": {},
+        })
+
+    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if gemini_key:
+        providers.append({
+            "name": "gemini",
+            "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            "api_key": gemini_key,
+            "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash",
+            "extra_headers": {},
+        })
+    return providers
 
 
 def normalize_text(value):
     return re.sub(r"[^0-9a-z가-힣]+", "", str(value or "").lower())
 
 
-def normalize_brand(value):
-    text = str(value or "").lower().strip()
-    replacements = {
-        "dyson": "다이슨", "shark": "샤크", "logitech": "로지텍",
-        "samsung": "삼성", "apple": "애플", "anker": "앤커",
-        "ugreen": "유그린", "lg electronics": "lg", "lge": "lg",
-        "xiaomi": "샤오미", "sony": "소니", "bose": "보스",
-        "uniqlo": "유니클로", "zara": "자라", "musinsa": "무신사",
-    }
-    for source, target in replacements.items():
+def apply_brand_aliases(value):
+    text = str(value or "").lower()
+    for source, target in BRAND_ALIASES.items():
         text = text.replace(source, target)
     return normalize_text(text)
+
+
+def normalize_brand(value):
+    return apply_brand_aliases(str(value or "").strip())
 
 
 def build_video_source_text(video):
@@ -95,6 +139,28 @@ def build_video_source_text(video):
         joined_comments = "\n\n".join(comments)
         return f"{desc}\n\n[채널 주인 고정/작성 댓글]\n{joined_comments}".strip()
     return desc
+
+
+def compact_source_for_batch(video, max_head=750, max_extra_lines=25):
+    """배치 호출 시 토큰 한도(특히 Groq TPM)를 넘기지 않도록 핵심 줄만 압축한다."""
+    full_text = build_video_source_text(video)
+    head = full_text[:max_head]
+    extra = []
+    for line in full_text[max_head:].splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        has_time = bool(re.search(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", s))
+        has_link_or_brand = any(
+            k in s.lower()
+            for k in ("http://", "https://", "쿠팡", "네이버", "스마트스토어", "무신사", "올리브영", "댓글", "제품", "착용", "리뷰")
+        )
+        if has_time or has_link_or_brand or len(s) <= 90:
+            extra.append(s[:160])
+        if len(extra) >= max_extra_lines:
+            break
+    combined = head + ("\n" + "\n".join(extra) if extra else "")
+    return combined[:2000]
 
 
 def extract_json(text):
@@ -111,7 +177,7 @@ def extract_json(text):
                 return decoder.raw_decode(cleaned[index:])[0]
             except Exception:
                 continue
-    raise ValueError("OpenRouter 응답에서 JSON을 찾지 못했습니다.")
+    raise ValueError("LLM 응답에서 JSON을 찾지 못했습니다.")
 
 
 def is_generic(value):
@@ -137,7 +203,6 @@ def has_specific_model(model, category=""):
         return False
     if re.search(r"[a-z가-힣]*\d+[a-z0-9가-힣]*", normalized, flags=re.I):
         return True
-    # 패션·뷰티·생활 카테고리는 브랜드와 함께 쓰인 4자 이상 구체 품목/라인명을 허용한다.
     if category in {"패션", "뷰티", "생활·살림", "주방", "운동·건강", "육아", "반려동물"}:
         return len(normalized) >= 4
     return len(normalized) >= 5
@@ -145,13 +210,15 @@ def has_specific_model(model, category=""):
 
 def source_contains_identity(video, name, brand, model):
     full_source = f"{video.get('title', '')} {build_video_source_text(video)}"
-    source = normalize_text(full_source)
+    source_norm = normalize_text(full_source)
+    source_alias = apply_brand_aliases(full_source)
     name_key = normalize_text(name)
+    name_alias = apply_brand_aliases(name)
     brand_key = normalize_brand(brand)
     model_key = normalize_text(model)
     return bool(
-        (name_key and name_key in source)
-        or (brand_key and model_key and brand_key in source and model_key in source)
+        (name_key and (name_key in source_norm or name_alias in source_alias))
+        or (brand_key and model_key and brand_key in source_alias and model_key in source_norm)
     )
 
 
@@ -179,7 +246,6 @@ def has_specific_option(name, model):
 
 
 def concrete_searchable_product(video, item):
-    """모델 번호가 없어도 브랜드+고유명+옵션이 원문에 있으면 검색 가능한 상품으로 인정한다."""
     if item["confidence"] < 0.90:
         return False
     if not item["brand_key"] or is_generic(item["brand"]):
@@ -196,6 +262,9 @@ def concrete_searchable_product(video, item):
 
 
 def validate_product(video, raw):
+    if raw.get("is_recommended") is False:
+        return False, None, "비교군/하위권 또는 단순 착장(OOTD)"
+
     name = str(raw.get("name", "")).strip()
     brand = str(raw.get("brand", "")).strip()
     model = str(raw.get("model", "")).strip()
@@ -239,114 +308,138 @@ def validate_product(video, raw):
     return True, item, ""
 
 
-def build_prompt(video):
-    source_text = build_video_source_text(video)[:11000]
-    return f'''너는 유튜브 영상에서 실제 판매 제품을 식별하는 상품 데이터 검수자다.
-제목, 설명, 채널 주인 댓글에 직접 명시된 브랜드와 구체적인 제품명(또는 모델명)이 있는 단일 제품만 추출하라.
-하울·모음전·룩북·추천템 리스트 영상처럼 여러 제품이 나열된 경우, 일부만 뽑지 말고 언급된 모든 개별 제품을 빠짐없이 추출하라(최대 15개).
-브랜드 없는 일반 품목명이나 여러 물건을 + 또는 /로 묶은 표현은 반환하지 마라.
-브랜드나 제품명을 추측하지 마라.
-pros와 cons에는 실제 제품의 특징·효능·착용감·사용감·가격적 아쉬움만 적고, "원문에 명시됨", "상세 후기 없음", "가격 정보 미공개" 같은 정보 부재 메모는 절대 넣지 마라. 근거가 없으면 빈 배열 []로 두어라.
+def build_batch_prompt(videos):
+    payload = [
+        {
+            "video_id": v["video_id"],
+            "title": str(v.get("title") or "")[:180],
+            "text": compact_source_for_batch(v),
+        }
+        for v in videos
+    ]
+    return f'''너는 유튜브 영상 목록에서 유튜버가 실제로 추천하는 판매 제품을 식별하는 상품 데이터 검수자다.
+각 영상의 title과 text에 직접 명시된 브랜드와 구체적인 제품명(또는 모델명)이 있는 단일 제품만 추출하라.
 
-반드시 JSON 객체 하나만 반환한다.
-{{"items":[{{"name":"브랜드 + 정확한 단일 제품명","brand":"브랜드","model":"모델명 또는 구체 제품명","keyword":"정확한 상품 검색어","category":"IT·전자|뷰티|패션|생활·살림|주방|여행|자동차|운동·건강|육아|반려동물|기타","reason":"소개 이유","pros":["장점"],"cons":["단점"],"evidence":"원문 근거","confidence":0.0,"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음"}}]}}
+[필터링 규칙]
+1. 비교·순위 영상: 유튜버가 최종 추천하거나 상위권(1~3위, 종합 우승, 가성비 추천, 상황별 베스트)으로 꼽은 제품만 추출하라. 4위 이하 하위권 제품, 성능이 떨어져 탈락한 비교 대조군, 비추천 제품은 절대 포함하지 마라.
+2. 패션·뷰티 영상: 영상 주제와 무관한 유튜버 본인의 단순 촬영 착장(OOTD 코디용 상하의·신발 등)은 제외하고, 실제로 리뷰·추천하는 메인 제품만 추출하라(영상당 최대 15개).
+3. 브랜드 없는 일반 품목명이나 여러 물건을 + 또는 /로 묶은 표현은 반환하지 마라. 브랜드나 제품명을 추측하지 마라.
+4. pros와 cons에는 실제 제품의 특징·효능·착용감·사용감·가격적 아쉬움만 적고, "원문에 명시됨", "상세 후기 없음", "가격 정보 미공개" 같은 정보 부재 메모는 절대 넣지 마라. 근거가 없으면 빈 배열 []로 두어라.
 
-confidence 0.87 이상이며 브랜드와 제품명이 원문에 직접 있을 때만 반환한다.
-확정할 수 없으면 {{"items":[]}}만 반환한다.
+반드시 아래 JSON 객체 하나만 반환하라. 추천 상품이 없는 영상은 items를 []로 반환하라.
+{{"results":[{{"video_id":"영상ID","items":[{{"is_recommended":true,"name":"브랜드 + 정확한 단일 제품명","brand":"브랜드","model":"모델명 또는 구체 제품명","keyword":"정확한 상품 검색어","category":"IT·전자|뷰티|패션|생활·살림|주방|여행|자동차|운동·건강|육아|반려동물|기타","reason":"추천 이유 또는 선정 근거","pros":["장점"],"cons":["단점"],"evidence":"원문 근거","confidence":0.0,"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음"}}]}}]}}
 
-[제목]
-{video.get("title", "")}
-
-[설명 및 채널 주인 댓글]
-{source_text}'''
+[입력 영상 목록]
+{json.dumps(payload, ensure_ascii=False)}'''
 
 
-def call_openrouter(video):
-    if not OPENROUTER_API_KEY:
-        raise RuntimeError("OPENROUTER_API_KEY가 없습니다.")
+def call_llm_with_fallback(prompt, providers, exhausted_providers):
+    available = [p for p in providers if p["name"] not in exhausted_providers]
+    if not available:
+        raise AllProvidersRateLimited("모든 무료 LLM 제공자의 한도가 소진되었습니다.")
 
-    prompt = build_prompt(video)
     errors = []
-
-    for model in MODELS:
+    for provider in available:
+        name = provider["name"]
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
+                headers = {
+                    "Authorization": f"Bearer {provider['api_key']}",
+                    "Content-Type": "application/json",
+                }
+                headers.update(provider.get("extra_headers") or {})
                 response = requests.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://github.com/kkddww310/ggultem-danawa",
-                        "X-Title": "Ggultem Danawa Collector",
-                    },
+                    provider["url"],
+                    headers=headers,
                     json={
-                        "model": model,
+                        "model": provider["model"],
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.0,
                     },
-                    timeout=45,
+                    timeout=35,
                 )
 
                 if response.status_code >= 400:
-                    body = response.text[:700]
-                    error_text = f"model={model} attempt={attempt} HTTP {response.status_code}: {body}"
+                    body = response.text[:500]
+                    error_text = f"provider={name} attempt={attempt} HTTP {response.status_code}: {body}"
                     errors.append(error_text)
-                    print(f"OpenRouter request failed | {error_text}")
+                    print(f"LLM request failed | {error_text}")
 
-                    body_lower = body.lower()
-                    if response.status_code == 429 and any(
-                        marker in body_lower
-                        for marker in (
-                            "free-models-per-day",
-                            "free model requests per day",
-                            "free-model daily limit",
-                        )
-                    ):
-                        raise OpenRouterDailyLimitReached(error_text)
-
-                    if response.status_code in {401, 402, 403}:
-                        raise RuntimeError(error_text)
-                    if response.status_code == 404:
+                    if response.status_code == 429:
+                        body_lower = body.lower()
+                        if any(m in body_lower for m in ("per-day", "per day", "daily", "quota", "limit exceeded")):
+                            exhausted_providers.add(name)
+                            break
+                        if attempt < MAX_ATTEMPTS:
+                            time.sleep(RETRY_SECONDS[attempt - 1])
+                            continue
+                        exhausted_providers.add(name)
                         break
-                    if (response.status_code == 429 or response.status_code >= 500) and attempt < MAX_ATTEMPTS:
-                        wait_seconds = RETRY_SECONDS[attempt - 1]
-                        print(f"OpenRouter retry scheduled | model={model} wait={wait_seconds}s")
-                        time.sleep(wait_seconds)
+
+                    if response.status_code in {401, 402, 403, 404}:
+                        exhausted_providers.add(name)
+                        break
+
+                    if response.status_code >= 500 and attempt < MAX_ATTEMPTS:
+                        time.sleep(RETRY_SECONDS[attempt - 1])
                         continue
-                    raise RuntimeError(error_text)
+                    break
 
                 payload = response.json()
                 choices = payload.get("choices") or []
                 if not choices:
-                    raise ValueError(f"choices가 없습니다: {str(payload)[:500]}")
+                    raise ValueError(f"choices가 없습니다: {str(payload)[:300]}")
                 content = choices[0].get("message", {}).get("content", "")
                 parsed = extract_json(content)
-                items = parsed.get("items", []) if isinstance(parsed, dict) else parsed
-                if not isinstance(items, list):
-                    raise ValueError("items가 배열이 아닙니다.")
-                print(f"OpenRouter request succeeded | model={model} attempt={attempt} items={len(items)}")
-                return items[:15]
+                print(f"LLM request succeeded | provider={name} model={provider['model']} attempt={attempt}")
+                return parsed
 
-            except OpenRouterDailyLimitReached:
-                raise
             except (requests.Timeout, ValueError, KeyError, json.JSONDecodeError) as error:
-                error_text = f"model={model} attempt={attempt} response_error: {error}"
+                error_text = f"provider={name} attempt={attempt} parse_or_timeout: {error}"
                 errors.append(error_text)
-                print(f"OpenRouter response failed | {error_text}")
+                print(f"LLM response failed | {error_text}")
                 if attempt < MAX_ATTEMPTS:
                     time.sleep(RETRY_SECONDS[attempt - 1])
                     continue
-            except RuntimeError:
-                raise
+                break
             except Exception as error:
-                error_text = f"model={model} attempt={attempt} error: {error}"
+                error_text = f"provider={name} attempt={attempt} error: {error}"
                 errors.append(error_text)
-                print(f"OpenRouter request failed | {error_text}")
-                if attempt < MAX_ATTEMPTS:
-                    time.sleep(RETRY_SECONDS[attempt - 1])
-                    continue
+                print(f"LLM unexpected error | {error_text}")
+                break
 
-    raise RuntimeError("OpenRouter 전체 시도 실패: " + " || ".join(errors[-8:]))
+    if all(p["name"] in exhausted_providers for p in providers):
+        raise AllProvidersRateLimited("모든 무료 LLM 제공자의 한도가 소진되었습니다.")
+    raise RuntimeError("LLM 호출 실패: " + " || ".join(errors[-6:]))
+
+
+def extract_for_chunk(videos, providers, exhausted_providers):
+    """영상 묶음을 한 번에 호출하고, 누락된 video_id만 단건으로 보완한다."""
+    prompt = build_batch_prompt(videos)
+    parsed = call_llm_with_fallback(prompt, providers, exhausted_providers)
+
+    results_by_id = {}
+    if isinstance(parsed, dict) and isinstance(parsed.get("results"), list):
+        for entry in parsed["results"]:
+            if not isinstance(entry, dict):
+                continue
+            vid = str(entry.get("video_id") or "").strip()
+            items = entry.get("items")
+            if vid and isinstance(items, list):
+                results_by_id[vid] = items[:15]
+
+    missing = [v for v in videos if v["video_id"] not in results_by_id]
+    for video in missing:
+        single_parsed = call_llm_with_fallback(build_batch_prompt([video]), providers, exhausted_providers)
+        items = []
+        if isinstance(single_parsed, dict) and isinstance(single_parsed.get("results"), list):
+            for entry in single_parsed["results"]:
+                if isinstance(entry, dict) and isinstance(entry.get("items"), list):
+                    items = entry["items"][:15]
+                    break
+        results_by_id[video["video_id"]] = items
+
+    return results_by_id
 
 
 def find_existing_product(item):
@@ -374,13 +467,14 @@ def find_existing_product(item):
 
 def identity_score(video, item):
     full_source = f"{video.get('title', '')} {build_video_source_text(video)}"
-    source = normalize_text(full_source)
+    source_norm = normalize_text(full_source)
+    source_alias = apply_brand_aliases(full_source)
     score = int(round(item["confidence"] * 40))
-    if item["brand_key"] in source:
+    if item["brand_key"] in source_alias:
         score += 20
-    if item["model_key"] in source:
+    if item["model_key"] in source_norm:
         score += 25
-    if item["normalized_name"] in source:
+    if item["normalized_name"] in source_norm:
         score += 10
     if re.search(r"https?://", full_source):
         score += 5
@@ -448,20 +542,44 @@ def save_item(video, item):
 
 
 def main():
+    providers = get_providers()
+    if not providers:
+        raise RuntimeError("사용 가능한 LLM API 키(OPENROUTER_API_KEY, GROQ_API_KEY, GEMINI_API_KEY)가 없습니다.")
+
     videos = select(
         "videos",
         "video_id,channel_id,title,description,product_score,view_count",
         {"analysis_status": "eq.queued"},
-        limit=BATCH_LIMIT,
+        limit=TOTAL_FETCH_LIMIT,
         order="product_score.desc,view_count.desc",
     )
 
+    exhausted_providers = set()
     processed = saved_total = rejected_total = failures = 0
 
-    for video in videos:
-        try:
+    for start in range(0, len(videos), BATCH_SIZE):
+        chunk = videos[start:start + BATCH_SIZE]
+        for video in chunk:
             video["creator_comments"] = get_creator_comments(video["video_id"], video["channel_id"])
-            extracted = call_openrouter(video)
+
+        try:
+            extracted_map = extract_for_chunk(chunk, providers, exhausted_providers)
+        except AllProvidersRateLimited as error:
+            print(f"All free providers rate limited | batch_stopped=true | detail={str(error)[:400]}")
+            break
+        except Exception as error:
+            for video in chunk:
+                failures += 1
+                processed += 1
+                update(
+                    "videos",
+                    {"analysis_status": "ai_error", "analysis_error": str(error)[:1000]},
+                    {"video_id": f"eq.{video['video_id']}"},
+                )
+            continue
+
+        for video in chunk:
+            extracted = extracted_map.get(video["video_id"], [])
             saved = rejected = 0
 
             for raw in extracted if isinstance(extracted, list) else []:
@@ -491,24 +609,6 @@ def main():
             processed += 1
             saved_total += saved
             rejected_total += rejected
-
-        except OpenRouterDailyLimitReached as error:
-            print(
-                "OpenRouter daily free limit reached | "
-                f"video={video['video_id']} | batch_stopped=true | "
-                "current_and_remaining_videos=queued"
-            )
-            print(f"OpenRouter limit detail | {str(error)[:700]}")
-            break
-
-        except Exception as error:
-            failures += 1
-            processed += 1
-            update(
-                "videos",
-                {"analysis_status": "ai_error", "analysis_error": str(error)[:1000]},
-                {"video_id": f"eq.{video['video_id']}"},
-            )
 
     print(
         f"Product extraction completed | processed={processed} | "
