@@ -327,8 +327,34 @@ st.markdown("""
   --canvas:#F4F6F9;
 }
 html,body,.stApp{background:var(--canvas);color:var(--ink);overflow-x:hidden!important}
-.block-container{max-width:1180px;padding:0.9rem 1rem 4rem;box-sizing:border-box}
-#MainMenu,footer,header[data-testid="stHeader"],[data-testid="stStatusWidget"],.viewerBadge_container__r5tak,.styles_viewerBadge__CvC9N{display:none!important;visibility:hidden!important}
+.block-container{max-width:1180px;padding:1.1rem 1rem 4rem;box-sizing:border-box}
+
+/* 스트림릿 기본 상단 헤더·선·푸터 완전 제거 */
+#MainMenu,
+footer,
+header,
+header[data-testid="stHeader"],
+[data-testid="stHeader"],
+[data-testid="stAppHeader"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+.viewerBadge_container__r5tak,
+.styles_viewerBadge__CvC9N{
+  display:none!important;
+  visibility:hidden!important;
+  height:0!important;
+  min-height:0!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+section.main{
+  padding-top:0!important;
+  margin-top:0!important;
+  border-top:0!important;
+}
 
 /* 서비스 상단 헤더 & 히어로 배너 */
 .top-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -343,7 +369,7 @@ html,body,.stApp{background:var(--canvas);color:var(--ink);overflow-x:hidden!imp
   border:1px solid #E2ECFF;
   border-radius:20px;
   padding:18px 20px;
-  margin-bottom:12px;
+  margin-bottom:8px;
   box-shadow:0 6px 20px rgba(49,130,246,.05);
 }
 .hero-kicker{font-size:12px;font-weight:750;color:var(--brand);margin-bottom:4px}
@@ -352,6 +378,20 @@ html,body,.stApp{background:var(--canvas);color:var(--ink);overflow-x:hidden!imp
 .hero-stats{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:11px}
 .stat-pill{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #E5EAF2;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
 .stat-pill strong{color:var(--ink);font-weight:850}
+
+/* 상단 쿠팡 파트너스 고지 바 */
+.top-disclosure{
+  margin:0 2px 10px;
+  padding:7px 12px;
+  background:#FFFFFF;
+  border:1px solid #E5E9F0;
+  border-radius:10px;
+  font-size:11.5px;
+  font-weight:600;
+  color:var(--sub);
+  text-align:center;
+  word-break:keep-all;
+}
 
 /* 검색창 & 셀렉트박스 */
 div[data-testid="stTextInput"] div[data-baseweb="input"],
@@ -393,7 +433,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]{border:1px solid #EAECEF!importa
 div[data-testid="stForm"]{border:1px solid #DCE7F7!important;background:#F8FAFD!important;border-radius:16px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드 & 카드 (상·좌·우 균일 여백 12px + 동심원 곡률 18px/12px) */
+/* 상품 그리드 & 카드 (상·좌·우 14px, 하단 20px 여유 여백으로 테두리 물림 방지) */
 .st-key-product_grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important}
 .st-key-product_grid [data-testid="stHorizontalBlock"]{
   display:flex!important;
@@ -423,11 +463,12 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   background:#fff!important;
   border-radius:18px!important;
   box-shadow:0 4px 18px rgba(15,23,42,.04)!important;
-  padding:12px 12px 14px!important;
-  margin-bottom:14px!important;
+  padding:14px 14px 20px!important;
+  margin-bottom:16px!important;
 }
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{
-  gap:8px!important;
+  gap:10px!important;
+  padding-bottom:2px!important;
 }
 
 /* 썸네일 영역: 가림 없이 선명하게 + 카드 테두리와 동심원 곡률(12px) */
@@ -528,7 +569,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   grid-template-columns:1fr 1fr;
   gap:8px;
   width:100%;
-  margin-top:0;
+  margin-top:4px;
 }
 .shop-btn{
   display:inline-flex;
@@ -562,7 +603,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 }
 
 /* 상세 비교 아코디언 */
-.st-key-product_grid [data-testid="stExpander"]{margin-top:0!important;border:1px solid #ECEEF2!important;border-radius:10px!important;background:#FAFBFD!important}
+.st-key-product_grid [data-testid="stExpander"]{margin-top:2px!important;margin-bottom:4px!important;border:1px solid #ECEEF2!important;border-radius:10px!important;background:#FAFBFD!important}
 .st-key-product_grid [data-testid="stExpander"] summary{min-height:35px!important;padding:5px 10px!important;font-size:12.5px!important;font-weight:700!important;color:var(--sub)!important}
 .st-key-product_grid [data-testid="stExpanderDetails"]{padding:10px 11px!important;max-height:240px!important;overflow-y:auto!important;background:#fff!important}
 .exp-section-title{font-size:11px;font-weight:800;color:var(--muted);margin:0 0 5px}
@@ -656,7 +697,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   .st-key-product_grid [data-testid="column"]{flex:0 0 calc(50% - 8px)!important;width:calc(50% - 8px)!important;min-width:calc(50% - 8px)!important}
 }
 @media(max-width:640px){
-  .block-container{padding:.55rem .75rem 3rem!important;width:100%!important;max-width:100%!important}
+  .block-container{padding:.75rem .75rem 3rem!important;width:100%!important;max-width:100%!important}
   .top-nav{margin-bottom:9px}
   .top-sub{display:none!important}
   .hero-banner{padding:14px 14px}
@@ -674,6 +715,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
     letter-spacing:-.03em!important;
     flex-shrink:0!important;
   }
+  .top-disclosure{font-size:10.5px;padding:6px 8px}
   /* 모바일 검색 필터: 검색창 1줄 + 카테고리/정렬 2열 나란히 */
   .st-key-filter_bar [data-testid="stHorizontalBlock"]{
     display:grid!important;
@@ -709,6 +751,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
     margin:0!important;
     padding:0!important;
   }
+  .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:12px 12px 18px!important}
   .st-key-product_grid .product-title{height:auto!important;min-height:0!important}
   .st-key-product_grid .card-meta-row{min-height:0!important}
   .card-summary-wrap{height:auto!important;min-height:0!important}
@@ -993,7 +1036,8 @@ def render_home():
         f'<span class="stat-pill">🎬 근거 영상 <strong>{len(video_ids):,}개</strong></span>'
         '<span class="stat-pill">⚡ 매일 자동 업데이트</span>'
         '</div>'
-        '</div>',
+        '</div>'
+        '<div class="top-disclosure">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</div>',
         unsafe_allow_html=True,
     )
     with st.container(key="filter_bar"):
