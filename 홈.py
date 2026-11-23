@@ -65,6 +65,31 @@ def api_get(table, fields="*", params=None):
     return response.json()
 
 
+def api_get_all(table, fields="*", params=None, max_rows=10000):
+    rows = []
+    offset = 0
+    step = 1000
+    while offset < max_rows:
+        query = dict(params or {})
+        query["limit"] = str(step)
+        query["offset"] = str(offset)
+        batch = api_get(table, fields, query)
+        rows.extend(batch)
+        if len(batch) < step:
+            break
+        offset += step
+    return rows
+
+
+def fetch_by_ids(table, fields, id_col, ids):
+    clean_ids = list(dict.fromkeys(str(i).strip() for i in ids if i))
+    rows = []
+    for start in range(0, len(clean_ids), 100):
+        chunk = clean_ids[start:start + 100]
+        rows.extend(api_get(table, fields, {id_col: f"in.({','.join(chunk)})", "limit": str(len(chunk))}))
+    return rows
+
+
 def api_patch(table, values, params):
     response = requests.patch(
         f"{SUPABASE_URL}/rest/v1/{table}",
@@ -95,18 +120,24 @@ def is_meaningful_point(text):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_public_data():
-    products = api_get(
+    products = api_get_all(
         "products",
         "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,image_url,image_source,image_verified,image_checked_at,image_note,created_at",
-        {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc", "limit": "1000"},
+        {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc"},
+        max_rows=3000,
     )
-    recs = api_get(
+    product_ids = [p.get("product_id") for p in products if p.get("product_id")]
+    recs = fetch_by_ids(
         "recommendations",
         "recommendation_id,product_id,video_id,channel_id,reason,pros,cons,evidence,confidence,purchase_type,created_at",
-        {"order": "created_at.desc", "limit": "5000"},
+        "product_id",
+        product_ids,
     )
-    videos = api_get("videos", "video_id,title,view_count,published_at", {"limit": "5000"})
-    channels = api_get("channels", "channel_id,channel_name,subscriber_count", {"limit": "5000"})
+    recs.sort(key=lambda r: str(r.get("created_at") or ""), reverse=True)
+    video_ids = [r.get("video_id") for r in recs if r.get("video_id")]
+    channel_ids = [r.get("channel_id") for r in recs if r.get("channel_id")]
+    videos = fetch_by_ids("videos", "video_id,title,view_count,published_at", "video_id", video_ids)
+    channels = fetch_by_ids("channels", "channel_id,channel_name,subscriber_count", "channel_id", channel_ids)
     video_map = {row["video_id"]: row for row in videos}
     channel_map = {row["channel_id"]: row for row in channels}
     grouped = {}
@@ -126,27 +157,33 @@ def load_public_data():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_admin_data():
-    products = api_get(
+    products = api_get_all(
         "products",
         "product_id,canonical_name,brand,model,category,search_keyword,identity_score,review_status,is_visible,review_note,coupang_url,coupang_product_name,affiliate_verified,affiliate_note,image_url,image_source,image_verified,image_checked_at,image_note,created_at",
-        {"order": "created_at.desc", "limit": "5000"},
+        {"order": "created_at.desc"},
+        max_rows=5000,
     )
-    videos = api_get(
+    videos = api_get_all(
         "videos",
         "video_id,channel_id,title,analysis_status,analysis_error,product_score,created_at,published_at",
-        {"order": "created_at.desc", "limit": "10000"},
+        {"order": "created_at.desc"},
+        max_rows=10000,
     )
-    channels = api_get(
+    channels = api_get_all(
         "channels",
         "channel_id,channel_name,status,scan_priority,total_scanned_videos,product_candidate_videos,extracted_product_count,last_scanned_at,next_video_scan_at",
-        {"limit": "10000"},
+        max_rows=10000,
     )
-    queries = api_get(
+    queries = api_get_all(
         "discovery_queries",
         "query_id,query_text,category,enabled,run_count,channels_found,active_channels_found,error_count,last_error,last_run_at,next_run_at",
-        {"limit": "1000"},
+        max_rows=2000,
     )
-    recs = api_get("recommendations", "recommendation_id,product_id,video_id,channel_id,confidence,created_at", {"limit": "10000"})
+    recs = api_get_all(
+        "recommendations",
+        "recommendation_id,product_id,video_id,channel_id,confidence,created_at",
+        max_rows=10000,
+    )
     return products, videos, channels, queries, recs
 
 
