@@ -133,6 +133,12 @@ def norm_key(value):
     return re.sub(r"[^0-9a-z가-힣]+", "", str(value or "").lower())
 
 
+def clean_evidence_text(value):
+    text = re.sub(r"https?://\S+", "", str(value or ""))
+    text = re.sub(r"\s+", " ", text).strip(" ·,-")
+    return text
+
+
 def count_by(rows, key):
     return Counter(str(row.get(key) or "unknown") for row in rows)
 
@@ -318,6 +324,7 @@ html,body,.stApp{background:var(--canvas);color:var(--ink);overflow-x:hidden!imp
 .brand-logo{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--brand);color:#fff;font-size:18px;box-shadow:0 4px 12px rgba(49,130,246,.25)}
 .brand-name{font-size:22px;font-weight:900;letter-spacing:-.03em;color:var(--ink)}
 .brand-tag{font-size:11px;font-weight:750;color:var(--brand);background:var(--soft);padding:3px 8px;border-radius:999px}
+.top-sub{font-size:12.5px;font-weight:650;color:var(--muted)}
 
 .hero-banner{
   background:linear-gradient(135deg,#FFFFFF 0%,#F2F7FF 100%);
@@ -374,7 +381,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]{border:1px solid #EAECEF!importa
 div[data-testid="stForm"]{border:1px solid #DCE7F7!important;background:#F8FAFD!important;border-radius:16px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드 & 카드 */
+/* 상품 그리드 & 카드 (상단 공백 완전 제거 + 외곽 곡률 18px 일치) */
 .st-key-product_grid [data-testid="stHorizontalBlock"]{gap:16px!important;align-items:stretch!important;width:100%!important;margin:0!important}
 .st-key-product_grid [data-testid="stColumn"],
 .st-key-product_grid [data-testid="column"]{min-width:0!important;display:flex!important;flex-direction:column!important}
@@ -388,24 +395,33 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   margin-bottom:14px!important;
   overflow:hidden!important;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div,
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div{
+  padding:0!important;
+  margin:0!important;
+  border-radius:17px!important;
+  overflow:hidden!important;
+}
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{
   padding-top:0!important;
   margin-top:0!important;
+  gap:0!important;
 }
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child,
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child [data-testid="stMarkdownContainer"]{
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child > div,
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child [data-testid="stMarkdownContainer"],
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div:first-child [data-testid="stMarkdownContainer"] > p{
   padding-top:0!important;
   margin-top:0!important;
+  margin-bottom:0!important;
 }
 
-/* 썸네일 영역 + 카드 외곽 곡률(18px)과 일치 */
+/* 썸네일 영역: 상단 테두리에 0px 밀착 + 동일한 곡률 */
 .video-thumbnail-wrap{
   position:relative;
   display:block;
   width:calc(100% + 28px)!important;
   aspect-ratio:16 / 9!important;
-  margin:-8px -14px 11px!important;
+  margin:0 -14px 12px!important;
   border-radius:17px 17px 0 0!important;
   background:#111827!important;
   overflow:hidden!important;
@@ -450,7 +466,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .product-placeholder{
   width:calc(100% + 28px)!important;
   aspect-ratio:16 / 9!important;
-  margin:-8px -14px 11px!important;
+  margin:0 -14px 12px!important;
   border-radius:17px 17px 0 0!important;
   display:flex;
   flex-direction:column;
@@ -463,7 +479,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .product-placeholder small{font-size:12px;font-weight:800}
 .st-key-product_grid [data-testid="stImage"]{
   width:calc(100% + 28px)!important;
-  margin:-8px -14px 11px!important;
+  margin:0 -14px 12px!important;
   border-radius:17px 17px 0 0!important;
   overflow:hidden!important;
 }
@@ -476,9 +492,9 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 }
 
 /* 카드 타이포그래피 & 뱃지 */
-.brand-eyebrow{font-size:11px;font-weight:750;color:var(--muted);letter-spacing:-.01em;margin-bottom:2px}
-.product-title{font-size:15.5px;font-weight:850;color:var(--ink);line-height:1.38;min-height:43px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.card-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:7px 0 8px}
+.brand-eyebrow{font-size:11px;font-weight:750;color:var(--muted);letter-spacing:-.01em;margin-bottom:3px}
+.product-title{font-size:15.5px;font-weight:850;color:var(--ink);line-height:1.38;height:43px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-meta-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:8px 0 9px}
 .badge{display:inline-flex;align-items:center;height:21px;color:#245FB5;background:#EDF4FF;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot i{display:inline-block;width:5px;height:5px;border-radius:50%}
@@ -487,8 +503,9 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .purchase-ad,.purchase-unknown{color:#B42318;background:#FFF0F0}.purchase-ad i,.purchase-unknown i{background:#E5484D}
 
 /* 장단점 요약 박스 */
-.card-summary-wrap{margin:4px 0 10px;display:flex;flex-direction:column;gap:5px;min-height:74px;justify-content:center}
-.st-key-product_grid .summary-line{display:block!important;margin:0!important;padding:7px 9px!important;border-radius:8px;font-size:12px!important;line-height:1.42!important;word-break:keep-all!important}
+.card-summary-wrap{margin:2px 0 11px;display:flex;flex-direction:column;gap:5px;height:78px;justify-content:flex-start;overflow:hidden}
+.st-key-product_grid .summary-line{display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0!important;padding:7px 9px!important;border-radius:8px;font-size:12px!important;line-height:1.4!important;word-break:keep-all!important}
+.card-summary-wrap.has-two .summary-line{-webkit-line-clamp:1!important;padding:6px 9px!important}
 .summary-pro{background:#F0F9F4;color:#15653E}
 .summary-con{background:#FFF4F4;color:#A61B22}
 .summary-reason{background:#F5F7FA;color:#4E5968}
@@ -499,7 +516,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   grid-template-columns:1fr 1fr;
   gap:8px;
   width:100%;
-  margin-top:2px;
+  margin-top:0;
 }
 .shop-btn{
   display:inline-flex;
@@ -533,7 +550,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 }
 
 /* 상세 비교 아코디언 */
-.st-key-product_grid [data-testid="stExpander"]{margin-top:8px!important;border:1px solid #ECEEF2!important;border-radius:10px!important;background:#FAFBFD!important}
+.st-key-product_grid [data-testid="stExpander"]{margin-top:9px!important;border:1px solid #ECEEF2!important;border-radius:10px!important;background:#FAFBFD!important}
 .st-key-product_grid [data-testid="stExpander"] summary{min-height:35px!important;padding:5px 10px!important;font-size:12.5px!important;font-weight:700!important;color:var(--sub)!important}
 .st-key-product_grid [data-testid="stExpanderDetails"]{padding:10px 11px!important;max-height:240px!important;overflow-y:auto!important;background:#fff!important}
 .exp-section-title{font-size:11px;font-weight:800;color:var(--muted);margin:0 0 5px}
@@ -566,6 +583,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 @media(max-width:640px){
   .block-container{padding:.55rem .75rem 3rem!important;width:100%!important;max-width:100%!important}
   .top-nav{margin-bottom:9px}
+  .top-sub{display:none!important}
   .hero-banner{padding:14px 14px}
   .hero-headline{font-size:17.5px}
   .hero-stats{
@@ -616,8 +634,8 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
     margin:0!important;
     padding:0!important;
   }
-  .st-key-product_grid .product-title{min-height:0!important}
-  .card-summary-wrap{min-height:0!important}
+  .st-key-product_grid .product-title{height:auto!important;min-height:0!important}
+  .card-summary-wrap{height:auto!important;min-height:0!important}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -640,6 +658,7 @@ st.markdown(
     '<span class="brand-name">꿀템 다나와</span>'
     '<span class="brand-tag">유튜버 검증</span>'
     '</div>'
+    '<span class="top-sub">유튜브 실제 리뷰 기반 추천템 · 최저가 비교</span>'
     '</div>',
     unsafe_allow_html=True,
 )
@@ -802,7 +821,8 @@ def render_product_card(product):
         if not summary_blocks and fallback_reason:
             summary_blocks.append(f'<div class="summary-line summary-reason">💡 {safe(fallback_reason)}</div>')
         if summary_blocks:
-            st.markdown(f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>', unsafe_allow_html=True)
+            wrap_cls = "card-summary-wrap has-two" if len(summary_blocks) >= 2 else "card-summary-wrap"
+            st.markdown(f'<div class="{wrap_cls}">{"".join(summary_blocks)}</div>', unsafe_allow_html=True)
 
         affiliate = bool(
             product.get("affiliate_verified")
@@ -839,7 +859,7 @@ def render_product_card(product):
                     f'<a class="exp-video-link" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer">영상 보기 ↗</a>'
                     if v_id else ""
                 )
-                ev_text = re.sub(r"\s+", " ", str(rec.get("evidence") or "").strip())
+                ev_text = clean_evidence_text(rec.get("evidence"))
                 ev_html = f'<div class="exp-evidence">{safe(ev_text)}</div>' if ev_text else ""
                 exp_parts.append(
                     '<div class="exp-rec-item">'
