@@ -309,11 +309,11 @@ st.markdown("""
   --canvas:#F4F6F9;
 }
 html,body,.stApp{background:var(--canvas);color:var(--ink);overflow-x:hidden!important}
-.block-container{max-width:1180px;padding:1.1rem 1rem 4rem;box-sizing:border-box}
-#MainMenu,footer,[data-testid="stHeader"]{visibility:hidden}
+.block-container{max-width:1180px;padding:0.9rem 1rem 4rem;box-sizing:border-box}
+#MainMenu,footer,header[data-testid="stHeader"],[data-testid="stStatusWidget"],.viewerBadge_container__r5tak,.styles_viewerBadge__CvC9N{display:none!important;visibility:hidden!important}
 
 /* 서비스 상단 헤더 & 히어로 배너 */
-.top-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.top-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .brand-wrap{display:flex;align-items:center;gap:9px}
 .brand-logo{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--brand);color:#fff;font-size:18px;box-shadow:0 4px 12px rgba(49,130,246,.25)}
 .brand-name{font-size:22px;font-weight:900;letter-spacing:-.03em;color:var(--ink)}
@@ -323,15 +323,15 @@ html,body,.stApp{background:var(--canvas);color:var(--ink);overflow-x:hidden!imp
   background:linear-gradient(135deg,#FFFFFF 0%,#F2F7FF 100%);
   border:1px solid #E2ECFF;
   border-radius:20px;
-  padding:20px 22px;
-  margin-bottom:14px;
+  padding:18px 20px;
+  margin-bottom:12px;
   box-shadow:0 6px 20px rgba(49,130,246,.05);
 }
 .hero-kicker{font-size:12px;font-weight:750;color:var(--brand);margin-bottom:4px}
 .hero-headline{font-size:21px;font-weight:850;letter-spacing:-.02em;color:var(--ink);line-height:1.35}
 .hero-headline b{color:var(--brand)}
-.hero-stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.stat-pill{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #E5EAF2;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700;color:var(--sub)}
+.hero-stats{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:11px}
+.stat-pill{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #E5EAF2;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700;color:var(--sub);white-space:nowrap}
 .stat-pill strong{color:var(--ink);font-weight:850}
 
 /* 검색창 & 셀렉트박스 */
@@ -399,15 +399,17 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   margin-top:0!important;
 }
 
-/* 썸네일 영역 + 채널 오버레이 칩 */
+/* 썸네일 영역 + 카드 외곽 곡률(18px)과 일치 */
 .video-thumbnail-wrap{
   position:relative;
   display:block;
   width:calc(100% + 28px)!important;
   aspect-ratio:16 / 9!important;
   margin:-8px -14px 11px!important;
+  border-radius:17px 17px 0 0!important;
   background:#111827!important;
   overflow:hidden!important;
+  -webkit-mask-image:-webkit-radial-gradient(white,black);
 }
 .video-thumbnail-wrap::after{
   content:"";
@@ -422,6 +424,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   height:100%!important;
   object-fit:cover!important;
   object-position:center center!important;
+  border-radius:17px 17px 0 0!important;
 }
 .thumb-chip{
   position:absolute;
@@ -448,23 +451,27 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   width:calc(100% + 28px)!important;
   aspect-ratio:16 / 9!important;
   margin:-8px -14px 11px!important;
+  border-radius:17px 17px 0 0!important;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   gap:6px;
+  overflow:hidden!important;
 }
 .product-placeholder span{font-size:38px}
 .product-placeholder small{font-size:12px;font-weight:800}
 .st-key-product_grid [data-testid="stImage"]{
   width:calc(100% + 28px)!important;
   margin:-8px -14px 11px!important;
+  border-radius:17px 17px 0 0!important;
   overflow:hidden!important;
 }
 .st-key-product_grid [data-testid="stImage"] img{
   width:100%!important;
   aspect-ratio:16 / 9!important;
   object-fit:cover!important;
+  border-radius:17px 17px 0 0!important;
   padding:0!important;
 }
 
@@ -557,9 +564,42 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   .st-key-product_grid [data-testid="column"]{flex:0 0 calc(50% - 8px)!important;min-width:calc(50% - 8px)!important}
 }
 @media(max-width:640px){
-  .block-container{padding:.75rem .75rem 3rem!important;width:100%!important;max-width:100%!important}
-  .hero-banner{padding:16px}
-  .hero-headline{font-size:18px}
+  .block-container{padding:.55rem .75rem 3rem!important;width:100%!important;max-width:100%!important}
+  .top-nav{margin-bottom:9px}
+  .hero-banner{padding:14px 14px}
+  .hero-headline{font-size:17.5px}
+  .hero-stats{
+    flex-wrap:nowrap!important;
+    gap:4px!important;
+    margin-top:9px!important;
+    overflow-x:auto!important;
+  }
+  .stat-pill{
+    padding:4px 7px!important;
+    font-size:10.5px!important;
+    gap:3px!important;
+    letter-spacing:-.03em!important;
+    flex-shrink:0!important;
+  }
+  /* 모바일 검색 필터: 검색창 1줄 + 카테고리/정렬 2열 나란히 */
+  .st-key-filter_bar [data-testid="stHorizontalBlock"]{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:7px!important;
+    width:100%!important;
+    margin:0!important;
+  }
+  .st-key-filter_bar [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child,
+  .st-key-filter_bar [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child{
+    grid-column:1 / -1!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  .st-key-filter_bar [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+  .st-key-filter_bar [data-testid="stHorizontalBlock"] > [data-testid="column"]{
+    width:100%!important;
+    min-width:0!important;
+  }
   .st-key-product_grid > div > [data-testid="stHorizontalBlock"]{
     display:grid!important;
     grid-template-columns:minmax(0,1fr)!important;
@@ -827,11 +867,12 @@ def render_home():
         '</div>',
         unsafe_allow_html=True,
     )
-    a, b, c = st.columns([1.8, 1, 0.9])
-    keyword = a.text_input("검색", placeholder="상품명, 브랜드, 유튜버 검색", label_visibility="collapsed")
-    categories = sorted({p.get("category") or "기타" for p in products})
-    category = b.selectbox("카테고리", ["전체 카테고리"] + categories, label_visibility="collapsed")
-    sort_by = c.selectbox("정렬", ["추천 많은순", "최신 등록순"], label_visibility="collapsed")
+    with st.container(key="filter_bar"):
+        a, b, c = st.columns([1.8, 1, 0.9])
+        keyword = a.text_input("검색", placeholder="상품명, 브랜드, 유튜버 검색", label_visibility="collapsed")
+        categories = sorted({p.get("category") or "기타" for p in products})
+        category = b.selectbox("카테고리", ["전체 카테고리"] + categories, label_visibility="collapsed")
+        sort_by = c.selectbox("정렬", ["추천 많은순", "최신 등록순"], label_visibility="collapsed")
 
     clean_kw = keyword.strip()
     filter_sig = (clean_kw, category, sort_by)
