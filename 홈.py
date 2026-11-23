@@ -46,6 +46,16 @@ INVALID_POINT_PATTERNS = (
     "원문에", "명시됨", "후기는 없음", "후기 없음", "언급 없음",
     "정보가 없음", "확인되지 않", "알 수 없", "단점 없음", "장점 없음",
 )
+SEARCH_SYNONYMS = {
+    "태블릿": ["pad", "탭", "아이패드", "갤럭시탭", "tablet"],
+    "노트북": ["laptop", "맥북", "macbook", "그램", "갤럭시북"],
+    "이어폰": ["버즈", "에어팟", "earbuds", "earphone"],
+    "헤드폰": ["헤드셋", "headphone", "headset"],
+    "청소기": ["다이슨", "dyson", "로봇청소기", "물걸레"],
+    "키보드": ["keyboard"],
+    "마우스": ["mouse"],
+    "보조배터리": ["파워뱅크", "powerbank", "맥세이프"],
+}
 
 
 def headers(prefer=None):
@@ -132,6 +142,15 @@ def is_meaningful_point(text):
     if len(cleaned) < 2:
         return False
     return not any(pattern in cleaned for pattern in INVALID_POINT_PATTERNS)
+
+
+def matches_search(searchable_text, query):
+    tokens = [t.strip().lower() for t in str(query or "").split() if t.strip()]
+    for token in tokens:
+        candidates = [token] + SEARCH_SYNONYMS.get(token, [])
+        if not any(cand in searchable_text for cand in candidates):
+            return False
+    return True
 
 
 def log_event(event_type, product_id=None, product_name=None, search_query=None):
@@ -815,17 +834,39 @@ def render_home():
     sort_by = c.selectbox("정렬", ["추천 많은순", "최신 등록순"], label_visibility="collapsed")
 
     clean_kw = keyword.strip()
+    filter_sig = (clean_kw, category, sort_by)
+    if st.session_state.get("last_filter_sig") != filter_sig:
+        st.session_state.last_filter_sig = filter_sig
+        st.session_state.catalog_page = 1
+
     if len(clean_kw) >= 2 and clean_kw != st.session_state.get("last_logged_keyword"):
         st.session_state.last_logged_keyword = clean_kw
         log_event("search", search_query=clean_kw)
 
     shown = []
     for product in products:
-        names = " ".join(r.get("channel", {}).get("channel_name", "") for r in product["recommendations"])
-        text = " ".join([product.get("canonical_name", ""), product.get("brand", ""), product.get("model", ""), names]).lower()
         if category != "전체 카테고리" and (product.get("category") or "기타") != category:
             continue
-        if clean_kw and clean_kw.lower() not in text:
+
+        rec_texts = []
+        for r in product["recommendations"]:
+            rec_texts.append((r.get("channel") or {}).get("channel_name", ""))
+            rec_texts.append((r.get("video") or {}).get("title", ""))
+            rec_texts.append(r.get("reason", ""))
+            rec_texts.extend(r.get("pros") or [])
+            rec_texts.extend(r.get("cons") or [])
+            rec_texts.append(r.get("evidence", ""))
+
+        searchable_text = " ".join([
+            product.get("canonical_name", ""),
+            product.get("brand", ""),
+            product.get("model", ""),
+            product.get("category", ""),
+            product.get("search_keyword", ""),
+            " ".join(rec_texts),
+        ]).lower()
+
+        if clean_kw and not matches_search(searchable_text, clean_kw):
             continue
         shown.append(product)
 
