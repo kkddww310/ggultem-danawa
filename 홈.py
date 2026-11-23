@@ -618,6 +618,29 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   color:var(--brand)!important;
 }
 
+/* 하단 쿠팡 파트너스 필수 고지 푸터 */
+.site-footer{
+  margin-top:18px;
+  margin-bottom:12px;
+  padding:15px 18px;
+  background:#fff;
+  border:1px solid #E5E8EB;
+  border-radius:14px;
+  text-align:center;
+  color:var(--sub);
+  font-size:12.5px;
+  font-weight:650;
+  line-height:1.6;
+  word-break:keep-all;
+}
+.site-footer-sub{
+  display:block;
+  margin-top:3px;
+  font-size:11.5px;
+  font-weight:500;
+  color:var(--muted);
+}
+
 /* 관리자 통계 카드 */
 .metric{background:#fff;border:1px solid #EAECEF;border-radius:15px;padding:14px;min-height:90px}
 .metric-label{color:var(--muted);font-size:12px;font-weight:700}
@@ -693,6 +716,8 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   .st-key-pagination_bar [data-testid="stColumn"],
   .st-key-pagination_bar [data-testid="column"]{min-width:34px!important}
   .st-key-pagination_bar .stButton>button{min-width:34px!important;min-height:36px!important;padding:0 8px!important;font-size:12.5px!important}
+  .site-footer{padding:13px 12px;font-size:11.5px}
+  .site-footer-sub{font-size:10.5px}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1060,7 +1085,14 @@ def render_home():
                 st.session_state.scroll_to_top = True
                 st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        '<div class="site-footer">'
+        '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.'
+        '<span class="site-footer-sub">꿀템 다나와는 유튜브 공개 리뷰 영상을 분석해 상품 정보를 제공하며, 실제 가격·재고 및 거래 조건은 각 쇼핑몰 페이지를 따릅니다.</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
     _, admin_col = st.columns([5, 1])
     with admin_col:
         toggle_label = "관리자 닫기" if st.session_state.get("show_admin_bar") else "관리자"
