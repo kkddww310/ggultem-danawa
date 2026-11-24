@@ -10,7 +10,7 @@ from collector.config import OPENROUTER_API_KEY
 from collector.database import select, upsert, update
 from collector.youtube_api import get_creator_comments
 
-TOTAL_FETCH_LIMIT = 20
+TOTAL_FETCH_LIMIT = 35
 BATCH_SIZE = 5
 MIN_CONFIDENCE = 0.70
 MAX_ATTEMPTS = 2
@@ -82,6 +82,10 @@ TOP_PICK_EVIDENCE_PATTERN = re.compile(
     r"(?:[123]\s?[위등]|종합\s?(?:1위|우승|추천)|최종\s?(?:추천|선택|픽)|우승|대상|가성비\s?(?:1위|추천|픽)|베스트|best|top\s?[123]|추천\s?픽)",
     re.I,
 )
+NOISY_KEYWORD_TERMS_PATTERN = re.compile(
+    r"\b(?:mastrotrotto|마스트로또|이태리가죽|이탈리아가죽|천연소가죽|소가죽|양가죽|단독특가|공식몰|정품|리뉴얼|기획세트|증정|단품|본품)\b",
+    re.I,
+)
 
 
 class AllProvidersRateLimited(RuntimeError):
@@ -145,6 +149,29 @@ def apply_brand_aliases(value):
 
 def normalize_brand(value):
     return apply_brand_aliases(str(value or "").strip())
+
+
+def clean_search_keyword(keyword, brand="", name=""):
+    """쇼핑몰 검색 0건을 유발하는 언더바, 특수기호, 원산지·프로모션 표기를 정제한다."""
+    raw = str(keyword or "").strip() or str(name or "").strip()
+    text = re.sub(r"[\[\]【】<>]", " ", raw)
+    text = re.sub(r"\(([^)]{1,12})\)", r" \1 ", text)
+    text = re.sub(r"\([^)]*\)", " ", text)
+    text = re.sub(r"[_/|\\•·*#~\"']+", " ", text)
+    text = re.sub(r"(?<=[A-Za-z0-9가-힣])\.(?=\s|$)", " ", text)
+    text = NOISY_KEYWORD_TERMS_PATTERN.sub(" ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    deduped = []
+    for token in text.split():
+        if not deduped or deduped[-1].lower() != token.lower():
+            deduped.append(token)
+    cleaned = " ".join(deduped).strip()
+
+    if len(normalize_text(cleaned)) < 2:
+        fallback = re.sub(r"[_/|\\•·.]+", " ", f"{brand} {name}")
+        cleaned = re.sub(r"\s+", " ", fallback).strip()
+    return cleaned
 
 
 def build_video_source_text(video):
@@ -313,6 +340,9 @@ def validate_product(video, raw):
     if not source_contains_identity(video, name, brand, model):
         return False, None, "원문에서 브랜드와 제품명 확인 불가"
 
+    raw_keyword = str(raw.get("keyword", "")).strip() or name
+    cleaned_keyword = clean_search_keyword(raw_keyword, brand=brand, name=name)
+
     item = {
         "name": name,
         "normalized_name": normalize_text(name),
@@ -320,7 +350,7 @@ def validate_product(video, raw):
         "model": model,
         "brand_key": normalize_brand(brand),
         "model_key": normalize_text(model),
-        "keyword": str(raw.get("keyword", "")).strip() or name,
+        "keyword": cleaned_keyword,
         "category": category,
         "reason": str(raw.get("reason", "")).strip(),
         "pros": clean_points(raw.get("pros", [])),
@@ -349,10 +379,10 @@ def build_batch_prompt(videos):
 2. 패션·뷰티 영상: 영상 주제와 무관한 유튜버 본인의 단순 촬영 착장(OOTD 코디용 상하의·신발 등)은 제외하고, 실제로 리뷰·추천하는 메인 제품만 추출하라(영상당 최대 15개).
 3. 브랜드 없는 일반 품목명이나 여러 물건을 + 또는 /로 묶은 표현은 반환하지 마라. 브랜드나 제품명을 추측하지 마라.
 4. pros와 cons에는 실제 제품의 특징·효능·착용감·사용감·가격적 아쉬움만 적고, "원문에 명시됨", "상세 후기 없음", "가격 정보 미공개" 같은 정보 부재 메모는 절대 넣지 마라. 근거가 없으면 빈 배열 []로 두어라.
-5. keyword 필드에는 반드시 '브랜드 + 모델명 + 한글 대표 품목명'(예: 올도큐브 iPlay 70 Ultra Pad 태블릿, 다이슨 V15 무선청소기)을 함께 적어 한국어 품목명으로 검색해도 바로 찾을 수 있게 하라.
+5. keyword 필드에는 반드시 쇼핑몰 검색이 바로 되도록 언더바(_)·슬래시(/)·괄호·가죽 원산지 표기(예: MASTROTROTTO, 이태리가죽)를 제거하고 '브랜드 + 핵심 제품명 + 한글 대표 품목명'(예: 올도큐브 iPlay 70 Ultra Pad 태블릿, 다이슨 V15 무선청소기, 어바웃톤 블러 파우더 팩트) 형태로 깔끔하게 적어라.
 
 반드시 아래 JSON 객체 하나만 반환하라. 추천 상품이 없는 영상은 items를 []로 반환하라.
-{{"results":[{{"video_id":"영상ID","items":[{{"is_recommended":true,"name":"브랜드 + 정확한 단일 제품명","brand":"브랜드","model":"모델명 또는 구체 제품명","keyword":"브랜드 모델명 한글품목명","category":"IT·전자|뷰티|패션|생활·살림|주방|여행|자동차|운동·건강|육아|반려동물|기타","reason":"추천 이유 또는 선정 근거","pros":["장점"],"cons":["단점"],"evidence":"원문 근거","confidence":0.0,"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음"}}]}}]}}
+{{"results":[{{"video_id":"영상ID","items":[{{"is_recommended":true,"name":"브랜드 + 정확한 단일 제품명","brand":"브랜드","model":"모델명 또는 구체 제품명","keyword":"브랜드 핵심제품명 한글품목명","category":"IT·전자|뷰티|패션|생활·살림|주방|여행|자동차|운동·건강|육아|반려동물|기타","reason":"추천 이유 또는 선정 근거","pros":["장점"],"cons":["단점"],"evidence":"원문 근거","confidence":0.0,"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음"}}]}}]}}
 
 [입력 영상 목록]
 {json.dumps(payload, ensure_ascii=False)}'''
@@ -418,10 +448,14 @@ def call_llm_with_fallback(prompt, providers, exhausted_providers, last_call_ts)
                         exhausted_providers.add(name)
                         break
 
+                    if response.status_code == 503:
+                        transient_failures += 1
+                        break
+
                     if response.status_code >= 500:
                         transient_failures += 1
                         if attempt < MAX_ATTEMPTS:
-                            time.sleep(6)
+                            time.sleep(3)
                             continue
                         break
                     break
@@ -435,13 +469,19 @@ def call_llm_with_fallback(prompt, providers, exhausted_providers, last_call_ts)
                 print(f"LLM request succeeded | provider={name} model={provider['model']} attempt={attempt}")
                 return parsed
 
-            except (requests.Timeout, ValueError, KeyError, json.JSONDecodeError) as error:
+            except requests.Timeout as error:
                 transient_failures += 1
-                error_text = f"provider={name} model={provider['model']} attempt={attempt} parse_or_timeout: {error}"
+                error_text = f"provider={name} model={provider['model']} attempt={attempt} timeout: {error}"
+                errors.append(error_text)
+                print(f"LLM response failed | {error_text}")
+                break
+            except (ValueError, KeyError, json.JSONDecodeError) as error:
+                transient_failures += 1
+                error_text = f"provider={name} model={provider['model']} attempt={attempt} parse_error: {error}"
                 errors.append(error_text)
                 print(f"LLM response failed | {error_text}")
                 if attempt < MAX_ATTEMPTS:
-                    time.sleep(5)
+                    time.sleep(3)
                     continue
                 break
             except Exception as error:
