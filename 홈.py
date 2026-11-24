@@ -12,7 +12,6 @@ from ui.common import (
     inject_styles,
     load_public_data,
     log_event,
-    open_product_detail,
     recommendation_summary,
     render_footer,
     render_mall_buttons,
@@ -39,7 +38,7 @@ if "detail_pid" not in st.session_state:
 
 view_param = str(st.query_params.get("view", "")).strip()
 pid_param = str(st.query_params.get("pid", "")).strip()
-if view_param == "detail" and pid_param and not st.session_state.detail_pid:
+if view_param == "detail" and pid_param:
     st.session_state.page = "home"
     st.session_state.detail_pid = pid_param
 
@@ -122,6 +121,7 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
 def render_product_card(product):
     recs = product["recommendations"]
     pid = str(product.get("product_id"))
+    detail_href = f"?view=detail&pid={safe(pid)}"
     representative = get_representative_rec(product)
     channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
     rep_channel = ((representative or {}).get("channel") or {}).get("channel_name") or (
@@ -130,9 +130,8 @@ def render_product_card(product):
     source_label = f"{rep_channel} 외 {channel_count - 1}명" if channel_count > 1 else rep_channel
 
     with st.container(border=True):
-        render_product_visual(product, representative=representative)
+        render_product_visual(product, representative=representative, link_to_detail=True)
 
-        confidence = max([float(r.get("confidence") or 0) for r in recs] or [0])
         summary = recommendation_summary(recs)
         purchase_html = render_purchase_badges(summary["purchase_counts"])
 
@@ -142,15 +141,21 @@ def render_product_card(product):
 
         summary_blocks = []
         if pro_line:
-            summary_blocks.append(f'<div class="summary-line summary-pro">👍 {safe(pro_line)}</div>')
+            summary_blocks.append(
+                f'<div class="summary-line summary-pro"><span class="sum-tag sum-tag-pro">장점</span><span class="summary-text">{safe(pro_line)}</span></div>'
+            )
         if con_line:
-            summary_blocks.append(f'<div class="summary-line summary-con">👎 {safe(con_line)}</div>')
+            summary_blocks.append(
+                f'<div class="summary-line summary-con"><span class="sum-tag sum-tag-con">체크</span><span class="summary-text">{safe(con_line)}</span></div>'
+            )
         if not summary_blocks and fallback_reason:
-            summary_blocks.append(f'<div class="summary-line summary-reason">💡 {safe(fallback_reason)}</div>')
+            summary_blocks.append(
+                f'<div class="summary-line summary-reason"><span class="sum-tag sum-tag-fit">추천</span><span class="summary-text">{safe(fallback_reason)}</span></div>'
+            )
         summary_html = f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>' if summary_blocks else ""
 
         st.markdown(
-            '<div class="card-info-block">'
+            f'<a class="card-body-link" href="{detail_href}" target="_self">'
             '<div class="card-source-bar">'
             f'<span class="source-chip"><b>▶</b> {safe(source_label)}</span>'
             f'<span class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
@@ -159,16 +164,12 @@ def render_product_card(product):
             '<div class="card-meta-row">'
             f'<span class="badge">유튜버 {channel_count}명</span>'
             f'<span class="badge">영상 {len(recs)}개</span>'
-            f'<span class="badge">신뢰도 {confidence:.0%}</span>'
             f'{purchase_html}'
             '</div>'
             f'{summary_html}'
-            '</div>',
+            '</a>',
             unsafe_allow_html=True,
         )
-
-        if st.button(f"🔍 상세 비교 · 리뷰 {len(recs)}개 분석 →", key=f"open_detail_{pid}", use_container_width=True):
-            open_product_detail(pid)
 
         render_mall_buttons(product)
 
@@ -182,9 +183,9 @@ def render_home():
         '<div class="hero-kicker">실제 리뷰 영상 데이터 기반 엄선 큐레이션</div>'
         f'<div class="hero-headline">에디션 픽이 검증한 추천 아이템 <b>{len(products):,}개</b></div>'
         '<div class="hero-stats">'
-        f'<span class="stat-pill">📺 분석 채널 <strong>{len(channel_ids):,}개</strong></span>'
-        f'<span class="stat-pill">🎬 근거 영상 <strong>{len(video_ids):,}개</strong></span>'
-        '<span class="stat-pill">✦ 매일 자동 업데이트</span>'
+        f'<span class="stat-pill">분석 채널 <strong>{len(channel_ids):,}개</strong></span>'
+        f'<span class="stat-pill">근거 영상 <strong>{len(video_ids):,}개</strong></span>'
+        '<span class="stat-pill"><i class="live-dot"></i> 매일 자동 업데이트</span>'
         '</div>'
         '</div>'
         f'<div class="top-disclosure">{safe(AFFILIATE_DISCLOSURE)}</div>',
@@ -234,7 +235,7 @@ def render_home():
     shown = [item[1] for item in scored_items]
 
     st.markdown(
-        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>썸네일 클릭 시 영상 · 상세 비교 클릭 시 분석</span></div>',
+        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>상품 클릭 시 상세 비교 · 영상 배지 클릭 시 원문 재생</span></div>',
         unsafe_allow_html=True,
     )
 
