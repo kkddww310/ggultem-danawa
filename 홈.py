@@ -56,6 +56,9 @@ SEARCH_SYNONYMS = {
     "키보드": ["keyboard"],
     "마우스": ["mouse"],
     "보조배터리": ["파워뱅크", "powerbank", "맥세이프"],
+    "패딩": ["다운", "푸퍼", "파카", "점퍼", "down", "puffer", "parka"],
+    "가방": ["백", "숄더백", "토트백", "크로스백", "핸드백", "에코백", "백팩", "bag"],
+    "신발": ["스니커즈", "운동화", "로퍼", "부츠", "구두", "슬리퍼", "샌들", "shoes", "sneakers"],
 }
 EXTRA_MALLS = ("musinsa", "zigzag", "ably")
 MALL_META = {
@@ -159,13 +162,54 @@ def is_meaningful_point(text):
     return not any(pattern in cleaned for pattern in INVALID_POINT_PATTERNS)
 
 
-def matches_search(searchable_text, query):
+def score_product_search(product, query):
+    """영상 제목 오염을 막고 상품 자체 정보(상품명·브랜드·키워드·리뷰 요약) 기준으로 일치 점수를 계산한다."""
     tokens = [t.strip().lower() for t in str(query or "").split() if t.strip()]
+    if not tokens:
+        return 1
+
+    primary_text = " ".join([
+        str(product.get("canonical_name") or ""),
+        str(product.get("brand") or ""),
+        str(product.get("model") or ""),
+        str(product.get("search_keyword") or ""),
+    ]).lower()
+
+    meta_text = " ".join([
+        str(product.get("category") or ""),
+        " ".join(
+            str((r.get("channel") or {}).get("channel_name") or "")
+            for r in (product.get("recommendations") or [])
+        ),
+    ]).lower()
+
+    review_parts = []
+    for r in (product.get("recommendations") or []):
+        reason = str(r.get("reason") or "").strip()
+        if is_meaningful_point(reason):
+            review_parts.append(reason)
+        for p in (r.get("pros") or []):
+            if is_meaningful_point(p):
+                review_parts.append(str(p))
+        for c in (r.get("cons") or []):
+            if is_meaningful_point(c):
+                review_parts.append(str(c))
+    review_text = " ".join(review_parts).lower()
+
+    total_score = 0
     for token in tokens:
-        candidates = [token] + SEARCH_SYNONYMS.get(token, [])
-        if not any(cand in searchable_text for cand in candidates):
-            return False
-    return True
+        synonyms = SEARCH_SYNONYMS.get(token, [])
+        if token in primary_text:
+            total_score += 10
+        elif any(syn in primary_text for syn in synonyms):
+            total_score += 6
+        elif token in meta_text:
+            total_score += 4
+        elif token in review_text or any(syn in review_text for syn in synonyms):
+            total_score += 2
+        else:
+            return 0
+    return total_score
 
 
 def parse_extra_partner_links(product):
@@ -1242,35 +1286,31 @@ def render_home():
         st.session_state.last_logged_keyword = clean_kw
         log_event("search", search_query=clean_kw)
 
-    shown = []
+    scored_items = []
     for product in products:
         if category != "전체 카테고리" and (product.get("category") or "기타") != category:
             continue
-
-        rec_texts = []
-        for r in product["recommendations"]:
-            rec_texts.append((r.get("channel") or {}).get("channel_name", ""))
-            rec_texts.append((r.get("video") or {}).get("title", ""))
-            rec_texts.append(r.get("reason", ""))
-            rec_texts.extend(r.get("pros") or [])
-            rec_texts.extend(r.get("cons") or [])
-            rec_texts.append(r.get("evidence", ""))
-
-        searchable_text = " ".join([
-            product.get("canonical_name", ""),
-            product.get("brand", ""),
-            product.get("model", ""),
-            product.get("category", ""),
-            product.get("search_keyword", ""),
-            " ".join(rec_texts),
-        ]).lower()
-
-        if clean_kw and not matches_search(searchable_text, clean_kw):
+        match_score = score_product_search(product, clean_kw)
+        if clean_kw and match_score <= 0:
             continue
-        shown.append(product)
+        scored_items.append((match_score, product))
 
-    if sort_by == "최신 등록순":
-        shown.sort(key=lambda p: str(p.get("created_at") or ""), reverse=True)
+    if clean_kw:
+        if sort_by == "최신 등록순":
+            scored_items.sort(key=lambda item: (item[0], str(item[1].get("created_at") or "")), reverse=True)
+        else:
+            scored_items.sort(
+                key=lambda item: (
+                    item[0],
+                    len({r.get("channel_id") for r in item[1]["recommendations"]}),
+                    len(item[1]["recommendations"]),
+                ),
+                reverse=True,
+            )
+    elif sort_by == "최신 등록순":
+        scored_items.sort(key=lambda item: str(item[1].get("created_at") or ""), reverse=True)
+
+    shown = [item[1] for item in scored_items]
 
     st.markdown(
         f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>공식 쇼핑몰별 최저가 비교</span></div>',
