@@ -2,7 +2,6 @@ import json
 import os
 import re
 import time
-from datetime import datetime, timezone
 
 import requests
 
@@ -16,7 +15,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "").strip()
-BATCH_SIZE = int(os.getenv("EXTRACT_BATCH_SIZE", "25"))
+BATCH_SIZE = int(os.getenv("EXTRACT_BATCH_SIZE", "40"))
 AUTO_APPROVE_SCORE = int(os.getenv("AUTO_APPROVE_SCORE", "75"))
 
 CATEGORIES = [
@@ -378,18 +377,36 @@ def load_existing_catalog():
     return by_norm, by_brand_model
 
 
-def load_existing_rec_pairs(video_ids):
+def load_existing_recs(video_ids):
     if not video_ids:
-        return set()
+        return {}
     rows = sb_get(
         "recommendations",
         {
-            "select": "product_id,video_id",
+            "select": "recommendation_id,product_id,video_id",
             "video_id": f"in.({','.join(video_ids)})",
             "limit": "5000",
         },
     )
-    return {(str(r.get("product_id")), str(r.get("video_id"))) for r in rows}
+    return {
+        (str(r.get("product_id")), str(r.get("video_id"))): r.get("recommendation_id")
+        for r in rows
+        if r.get("recommendation_id")
+    }
+
+
+def sync_existing_product_category(existing_row, new_category):
+    current_cat = str(existing_row.get("category") or "").strip()
+    if current_cat not in CATEGORIES and new_category in CATEGORIES:
+        try:
+            sb_patch(
+                "products",
+                {"category": new_category},
+                {"product_id": f"eq.{existing_row['product_id']}"},
+            )
+            existing_row["category"] = new_category
+        except Exception:
+            pass
 
 
 def find_or_create_product(item, by_norm, by_brand_model):
@@ -406,19 +423,22 @@ def find_or_create_product(item, by_norm, by_brand_model):
     b_key = norm_key(brand)
     m_key = norm_key(model)
 
+    category = normalize_category(
+        item.get("category"),
+        f"{canonical_name} {brand} {model} {item.get('reason') or ''}",
+    )
+
     if n_key in by_norm:
+        sync_existing_product_category(by_norm[n_key], category)
         return by_norm[n_key]["product_id"], False
     if len(b_key) >= 2 and len(m_key) >= 2 and (b_key, m_key) in by_brand_model:
+        sync_existing_product_category(by_brand_model[(b_key, m_key)], category)
         return by_brand_model[(b_key, m_key)]["product_id"], False
 
     identity_score = compute_identity_score(brand, model, canonical_name, confidence)
     if identity_score < 40:
         return None, False
 
-    category = normalize_category(
-        item.get("category"),
-        f"{canonical_name} {brand} {model} {item.get('reason') or ''}",
-    )
     auto_approve = identity_score >= AUTO_APPROVE_SCORE and len(b_key) >= 2
     payload = {
         "canonical_name": canonical_name,
@@ -471,7 +491,7 @@ def fetch_target_videos(limit):
     return queued + pending
 
 
-def process_video(video, by_norm, by_brand_model, existing_pairs):
+def process_video(video, by_norm, by_brand_model, existing_recs):
     video_id = str(video.get("video_id") or "").strip()
     channel_id = str(video.get("channel_id") or "").strip()
     title = str(video.get("title") or "").strip()
@@ -523,11 +543,6 @@ def process_video(video, by_norm, by_brand_model, existing_pairs):
             rejected_generic_count += 1
             continue
 
-        pair_key = (str(product_id), video_id)
-        if pair_key in existing_pairs:
-            saved_count += 1
-            continue
-
         reason = clean_sentence(item.get("reason"), max_len=200)
         if not is_meaningful_point(reason):
             reason = ""
@@ -555,8 +570,15 @@ def process_video(video, by_norm, by_brand_model, existing_pairs):
             "confidence": round(confidence, 3),
             "purchase_type": purchase_type,
         }
-        sb_post("recommendations", [rec_payload])
-        existing_pairs.add(pair_key)
+
+        pair_key = (str(product_id), video_id)
+        existing_rec_id = existing_recs.get(pair_key)
+        if existing_rec_id:
+            sb_patch("recommendations", rec_payload, {"recommendation_id": f"eq.{existing_rec_id}"})
+        else:
+            created_rec = sb_post("recommendations", [rec_payload])
+            if created_rec:
+                existing_recs[pair_key] = created_rec[0].get("recommendation_id")
         saved_count += 1
 
     if saved_count > 0:
@@ -590,13 +612,13 @@ def main():
         return
 
     by_norm, by_brand_model = load_existing_catalog()
-    existing_pairs = load_existing_rec_pairs([str(v.get("video_id")) for v in videos if v.get("video_id")])
+    existing_recs = load_existing_recs([str(v.get("video_id")) for v in videos if v.get("video_id")])
 
     for idx, video in enumerate(videos, start=1):
         vid = str(video.get("video_id") or "")
         title = str(video.get("title") or "")[:50]
         try:
-            status, count = process_video(video, by_norm, by_brand_model, existing_pairs)
+            status, count = process_video(video, by_norm, by_brand_model, existing_recs)
             print(f"[{idx}/{len(videos)}] {vid} ({title}) -> {status} (상품 {count}개)")
         except Exception as exc:
             err_msg = str(exc)[:400]
