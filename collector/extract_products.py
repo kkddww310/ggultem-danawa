@@ -14,6 +14,8 @@ except Exception:
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash").strip()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "").strip()
 BATCH_SIZE = int(os.getenv("EXTRACT_BATCH_SIZE", "40"))
 AUTO_APPROVE_SCORE = int(os.getenv("AUTO_APPROVE_SCORE", "75"))
@@ -267,9 +269,14 @@ def fetch_youtube_transcript(video_id):
         return ""
 
 
+def parse_json_response(text):
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(text or "").strip())
+    return json.loads(cleaned)
+
+
 def call_gemini_extract(title, description, transcript):
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+    if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY 또는 OPENROUTER_API_KEY가 설정되지 않았습니다.")
 
     prompt = f"""
 당신은 한국 유튜브 쇼핑·리뷰 영상을 분석해 소비자가 실제로 구매 비교할 수 있는 상품 데이터만 추출하는 전문 에디터입니다.
@@ -322,37 +329,62 @@ def call_gemini_extract(title, description, transcript):
 }}
 """.strip()
 
-    models = ["gemini-2.5-flash", "gemini-2.0-flash"]
-    last_err = None
-    for model_name in models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
-        body = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.15,
-                "responseMimeType": "application/json",
-            },
-        }
-        try:
-            resp = requests.post(url, json=body, timeout=60)
-            if resp.status_code == 429:
-                time.sleep(4)
+    errors = []
+
+    if GEMINI_API_KEY:
+        models = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+        for model_name in models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+            body = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.15,
+                    "responseMimeType": "application/json",
+                },
+            }
+            try:
                 resp = requests.post(url, json=body, timeout=60)
-            if not resp.ok:
-                last_err = f"{model_name} HTTP {resp.status_code}: {resp.text[:220]}"
-                continue
-            data = resp.json()
-            text = (
-                data.get("candidates", [{}])[0]
-                .get("content", {})
-                .get("parts", [{}])[0]
-                .get("text", "")
+                if resp.status_code == 429:
+                    time.sleep(4)
+                    resp = requests.post(url, json=body, timeout=60)
+                if not resp.ok:
+                    errors.append(f"{model_name} HTTP {resp.status_code}: {resp.text[:180]}")
+                    continue
+                data = resp.json()
+                text = (
+                    data.get("candidates", [{}])[0]
+                    .get("content", {})
+                    .get("parts", [{}])[0]
+                    .get("text", "")
+                )
+                return parse_json_response(text)
+            except Exception as exc:
+                errors.append(f"{model_name}: {exc}")
+
+    if OPENROUTER_API_KEY:
+        try:
+            resp = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": OPENROUTER_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.15,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=60,
             )
-            cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
-            return json.loads(cleaned)
+            if resp.ok:
+                content = resp.json()["choices"][0]["message"]["content"]
+                return parse_json_response(content)
+            errors.append(f"OpenRouter HTTP {resp.status_code}: {resp.text[:180]}")
         except Exception as exc:
-            last_err = str(exc)
-    raise RuntimeError(f"Gemini 분석 실패: {last_err}")
+            errors.append(f"OpenRouter: {exc}")
+
+    raise RuntimeError("AI 분석 실패: " + " | ".join(errors))
 
 
 def load_existing_catalog():
@@ -603,8 +635,8 @@ def process_video(video, by_norm, by_brand_model, existing_recs):
 def main():
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise RuntimeError("SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY 환경변수가 없습니다.")
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY 환경변수가 없습니다.")
+    if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY 또는 OPENROUTER_API_KEY 환경변수가 없습니다.")
 
     videos = fetch_target_videos(BATCH_SIZE)
     print(f"[extract_products] 분석 대상 영상: {len(videos)}개")
