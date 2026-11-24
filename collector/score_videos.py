@@ -62,13 +62,16 @@ SEARCH_SYNONYMS = {
     "가방": ["백", "숄더백", "토트백", "크로스백", "핸드백", "에코백", "백팩", "bag"],
     "신발": ["스니커즈", "운동화", "로퍼", "부츠", "구두", "슬리퍼", "샌들", "shoes", "sneakers"],
 }
-EXTRA_MALLS = ("musinsa", "zigzag", "ably")
+EXTRA_MALLS = ("musinsa", "29cm", "oliveyoung", "zigzag", "ably", "aliexpress")
 MALL_META = {
     "naver": {"label": "네이버쇼핑", "css": "shop-btn-naver"},
     "coupang": {"label": "쿠팡 검색", "css": "shop-btn-coupang"},
     "musinsa": {"label": "무신사", "css": "shop-btn-musinsa"},
+    "29cm": {"label": "29CM", "css": "shop-btn-29cm"},
+    "oliveyoung": {"label": "올리브영", "css": "shop-btn-oliveyoung"},
     "zigzag": {"label": "지그재그", "css": "shop-btn-zigzag"},
     "ably": {"label": "에이블리", "css": "shop-btn-ably"},
+    "aliexpress": {"label": "알리익스프레스", "css": "shop-btn-aliexpress"},
 }
 
 
@@ -226,7 +229,7 @@ def score_product_search(product, query):
 
 
 def parse_extra_partner_links(product):
-    """affiliate_note에 저장된 추가 쇼핑몰(무신사·지그재그·에이블리) 파트너 링크를 읽어온다."""
+    """affiliate_note에 저장된 추가 쇼핑몰 파트너 링크를 읽어온다."""
     raw = str(product.get("affiliate_note") or "").strip()
     links = {mall: "" for mall in EXTRA_MALLS}
     memo = ""
@@ -264,7 +267,7 @@ def serialize_extra_partner_links(links, memo=""):
 
 
 def detect_product_malls(product):
-    """가독성을 위해 한 줄 최대 3버튼(네이버 + 쿠팡 + 대표 특화몰 1곳)을 자동 결정한다."""
+    """기본은 네이버쇼핑+쿠팡 2버튼으로 통일하고, 실제 수익 파트너 링크가 등록된 쇼핑몰만 3번째 버튼으로 추가한다."""
     extra_links, _ = parse_extra_partner_links(product)
     has_coupang_partner = bool(
         product.get("affiliate_verified")
@@ -281,47 +284,15 @@ def detect_product_malls(product):
         },
     ]
 
-    category = str(product.get("category") or "").strip()
-    rec_corpus = " ".join(
-        [
-            str(product.get("canonical_name") or ""),
-            str(product.get("brand") or ""),
-            str(product.get("search_keyword") or ""),
-            " ".join(
-                f"{(r.get('video') or {}).get('title', '')} {r.get('reason', '')} {r.get('evidence', '')}"
-                for r in (product.get("recommendations") or [])
-            ),
-        ]
-    ).lower()
-
     registered_malls = [mall for mall in EXTRA_MALLS if extra_links.get(mall)]
-    if registered_malls:
-        selected_extra = registered_malls
-    else:
-        picked = None
-        if any(k in rec_corpus for k in ("무신사", "musinsa")):
-            picked = "musinsa"
-        elif any(k in rec_corpus for k in ("지그재그", "zigzag")):
-            picked = "zigzag"
-        elif any(k in rec_corpus for k in ("에이블리", "ably")):
-            picked = "ably"
-        elif category == "패션":
-            womens_keywords = ("가방", "숄더백", "토트백", "원피스", "블라우스", "스커트", "가디건", "니트", "부츠", "귀걸이", "목걸이", "여성")
-            picked = "zigzag" if any(k in rec_corpus for k in womens_keywords) else "musinsa"
-        elif category == "뷰티":
-            mens_keywords = ("남성", "옴므", "맨즈", "쉐이빙")
-            picked = "musinsa" if any(k in rec_corpus for k in mens_keywords) else "zigzag"
-        selected_extra = [picked] if picked else []
-
-    for mall_key in selected_extra:
-        has_partner = bool(extra_links.get(mall_key))
+    for mall_key in registered_malls[:1]:
         base_label = MALL_META[mall_key]["label"]
         buttons.append(
             {
                 "mall": mall_key,
-                "label": f"{base_label} 최저가" if has_partner else base_label,
+                "label": f"{base_label} 최저가",
                 "css": MALL_META[mall_key]["css"],
-                "is_partner": has_partner,
+                "is_partner": True,
             }
         )
 
@@ -356,10 +327,11 @@ def log_event(event_type, product_id=None, product_name=None, search_query=None)
 
 
 def handle_click_redirect():
-    """외부 쇼핑몰 링크(?go=coupang|naver|musinsa|zigzag|ably&pid=...) 클릭 시 로그를 남기고 즉시 이동시킨다."""
+    """외부 쇼핑몰 링크(?go=mall&pid=...) 클릭 시 로그를 남기고 즉시 이동시킨다."""
     go_type = str(st.query_params.get("go", "")).strip()
     go_pid = str(st.query_params.get("pid", "")).strip()
-    if go_type not in {"coupang", "naver", "musinsa", "zigzag", "ably"} or not go_pid:
+    allowed_malls = {"coupang", "naver", *EXTRA_MALLS}
+    if go_type not in allowed_malls or not go_pid:
         return
 
     rows = []
@@ -377,6 +349,15 @@ def handle_click_redirect():
     query_name = quote(product_name)
     extra_links, _ = parse_extra_partner_links(product)
 
+    fallback_searches = {
+        "musinsa": f"https://www.musinsa.com/search/goods?keyword={query_name}",
+        "29cm": f"https://shop.29cm.co.kr/search?keyword={query_name}",
+        "oliveyoung": f"https://www.oliveyoung.co.kr/store/search/getSearchMain.do?query={query_name}",
+        "zigzag": f"https://zigzag.kr/search?keyword={query_name}",
+        "ably": f"https://m.a-bly.com/search?keyword={query_name}",
+        "aliexpress": f"https://ko.aliexpress.com/wholesale?SearchText={query_name}",
+    }
+
     if go_type == "coupang":
         affiliate = bool(
             product.get("affiliate_verified")
@@ -385,12 +366,8 @@ def handle_click_redirect():
         target_url = product["coupang_url"] if affiliate else f"https://www.coupang.com/np/search?q={query_name}"
     elif go_type == "naver":
         target_url = f"https://search.shopping.naver.com/search/all?query={query_name}"
-    elif go_type == "musinsa":
-        target_url = extra_links.get("musinsa") or f"https://www.musinsa.com/search/goods?keyword={query_name}"
-    elif go_type == "zigzag":
-        target_url = extra_links.get("zigzag") or f"https://zigzag.kr/search?keyword={query_name}"
     else:
-        target_url = extra_links.get("ably") or f"https://m.a-bly.com/search?keyword={query_name}"
+        target_url = extra_links.get(go_type) or fallback_searches[go_type]
 
     log_event(f"{go_type}_click", product_id=go_pid if product else None, product_name=product_name or None)
     safe_url = html.escape(target_url, quote=True)
@@ -783,12 +760,12 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   text-align:right;
 }
 
-/* 카드 타이포그래피 & 뱃지 (2줄 기준 최소 높이 통일로 버튼 가로 정렬) */
+/* 카드 타이포그래피 & 배지 (1줄 고정으로 제품제공까지 한 행 정렬) */
 .product-title{font-size:15.5px;font-weight:850;color:var(--ink);line-height:1.38;height:43px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.card-meta-row{display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;gap:4px;margin:7px 0 6px;min-height:46px}
-.badge{display:inline-flex;align-items:center;height:21px;color:#245FB5;background:#EDF4FF;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
-.purchase-dot{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
-.purchase-dot i{display:inline-block;width:5px;height:5px;border-radius:50%}
+.card-meta-row{display:flex;flex-wrap:nowrap;align-items:center;gap:3px;margin:7px 0 6px;min-height:22px;overflow:hidden}
+.badge{display:inline-flex;align-items:center;height:20px;color:#245FB5;background:#EDF4FF;padding:0 5.5px;border-radius:5px;font-size:10px;font-weight:750;white-space:nowrap;letter-spacing:-.03em;flex-shrink:0}
+.purchase-dot{display:inline-flex;align-items:center;gap:3px;height:20px;padding:0 5.5px;border-radius:5px;font-size:10px;font-weight:750;white-space:nowrap;letter-spacing:-.03em;flex-shrink:0}
+.purchase-dot i{display:inline-block;width:4.5px;height:4.5px;border-radius:50%;flex-shrink:0}
 .purchase-buy{color:#146C43;background:#EBF8F2}.purchase-buy i{background:#198754}
 .purchase-provided{color:#8A5A00;background:#FFF7E0}.purchase-provided i{background:#E09F00}
 .purchase-ad,.purchase-unknown{color:#B42318;background:#FFF0F0}.purchase-ad i,.purchase-unknown i{background:#E5484D}
@@ -845,6 +822,16 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   border:1px solid #111111!important;
   color:#FFFFFF!important;
 }
+.shop-btn-29cm{
+  background:#1E242D!important;
+  border:1px solid #1E242D!important;
+  color:#FFFFFF!important;
+}
+.shop-btn-oliveyoung{
+  background:#76B000!important;
+  border:1px solid #76B000!important;
+  color:#FFFFFF!important;
+}
 .shop-btn-zigzag{
   background:#E847AE!important;
   border:1px solid #E847AE!important;
@@ -853,6 +840,11 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .shop-btn-ably{
   background:#FF5160!important;
   border:1px solid #FF5160!important;
+  color:#FFFFFF!important;
+}
+.shop-btn-aliexpress{
+  background:#FF4747!important;
+  border:1px solid #FF4747!important;
   color:#FFFFFF!important;
 }
 
@@ -1007,7 +999,6 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   }
   .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:12px 12px 18px!important}
   .st-key-product_grid .product-title{height:auto!important;min-height:0!important}
-  .st-key-product_grid .card-meta-row{min-height:0!important}
   .card-summary-wrap{height:auto!important;min-height:0!important}
   .st-key-pagination_bar [data-testid="stHorizontalBlock"]{gap:4px!important}
   .st-key-pagination_bar [data-testid="stColumn"],
@@ -1479,9 +1470,10 @@ def render_dashboard():
     if not click_logs_ready:
         st.info("Supabase에 click_logs 테이블을 생성하면 상품별 쇼핑몰 클릭 순위와 방문자 검색어 통계가 자동으로 집계됩니다.")
     else:
+        extra_events = {f"{m}_click" for m in EXTRA_MALLS}
         coupang_clicks = [x for x in click_logs if x.get("event_type") == "coupang_click"]
         naver_clicks = [x for x in click_logs if x.get("event_type") == "naver_click"]
-        fashion_clicks = [x for x in click_logs if x.get("event_type") in {"musinsa_click", "zigzag_click", "ably_click"}]
+        extra_clicks = [x for x in click_logs if x.get("event_type") in extra_events]
         search_logs = [x for x in click_logs if x.get("event_type") == "search" and x.get("search_query")]
 
         c_m1, c_m2, c_m3, c_m4 = st.columns(4)
@@ -1490,7 +1482,7 @@ def render_dashboard():
             [
                 ("쿠팡 클릭", len(coupang_clicks)),
                 ("네이버쇼핑 클릭", len(naver_clicks)),
-                ("패션·뷰티몰 클릭", len(fashion_clicks)),
+                ("제휴 특화몰 클릭", len(extra_clicks)),
                 ("방문자 검색", len(search_logs)),
             ],
         ):
@@ -1504,9 +1496,9 @@ def render_dashboard():
         click_counts = Counter()
         coupang_by_item = Counter()
         naver_by_item = Counter()
-        fashion_by_item = Counter()
+        extra_by_item = Counter()
         label_by_item = {}
-        for row in coupang_clicks + naver_clicks + fashion_clicks:
+        for row in coupang_clicks + naver_clicks + extra_clicks:
             key = row.get("product_id") or row.get("product_name") or "unknown"
             click_counts[key] += 1
             ev_type = row.get("event_type")
@@ -1515,7 +1507,7 @@ def render_dashboard():
             elif ev_type == "naver_click":
                 naver_by_item[key] += 1
             else:
-                fashion_by_item[key] += 1
+                extra_by_item[key] += 1
             p_info = product_lookup.get(row.get("product_id"))
             label_by_item[key] = (p_info or {}).get("canonical_name") or row.get("product_name") or "이름 없음"
 
@@ -1530,7 +1522,7 @@ def render_dashboard():
                     extra_links, _ = parse_extra_partner_links(p_info)
                     has_any_partner = bool(p_info.get("affiliate_verified") or any(extra_links.values()))
                     linked = "✅ 제휴연결" if has_any_partner else "미연결"
-                    extra_str = f" · 패션뷰티 {fashion_by_item[key]}" if fashion_by_item[key] else ""
+                    extra_str = f" · 특화몰 {extra_by_item[key]}" if extra_by_item[key] else ""
                     st.markdown(
                         f'<div class="status-row">'
                         f'<span>{safe(label_by_item.get(key))} <small style="color:#8B95A1">({linked})</small></span>'
@@ -1595,25 +1587,16 @@ def product_form(product, prefix, allow_hide=False):
             value=bool(product.get("affiliate_verified")),
             key=f"{prefix}_aff_{pid}",
         )
-        p1, p2, p3 = st.columns(3)
-        musinsa_url = p1.text_input(
-            "무신사 파트너 링크 (선택)",
-            value=extra_links.get("musinsa") or "",
-            placeholder="https://...",
-            key=f"{prefix}_ms_{pid}",
-        )
-        zigzag_url = p2.text_input(
-            "지그재그 파트너 링크 (선택)",
-            value=extra_links.get("zigzag") or "",
-            placeholder="https://...",
-            key=f"{prefix}_zz_{pid}",
-        )
-        ably_url = p3.text_input(
-            "에이블리 파트너 링크 (선택)",
-            value=extra_links.get("ably") or "",
-            placeholder="https://...",
-            key=f"{prefix}_ab_{pid}",
-        )
+        st.caption("추가 제휴 링크 (실제 수익 링크를 입력한 쇼핑몰만 카드의 3번째 버튼으로 표시됩니다)")
+        r1 = st.columns(3)
+        musinsa_url = r1[0].text_input("무신사 링크", value=extra_links.get("musinsa") or "", placeholder="https://...", key=f"{prefix}_ms_{pid}")
+        m29_url = r1[1].text_input("29CM 링크", value=extra_links.get("29cm") or "", placeholder="https://...", key=f"{prefix}_29_{pid}")
+        olive_url = r1[2].text_input("올리브영 링크", value=extra_links.get("oliveyoung") or "", placeholder="https://...", key=f"{prefix}_oy_{pid}")
+        r2 = st.columns(3)
+        zigzag_url = r2[0].text_input("지그재그 링크", value=extra_links.get("zigzag") or "", placeholder="https://...", key=f"{prefix}_zz_{pid}")
+        ably_url = r2[1].text_input("에이블리 링크", value=extra_links.get("ably") or "", placeholder="https://...", key=f"{prefix}_ab_{pid}")
+        ali_url = r2[2].text_input("알리익스프레스 링크", value=extra_links.get("aliexpress") or "", placeholder="https://...", key=f"{prefix}_al_{pid}")
+
         image_url = st.text_input("이미지 URL", value=product.get("image_url") or "", placeholder="https://...", key=f"{prefix}_img_{pid}")
         source = st.selectbox(
             "이미지 출처",
@@ -1634,17 +1617,22 @@ def product_form(product, prefix, allow_hide=False):
     if affiliate_verified and not coupang_url.strip().startswith("https://link.coupang.com/"):
         st.error("쿠팡 제휴 링크는 https://link.coupang.com/ 으로 시작해야 합니다.")
         return
-    for label, url_val in [("무신사", musinsa_url), ("지그재그", zigzag_url), ("에이블리", ably_url)]:
-        if url_val.strip() and not url_val.strip().startswith(("http://", "https://")):
-            st.error(f"{label} 파트너 링크는 http 또는 https 주소여야 합니다.")
+    extra_inputs = {
+        "musinsa": musinsa_url.strip(),
+        "29cm": m29_url.strip(),
+        "oliveyoung": olive_url.strip(),
+        "zigzag": zigzag_url.strip(),
+        "ably": ably_url.strip(),
+        "aliexpress": ali_url.strip(),
+    }
+    for mall_key, url_val in extra_inputs.items():
+        if url_val and not url_val.startswith(("http://", "https://")):
+            st.error(f"{MALL_META[mall_key]['label']} 파트너 링크는 http 또는 https 주소여야 합니다.")
             return
     if verified and not image_url.strip().startswith(("http://", "https://")):
         st.error("확인된 이미지는 http 또는 https URL이 필요합니다.")
         return
-    serialized_extra = serialize_extra_partner_links(
-        {"musinsa": musinsa_url.strip(), "zigzag": zigzag_url.strip(), "ably": ably_url.strip()},
-        memo=existing_memo,
-    )
+    serialized_extra = serialize_extra_partner_links(extra_inputs, memo=existing_memo)
     api_patch(
         "products",
         {
@@ -1731,7 +1719,7 @@ def render_manage():
     _, products, _, _, _, _ = load_admin_data()
     items = [p for p in products if p.get("review_status") in {"approved", "hidden"}]
     st.subheader("상품 관리")
-    st.caption("승인·숨김 상품을 검색해 쿠팡·무신사·지그재그·에이블리 파트너 링크와 상품 정보를 수정합니다.")
+    st.caption("승인·숨김 상품을 검색해 쿠팡 및 제휴 쇼핑몰 파트너 링크와 상품 정보를 수정합니다.")
     c1, c2 = st.columns([1.7, 1])
     keyword = c1.text_input("관리 상품 검색", placeholder="상품명·브랜드·모델 검색", label_visibility="collapsed", key="manage_search")
     status = c2.selectbox("관리 상태", ["전체", "공개", "숨김"], label_visibility="collapsed", key="manage_status")
