@@ -62,13 +62,55 @@ SEARCH_SYNONYMS = {
 }
 EXTRA_MALLS = ("naver", "oliveyoung", "musinsa", "29cm", "zigzag", "ably")
 MALL_META = {
-    "naver": {"label": "네이버쇼핑", "css": "shop-btn-naver"},
-    "coupang": {"label": "쿠팡 검색", "css": "shop-btn-coupang"},
-    "oliveyoung": {"label": "올리브영", "css": "shop-btn-oliveyoung"},
-    "musinsa": {"label": "무신사", "css": "shop-btn-musinsa"},
-    "29cm": {"label": "29CM", "css": "shop-btn-29cm"},
-    "zigzag": {"label": "지그재그", "css": "shop-btn-zigzag"},
-    "ably": {"label": "에이블리", "css": "shop-btn-ably"},
+    "naver": {
+        "label": "네이버쇼핑",
+        "short": "네이버쇼핑",
+        "css": "shop-btn-naver",
+        "badge_css": "mall-pill-naver",
+        "benefit": "네이버페이 포인트 적립 · 스마트스토어/백화점 가격비교",
+    },
+    "coupang": {
+        "label": "쿠팡 검색",
+        "short": "쿠팡",
+        "css": "shop-btn-coupang",
+        "badge_css": "mall-pill-coupang",
+        "benefit": "로켓배송 · 와우회원 무료배송 및 빠른 반품",
+    },
+    "oliveyoung": {
+        "label": "올리브영",
+        "short": "올리브영",
+        "css": "shop-btn-oliveyoung",
+        "badge_css": "mall-pill-oliveyoung",
+        "benefit": "오늘드림 당일배송 · 올리브영 공식 멤버십 혜택",
+    },
+    "musinsa": {
+        "label": "무신사",
+        "short": "무신사",
+        "css": "shop-btn-musinsa",
+        "badge_css": "mall-pill-musinsa",
+        "benefit": "무신사 전 상품 무료배송 · 회원 등급 할인",
+    },
+    "29cm": {
+        "label": "29CM",
+        "short": "29CM",
+        "css": "shop-btn-29cm",
+        "badge_css": "mall-pill-29cm",
+        "benefit": "감도 깊은 셀렉트샵 · 쿠폰 및 적립금 혜택",
+    },
+    "zigzag": {
+        "label": "지그재그",
+        "short": "지그재그",
+        "css": "shop-btn-zigzag",
+        "badge_css": "mall-pill-zigzag",
+        "benefit": "직진배송 빠른도착 · 스토어 통합 결제",
+    },
+    "ably": {
+        "label": "에이블리",
+        "short": "에이블리",
+        "css": "shop-btn-ably",
+        "badge_css": "mall-pill-ably",
+        "benefit": "전 상품 무료배송 · 앱 전용 할인 쿠폰",
+    },
 }
 AFFILIATE_DISCLOSURE = (
     "에디션 픽은 쿠팡 파트너스, 네이버 쇼핑 커넥트, 올리브영 쇼핑 큐레이터 등 "
@@ -272,8 +314,8 @@ def serialize_extra_partner_links(links, memo=""):
     return json.dumps(payload, ensure_ascii=False)
 
 
-def detect_product_malls(product):
-    """기본 버튼은 최소화(패션은 네이버 1개, 일반은 네이버+쿠팡 2개)하고 제휴 링크가 등록된 쇼핑몰만 추가 활성화한다."""
+def detect_product_malls(product, include_all_default=False):
+    """메인 목록은 기본 버튼을 최소화하고, 상세 페이지 가격비교표에서는 카테고리 대표몰까지 함께 보여준다."""
     extra_links, _ = parse_extra_partner_links(product)
     has_coupang_partner = bool(
         product.get("affiliate_verified")
@@ -291,7 +333,7 @@ def detect_product_malls(product):
         }
     ]
 
-    if category != "패션" or has_coupang_partner:
+    if include_all_default or category != "패션" or has_coupang_partner:
         buttons.append(
             {
                 "mall": "coupang",
@@ -301,8 +343,20 @@ def detect_product_malls(product):
             }
         )
 
-    for mall_key in ("oliveyoung", "musinsa", "29cm", "zigzag", "ably"):
-        if extra_links.get(mall_key):
+    if extra_links.get("oliveyoung") or (include_all_default and category == "뷰티"):
+        buttons.append(
+            {
+                "mall": "oliveyoung",
+                "label": MALL_META["oliveyoung"]["label"],
+                "css": MALL_META["oliveyoung"]["css"],
+                "is_partner": bool(extra_links.get("oliveyoung")),
+            }
+        )
+
+    fashion_malls = ("musinsa", "29cm", "zigzag", "ably")
+    registered_fashion = [m for m in fashion_malls if extra_links.get(m)]
+    if registered_fashion:
+        for mall_key in registered_fashion:
             buttons.append(
                 {
                     "mall": mall_key,
@@ -311,6 +365,15 @@ def detect_product_malls(product):
                     "is_partner": True,
                 }
             )
+    elif include_all_default and category == "패션":
+        buttons.append(
+            {
+                "mall": "musinsa",
+                "label": MALL_META["musinsa"]["label"],
+                "css": MALL_META["musinsa"]["css"],
+                "is_partner": False,
+            }
+        )
 
     return buttons
 
@@ -621,11 +684,11 @@ div[data-testid="stVerticalBlockBorderWrapper"]{border:1px solid #EAECEF!importa
 div[data-testid="stForm"]{border:1px solid #DCE7F7!important;background:#F8FAFD!important;border-radius:16px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드 & 카드 */
+/* 상품 그리드 & 카드 (불필요한 빈 여백 제거 · 촘촘한 밀도) */
 .st-key-product_grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important}
 .st-key-product_grid [data-testid="stHorizontalBlock"]{
   display:flex!important;
-  gap:16px!important;
+  gap:14px!important;
   align-items:stretch!important;
   width:100%!important;
   max-width:100%!important;
@@ -650,9 +713,9 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   border:1px solid #E5E9F0!important;
   background:#fff!important;
   border-radius:18px!important;
-  box-shadow:0 4px 18px rgba(15,23,42,.04)!important;
-  padding:14px 14px 16px!important;
-  margin-bottom:16px!important;
+  box-shadow:0 4px 16px rgba(15,23,42,.04)!important;
+  padding:12px 12px 13px!important;
+  margin-bottom:14px!important;
   transition:border-color .15s,box-shadow .15s!important;
 }
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]:hover{
@@ -660,8 +723,29 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   box-shadow:0 8px 24px rgba(49,130,246,.08)!important;
 }
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{
-  gap:8px!important;
+  gap:6px!important;
   padding-bottom:0!important;
+}
+
+/* 눈에 띄는 상세 비교 버튼 */
+.st-key-product_grid .stButton>button,
+.st-key-related_grid .stButton>button{
+  min-height:36px!important;
+  padding:4px 10px!important;
+  border-radius:9px!important;
+  background:#EDF4FF!important;
+  border:1px solid #C6DCFC!important;
+  color:#1B64DA!important;
+  font-size:12.5px!important;
+  font-weight:800!important;
+  letter-spacing:-.01em!important;
+  margin:0!important;
+}
+.st-key-product_grid .stButton>button:hover,
+.st-key-related_grid .stButton>button:hover{
+  background:#DCEBFF!important;
+  border-color:#3182F6!important;
+  color:#144FB8!important;
 }
 
 /* 썸네일 영역: 클릭 시 유튜브 바로 이동 */
@@ -723,34 +807,21 @@ a.video-thumbnail-wrap:hover .thumb-video-badge{
   overflow:hidden!important;
   box-sizing:border-box!important;
 }
-.product-placeholder span{font-size:38px}
+.product-placeholder span{font-size:36px}
 .product-placeholder small{font-size:12px;font-weight:800}
 
-/* 클릭 가능한 제품 정보 상자 (상세 비교 페이지 진입) */
-.product-box-link{
-  display:block;
-  text-decoration:none!important;
-  color:inherit!important;
-  border-radius:12px;
-  padding:4px 5px 6px;
-  margin:0 -5px;
-  transition:background-color .15s ease;
-  cursor:pointer;
+/* 카드 본문 정보 블록 (여백 최소화) */
+.card-info-block{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  padding:2px 1px 0;
 }
-.product-box-link:hover{
-  background:#F6F9FF;
-}
-.product-box-link:hover .product-title{
-  color:var(--brand);
-}
-
-/* 썸네일 하단 채널 출처 + 브랜드/카테고리 한 줄 바 */
 .card-source-bar{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:6px;
-  margin:4px 0 4px;
   min-width:0;
 }
 .source-chip{
@@ -781,33 +852,48 @@ a.video-thumbnail-wrap:hover .thumb-video-badge{
   text-align:right;
 }
 
-/* 카드 타이포그래피 & 뱃지 */
-.product-title{font-size:15.5px;font-weight:850;color:var(--ink);line-height:1.38;height:43px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;transition:color .15s}
-.card-meta-row{display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;gap:4px;margin:7px 0 6px;min-height:46px}
-.badge{display:inline-flex;align-items:center;height:21px;color:#245FB5;background:#EDF4FF;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
-.purchase-dot{display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
+/* 카드 타이포그래피 & 뱃지 (고정 여백 제거) */
+.product-title{
+  font-size:15px;
+  font-weight:850;
+  color:var(--ink);
+  line-height:1.35;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  word-break:keep-all;
+}
+.card-meta-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:4px;
+}
+.badge{display:inline-flex;align-items:center;height:20px;color:#245FB5;background:#EDF4FF;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
+.purchase-dot{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:750}
 .purchase-dot i{display:inline-block;width:5px;height:5px;border-radius:50%}
 .purchase-buy{color:#146C43;background:#EBF8F2}.purchase-buy i{background:#198754}
 .purchase-provided{color:#8A5A00;background:#FFF7E0}.purchase-provided i{background:#E09F00}
 .purchase-ad,.purchase-unknown{color:#B42318;background:#FFF0F0}.purchase-ad i,.purchase-unknown i{background:#E5484D}
 
 /* 장단점 요약 박스 */
-.card-summary-wrap{margin:0;display:flex;flex-direction:column;gap:5px;height:74px;justify-content:flex-start;overflow:hidden}
-.st-key-product_grid .summary-line{display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0!important;padding:7px 9px!important;border-radius:8px;font-size:12px!important;line-height:1.4!important;word-break:keep-all!important}
-.card-summary-wrap.has-two .summary-line{-webkit-line-clamp:1!important;padding:6px 9px!important}
+.card-summary-wrap{display:flex;flex-direction:column;gap:4px}
+.st-key-product_grid .summary-line{
+  display:-webkit-box!important;
+  -webkit-line-clamp:1;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  margin:0!important;
+  padding:5px 8px!important;
+  border-radius:7px;
+  font-size:11.5px!important;
+  line-height:1.38!important;
+  word-break:keep-all!important;
+}
 .summary-pro{background:#F0F9F4;color:#15653E}
 .summary-con{background:#FFF4F4;color:#A61B22}
 .summary-reason{background:#F5F7FA;color:#4E5968}
-.card-detail-hint{
-  margin-top:7px;
-  font-size:11.5px;
-  font-weight:800;
-  color:var(--brand);
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap:3px;
-}
 
 /* 쇼핑몰 고유 브랜드 컬러 버튼 */
 .shop-btn-grid{
@@ -815,20 +901,15 @@ a.video-thumbnail-wrap:hover .thumb-video-badge{
   grid-template-columns:repeat(2,minmax(0,1fr));
   gap:6px;
   width:100%;
-  margin-top:2px;
 }
-.shop-btn-grid.cols-1{
-  grid-template-columns:minmax(0,1fr);
-}
-.shop-btn-grid.cols-3{
-  grid-template-columns:repeat(3,minmax(0,1fr));
-}
+.shop-btn-grid.cols-1{grid-template-columns:minmax(0,1fr)}
+.shop-btn-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .shop-btn{
   display:inline-flex;
   align-items:center;
   justify-content:center;
   min-width:0;
-  min-height:38px;
+  min-height:36px;
   padding:4px 6px;
   border-radius:9px;
   font-size:12px;
@@ -838,9 +919,7 @@ a.video-thumbnail-wrap:hover .thumb-video-badge{
   letter-spacing:-.02em;
   transition:filter .15s;
 }
-.shop-btn:hover{
-  filter:brightness(0.92);
-}
+.shop-btn:hover{filter:brightness(0.92)}
 .shop-btn-naver{background:#03C75A!important;border:1px solid #03C75A!important;color:#FFFFFF!important}
 .shop-btn-coupang{background:#E61E2B!important;border:1px solid #E61E2B!important;color:#FFFFFF!important}
 .shop-btn-oliveyoung{background:#82BC00!important;border:1px solid #82BC00!important;color:#FFFFFF!important}
@@ -850,109 +929,229 @@ a.video-thumbnail-wrap:hover .thumb-video-badge{
 .shop-btn-ably{background:#FF5160!important;border:1px solid #FF5160!important;color:#FFFFFF!important}
 
 /* 상세 비교 페이지 전용 스타일 */
-.detail-breadcrumb{font-size:12px;font-weight:700;color:var(--muted);margin:2px 0 10px}
-.detail-hero-card{
-  background:#FFFFFF;
-  border:1px solid #E2E8F0;
-  border-radius:20px;
-  padding:20px;
-  margin-bottom:14px;
-  box-shadow:0 6px 24px rgba(15,23,42,.05);
-}
-.detail-brand-line{font-size:13px;font-weight:800;color:var(--brand);margin-bottom:4px}
-.detail-title{font-size:23px;font-weight:900;color:var(--ink);line-height:1.32;letter-spacing:-.02em;margin-bottom:10px;word-break:keep-all}
-.detail-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.detail-breadcrumb{font-size:12px;font-weight:700;color:var(--muted);margin:2px 0 8px}
+.detail-brand-line{font-size:13px;font-weight:800;color:var(--brand);margin-bottom:3px}
+.detail-title{font-size:22px;font-weight:900;color:var(--ink);line-height:1.3;letter-spacing:-.02em;margin-bottom:8px;word-break:keep-all}
+.detail-badges{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
 .trust-box{
   background:#F8FAFD;
   border:1px solid #E6ECF5;
-  border-radius:14px;
-  padding:12px 14px;
-  margin-bottom:14px;
+  border-radius:12px;
+  padding:10px 12px;
+  margin-bottom:10px;
 }
-.trust-box-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:800;color:var(--sub);margin-bottom:7px}
-.trust-bar{display:flex;height:8px;border-radius:999px;overflow:hidden;background:#E5E9F0;margin-bottom:7px}
+.trust-box-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:800;color:var(--sub);margin-bottom:6px}
+.trust-bar{display:flex;height:7px;border-radius:999px;overflow:hidden;background:#E5E9F0;margin-bottom:6px}
 .trust-seg-buy{background:#198754}
 .trust-seg-prov{background:#E09F00}
 .trust-seg-ad{background:#E5484D}
 .trust-seg-unk{background:#9AA5B4}
-.trust-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11.5px;font-weight:700;color:var(--sub)}
-.detail-cta-note{margin-top:8px;font-size:11px;color:var(--muted);line-height:1.45;word-break:keep-all}
+.trust-legend{display:flex;flex-wrap:wrap;gap:9px;font-size:11.5px;font-weight:700;color:var(--sub)}
+
+/* 다나와 스타일 쇼핑몰별 가격비교표 */
+.danawa-box{
+  border:1px solid #DCE5F2;
+  border-radius:14px;
+  background:#FFFFFF;
+  overflow:hidden;
+}
+.danawa-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:9px 13px;
+  background:#F4F8FF;
+  border-bottom:1px solid #E2EBF8;
+  font-size:12.5px;
+  font-weight:850;
+  color:var(--ink);
+}
+.danawa-head span:last-child{font-size:11px;font-weight:650;color:var(--muted)}
+.danawa-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 13px;
+  border-bottom:1px solid #F0F3F7;
+}
+.danawa-row:last-child{border-bottom:0}
+.danawa-row:hover{background:#FAFBFD}
+.danawa-mall-info{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
+.mall-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:74px;
+  height:26px;
+  padding:0 9px;
+  border-radius:7px;
+  font-size:11.5px;
+  font-weight:850;
+  color:#FFFFFF;
+  flex-shrink:0;
+}
+.mall-pill-naver{background:#03C75A}
+.mall-pill-coupang{background:#E61E2B}
+.mall-pill-oliveyoung{background:#82BC00}
+.mall-pill-musinsa{background:#111111}
+.mall-pill-29cm{background:#22252A}
+.mall-pill-zigzag{background:#E847AE}
+.mall-pill-ably{background:#FF5160}
+.danawa-desc-wrap{min-width:0;display:flex;flex-direction:column;gap:2px}
+.danawa-tag-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.danawa-status-tag{font-size:11.5px;font-weight:800;color:var(--ink)}
+.danawa-partner-badge{font-size:10px;font-weight:800;color:#1B64DA;background:#EAF3FF;padding:1px 6px;border-radius:999px}
+.danawa-benefit{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.danawa-go-btn{
+  flex-shrink:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height:33px;
+  padding:0 12px;
+  border-radius:8px;
+  background:#191F28;
+  color:#FFFFFF!important;
+  font-size:12px;
+  font-weight:800;
+  text-decoration:none!important;
+  transition:background-color .15s;
+}
+.danawa-go-btn:hover{background:var(--brand)}
+.detail-cta-note{margin-top:7px;font-size:11px;color:var(--muted);line-height:1.45;word-break:keep-all}
 
 .detail-section{
   background:#FFFFFF;
   border:1px solid #E5E9F0;
   border-radius:18px;
-  padding:18px;
-  margin-bottom:14px;
+  padding:16px 18px;
+  margin-bottom:12px;
   box-shadow:0 4px 16px rgba(15,23,42,.03);
 }
-.detail-section-title{font-size:16px;font-weight:850;color:var(--ink);margin:0 0 12px;display:flex;align-items:center;justify-content:space-between}
+.detail-section-title{font-size:16px;font-weight:850;color:var(--ink);margin:0 0 11px;display:flex;align-items:center;justify-content:space-between}
 .detail-section-sub{font-size:12px;font-weight:650;color:var(--muted)}
 
-.recommend-fit-list{display:flex;flex-direction:column;gap:7px}
-.recommend-fit-item{background:#F3F8FF;border:1px solid #DCEBFE;color:#1B4D9B;padding:10px 12px;border-radius:11px;font-size:13px;font-weight:700;line-height:1.45;word-break:keep-all}
+.recommend-fit-list{display:flex;flex-direction:column;gap:6px}
+.recommend-fit-item{background:#F3F8FF;border:1px solid #DCEBFE;color:#1B4D9B;padding:9px 12px;border-radius:10px;font-size:13px;font-weight:700;line-height:1.45;word-break:keep-all}
 
-.pros-cons-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.pc-col{border-radius:14px;padding:14px}
+.pros-cons-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pc-col{border-radius:13px;padding:13px}
 .pc-col-pro{background:#F2FBF6;border:1px solid #D3EFE0}
 .pc-col-con{background:#FFF5F5;border:1px solid #FAD7D7}
-.pc-col-title{font-size:13.5px;font-weight:850;margin-bottom:9px}
+.pc-col-title{font-size:13.5px;font-weight:850;margin-bottom:8px}
 .pc-col-pro .pc-col-title{color:#146C43}
 .pc-col-con .pc-col-title{color:#B42318}
-.pc-item{font-size:12.5px;line-height:1.45;padding:6px 0;border-bottom:1px dashed rgba(15,23,42,.08);word-break:keep-all}
+.pc-item{font-size:12.5px;line-height:1.45;padding:5px 0;border-bottom:1px dashed rgba(15,23,42,.08);word-break:keep-all}
 .pc-item:last-child{border-bottom:0;padding-bottom:0}
 .pc-count{display:inline-block;margin-left:5px;padding:1px 6px;border-radius:999px;font-size:10.5px;font-weight:800;background:rgba(255,255,255,.85)}
 
+/* 유튜버별 한눈에 비교 매트릭스 테이블 */
+.matrix-scroll{width:100%;overflow-x:auto;border:1px solid #E6ECF4;border-radius:12px}
+.creator-matrix{width:100%;border-collapse:collapse;font-size:12.5px;min-width:620px}
+.creator-matrix th{
+  background:#F6F8FC;
+  color:var(--sub);
+  font-weight:800;
+  text-align:left;
+  padding:9px 11px;
+  border-bottom:1px solid #E5E9F0;
+  white-space:nowrap;
+}
+.creator-matrix td{
+  padding:9px 11px;
+  border-bottom:1px solid #F0F3F8;
+  vertical-align:top;
+  line-height:1.45;
+  color:var(--ink);
+  word-break:keep-all;
+}
+.creator-matrix tr:last-child td{border-bottom:0}
+
+/* 썸네일이 포함된 유튜버·영상별 상세 리뷰 카드 */
 .creator-review-card{
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
   border:1px solid #E7ECF3;
   background:#FAFBFD;
   border-radius:14px;
-  padding:14px;
+  padding:13px;
   margin-bottom:10px;
 }
 .creator-review-card:last-child{margin-bottom:0}
-.creator-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+.creator-thumb-link{
+  position:relative;
+  flex-shrink:0;
+  width:210px;
+  aspect-ratio:16 / 9;
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid rgba(15,23,42,.08);
+  background:#E9EDF3;
+  display:block;
+  text-decoration:none!important;
+}
+.creator-thumb-img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+  transition:transform .2s ease;
+}
+.creator-thumb-link:hover .creator-thumb-img{transform:scale(1.04)}
+.creator-thumb-play{
+  position:absolute;
+  right:6px;
+  bottom:6px;
+  padding:3px 8px;
+  border-radius:999px;
+  background:rgba(17,19,24,.8);
+  color:#FFFFFF!important;
+  font-size:10.5px;
+  font-weight:800;
+}
+.creator-thumb-link:hover .creator-thumb-play{background:#FF0033}
+.creator-review-body{flex:1;min-width:0}
+.creator-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;flex-wrap:wrap}
 .creator-name-wrap{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 .creator-name{font-size:14.5px;font-weight:850;color:var(--ink)}
 .creator-stat{font-size:11.5px;font-weight:700;color:var(--muted)}
 .creator-video-btn{
   display:inline-flex;align-items:center;gap:4px;
-  padding:5px 11px;border-radius:999px;
+  padding:4px 10px;border-radius:999px;
   background:#191F28;color:#FFFFFF!important;
-  font-size:11.5px;font-weight:800;text-decoration:none!important;
+  font-size:11px;font-weight:800;text-decoration:none!important;
 }
 .creator-video-btn:hover{background:#FF0033}
-.creator-video-title{font-size:12.5px;font-weight:700;color:var(--sub);margin-bottom:8px;line-height:1.4}
-.creator-reason{font-size:13px;font-weight:750;color:var(--ink);margin-bottom:7px;line-height:1.45;word-break:keep-all}
+.creator-video-title{font-size:12.5px;font-weight:700;color:var(--sub);margin-bottom:6px;line-height:1.4}
+.creator-reason{font-size:13px;font-weight:750;color:var(--ink);margin-bottom:6px;line-height:1.45;word-break:keep-all}
 .creator-evidence{
   background:#FFFFFF;
   border-left:3px solid var(--brand);
-  padding:8px 11px;
-  border-radius:0 9px 9px 0;
-  font-size:12.5px;
+  padding:7px 10px;
+  border-radius:0 8px 8px 0;
+  font-size:12px;
   color:#333D4B;
-  line-height:1.5;
-  margin-bottom:8px;
+  line-height:1.45;
+  margin-bottom:7px;
   word-break:keep-all;
 }
 .creator-tags{display:flex;flex-wrap:wrap;gap:5px}
-.ctag-pro{background:#EBF8F2;color:#146C43;padding:3px 8px;border-radius:7px;font-size:11.5px;font-weight:750}
-.ctag-con{background:#FFF0F0;color:#B42318;padding:3px 8px;border-radius:7px;font-size:11.5px;font-weight:750}
+.ctag-pro{background:#EBF8F2;color:#146C43;padding:3px 8px;border-radius:7px;font-size:11px;font-weight:750}
+.ctag-con{background:#FFF0F0;color:#B42318;padding:3px 8px;border-radius:7px;font-size:11px;font-weight:750}
 
-.related-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.related-card{
-  display:block;
-  text-decoration:none!important;
-  background:#FAFBFD;
-  border:1px solid #E5E9F0;
-  border-radius:13px;
-  padding:12px;
-  transition:border-color .15s,background-color .15s;
+/* 하단 같은 카테고리 연관 상품 그리드 */
+.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"]{
+  padding:11px!important;
+  border-radius:14px!important;
+  margin-bottom:8px!important;
 }
-.related-card:hover{border-color:var(--brand);background:#F4F8FF}
-.related-brand{font-size:11px;font-weight:750;color:var(--muted);margin-bottom:3px}
-.related-name{font-size:13.5px;font-weight:850;color:var(--ink);line-height:1.35;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.related-meta{font-size:11.5px;font-weight:750;color:var(--brand)}
+.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{
+  gap:6px!important;
+}
+.related-brand{font-size:11px;font-weight:750;color:var(--muted)}
+.related-name{font-size:13.5px;font-weight:850;color:var(--ink);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all}
 
 /* 페이지네이션 번호 바 */
 .st-key-pagination_bar{margin:10px 0 4px!important}
@@ -1069,15 +1268,18 @@ a.video-thumbnail-wrap:hover .thumb-video-badge{
     width:100%!important;
     min-width:0!important;
   }
-  .st-key-product_grid > div > [data-testid="stHorizontalBlock"]{
+  .st-key-product_grid > div > [data-testid="stHorizontalBlock"],
+  .st-key-related_grid > div > [data-testid="stHorizontalBlock"]{
     display:grid!important;
     grid-template-columns:minmax(0,1fr)!important;
-    gap:12px!important;
+    gap:10px!important;
     width:100%!important;
     margin:0!important;
   }
   .st-key-product_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
-  .st-key-product_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]{
+  .st-key-product_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="column"],
+  .st-key-related_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+  .st-key-related_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]{
     width:100%!important;
     min-width:0!important;
     max-width:100%!important;
@@ -1085,13 +1287,11 @@ a.video-thumbnail-wrap:hover .thumb-video-badge{
     margin:0!important;
     padding:0!important;
   }
-  .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:12px 12px 15px!important}
-  .st-key-product_grid .product-title{height:auto!important;min-height:0!important}
-  .st-key-product_grid .card-meta-row{min-height:0!important}
-  .card-summary-wrap{height:auto!important;min-height:0!important}
   .pros-cons-grid{grid-template-columns:minmax(0,1fr)!important}
-  .related-grid{grid-template-columns:minmax(0,1fr)!important}
   .detail-title{font-size:19px}
+  .creator-review-card{flex-direction:column;gap:10px}
+  .creator-thumb-link{width:100%}
+  .danawa-benefit{white-space:normal}
   .st-key-pagination_bar [data-testid="stHorizontalBlock"]{gap:4px!important}
   .st-key-pagination_bar [data-testid="stColumn"],
   .st-key-pagination_bar [data-testid="column"]{min-width:34px!important}
@@ -1108,6 +1308,14 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 if "page" not in st.session_state:
     st.session_state.page = "home"
+if "detail_pid" not in st.session_state:
+    st.session_state.detail_pid = ""
+
+view_param = str(st.query_params.get("view", "")).strip()
+pid_param = str(st.query_params.get("pid", "")).strip()
+if view_param == "detail" and pid_param and not st.session_state.detail_pid:
+    st.session_state.page = "home"
+    st.session_state.detail_pid = pid_param
 
 should_scroll_top = bool(st.session_state.pop("scroll_to_top", False))
 scroll_js = (
@@ -1180,6 +1388,7 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
     for column, key, label in zip(nav, ["home", "dashboard", "review", "manage"], ["에디션 홈", "운영 통계", "상품 검수", "상품 관리"]):
         if column.button(label, type="primary" if st.session_state.page == key else "secondary", use_container_width=True):
             st.query_params.clear()
+            st.session_state.detail_pid = ""
             st.session_state.page = key
             st.rerun()
 
@@ -1233,7 +1442,7 @@ def get_representative_rec(product):
 
 
 def render_product_visual(product, representative=None):
-    """1순위: 관리자 검증 이미지 -> 2순위: 단품 리뷰 영상 썸네일 -> 3순위: 최고 조회수 영상 썸네일 (영상 연결 시 클릭하면 유튜브로 이동)."""
+    """1순위: 관리자 검증 이미지 -> 2순위: 단품 리뷰 영상 썸네일 -> 3순위: 최고 조회수 영상 썸네일 (클릭 시 유튜브 바로 이동)."""
     if representative is None:
         representative = get_representative_rec(product)
     video_id = safe((representative or {}).get("video_id") or "")
@@ -1301,7 +1510,7 @@ def recommendation_summary(recommendations):
         "cons": [text for text, _ in cons.most_common(3)],
         "all_pros": pros.most_common(12),
         "all_cons": cons.most_common(12),
-        "reasons": reasons[:5],
+        "reasons": reasons[:6],
     }
 
 
@@ -1335,9 +1544,52 @@ def render_mall_buttons(product):
     st.markdown(f'<div class="{grid_cls}">{btn_html}</div>', unsafe_allow_html=True)
 
 
+def render_danawa_price_table(product):
+    """상세 페이지용 다나와 스타일 쇼핑몰별 최저가 비교 리스트."""
+    pid = safe(product.get("product_id"))
+    malls = detect_product_malls(product, include_all_default=True)
+    rows_html = []
+    for item in malls:
+        mall_key = item["mall"]
+        meta = MALL_META[mall_key]
+        status_label = "공식 제휴 최저가 링크" if item["is_partner"] else "쇼핑몰 실시간 최저가 검색"
+        partner_tag = '<span class="danawa-partner-badge">제휴연결</span>' if item["is_partner"] else ""
+        btn_label = "최저가 보러가기 →" if item["is_partner"] else "가격 비교하기 →"
+        rows_html.append(
+            '<div class="danawa-row">'
+            '<div class="danawa-mall-info">'
+            f'<span class="mall-pill {safe(meta["badge_css"])}">{safe(meta["short"])}</span>'
+            '<div class="danawa-desc-wrap">'
+            f'<div class="danawa-tag-row"><span class="danawa-status-tag">{status_label}</span>{partner_tag}</div>'
+            f'<div class="danawa-benefit">{safe(meta["benefit"])}</div>'
+            '</div>'
+            '</div>'
+            f'<a class="danawa-go-btn" href="?go={safe(mall_key)}&pid={pid}" target="_blank" rel="noopener noreferrer">{btn_label}</a>'
+            '</div>'
+        )
+    st.markdown(
+        '<div class="danawa-box">'
+        '<div class="danawa-head"><span>쇼핑몰별 최저가 비교</span><span>클릭 시 공식몰·검색 페이지 이동</span></div>'
+        f'{"".join(rows_html)}'
+        '</div>'
+        f'<div class="detail-cta-note">{safe(AFFILIATE_DISCLOSURE)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def open_product_detail(product_id):
+    pid_str = str(product_id).strip()
+    st.session_state.page = "home"
+    st.session_state.detail_pid = pid_str
+    st.session_state.scroll_to_top = True
+    st.query_params["view"] = "detail"
+    st.query_params["pid"] = pid_str
+    st.rerun()
+
+
 def render_product_card(product):
     recs = product["recommendations"]
-    pid = safe(product.get("product_id"))
+    pid = str(product.get("product_id"))
     representative = get_representative_rec(product)
     channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
     rep_channel = ((representative or {}).get("channel") or {}).get("channel_name") or (
@@ -1363,13 +1615,10 @@ def render_product_card(product):
             summary_blocks.append(f'<div class="summary-line summary-con">👎 {safe(con_line)}</div>')
         if not summary_blocks and fallback_reason:
             summary_blocks.append(f'<div class="summary-line summary-reason">💡 {safe(fallback_reason)}</div>')
-        summary_html = ""
-        if summary_blocks:
-            wrap_cls = "card-summary-wrap has-two" if len(summary_blocks) >= 2 else "card-summary-wrap"
-            summary_html = f'<div class="{wrap_cls}">{"".join(summary_blocks)}</div>'
+        summary_html = f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>' if summary_blocks else ""
 
         st.markdown(
-            f'<a class="product-box-link" href="?view=detail&pid={pid}" target="_self">'
+            '<div class="card-info-block">'
             '<div class="card-source-bar">'
             f'<span class="source-chip"><b>▶</b> {safe(source_label)}</span>'
             f'<span class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
@@ -1382,10 +1631,12 @@ def render_product_card(product):
             f'{purchase_html}'
             '</div>'
             f'{summary_html}'
-            '<div class="card-detail-hint">상세 비교 · 리뷰 근거 보기 →</div>'
-            '</a>',
+            '</div>',
             unsafe_allow_html=True,
         )
+
+        if st.button(f"🔍 상세 비교 · 리뷰 {len(recs)}개 분석 →", key=f"open_detail_{pid}", use_container_width=True):
+            open_product_detail(pid)
 
         render_mall_buttons(product)
 
@@ -1395,6 +1646,7 @@ def render_product_detail(pid):
     product = next((p for p in products if str(p.get("product_id")) == pid), None)
 
     if st.button("← 전체 목록으로", key="detail_back_btn", type="secondary"):
+        st.session_state.detail_pid = ""
         st.query_params.clear()
         st.session_state.scroll_to_top = True
         st.rerun()
@@ -1420,7 +1672,7 @@ def render_product_detail(pid):
     )
 
     with st.container(border=True):
-        left_col, right_col = st.columns([1.05, 1.25], gap="large")
+        left_col, right_col = st.columns([1.0, 1.35], gap="large")
         with left_col:
             render_product_visual(product, representative=representative)
             if representative and representative.get("video_id"):
@@ -1473,8 +1725,7 @@ def render_product_detail(pid):
                 unsafe_allow_html=True,
             )
 
-            render_mall_buttons(product)
-            st.markdown(f'<div class="detail-cta-note">{safe(AFFILIATE_DISCLOSURE)}</div>', unsafe_allow_html=True)
+            render_danawa_price_table(product)
 
     if summary["reasons"]:
         fit_html = "".join(
@@ -1517,6 +1768,38 @@ def render_product_detail(pid):
             unsafe_allow_html=True,
         )
 
+    if recs:
+        matrix_rows = []
+        for rec in recs:
+            ch_name = safe((rec.get("channel") or {}).get("channel_name") or "알 수 없는 채널")
+            p_type = str(rec.get("purchase_type") or "확인되지 않음").strip()
+            p_badge = render_purchase_badges({p_type: 1}) or '<span class="purchase-dot purchase-unknown"><i></i>표기 미확인</span>'
+            r_txt = re.sub(r"\s+", " ", str(rec.get("reason") or "").strip())
+            reason_cell = safe(r_txt) if is_meaningful_point(r_txt) else "-"
+            p_points = [re.sub(r"\s+", " ", str(x).strip()) for x in (rec.get("pros") or []) if is_meaningful_point(x)]
+            c_points = [re.sub(r"\s+", " ", str(x).strip()) for x in (rec.get("cons") or []) if is_meaningful_point(x)]
+            point_lines = []
+            if p_points:
+                point_lines.append(f"👍 {safe(' · '.join(p_points[:2]))}")
+            if c_points:
+                point_lines.append(f"👎 {safe(' · '.join(c_points[:2]))}")
+            points_cell = "<br>".join(point_lines) if point_lines else "-"
+            matrix_rows.append(
+                f"<tr><td><b>{ch_name}</b></td><td>{p_badge}</td><td>{reason_cell}</td><td>{points_cell}</td></tr>"
+            )
+        st.markdown(
+            '<div class="detail-section">'
+            '<div class="detail-section-title"><span>유튜버별 평가 한눈에 대조</span><span class="detail-section-sub">구매 방식 · 추천 포인트 · 장단점 비교</span></div>'
+            '<div class="matrix-scroll">'
+            '<table class="creator-matrix">'
+            '<thead><tr><th>유튜버 채널</th><th>구매 방식</th><th>선정 이유 · 추천 대상</th><th>핵심 장단점 포인트</th></tr></thead>'
+            f'<tbody>{"".join(matrix_rows)}</tbody>'
+            '</table>'
+            '</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
     review_cards_html = []
     for rec in recs:
         channel = rec.get("channel") or {}
@@ -1535,6 +1818,17 @@ def render_product_detail(pid):
         p_badge = render_purchase_badges({p_type: 1})
 
         v_id = safe(rec.get("video_id") or "")
+        thumb_html = ""
+        if v_id:
+            hd_url = f"https://i.ytimg.com/vi/{v_id}/maxresdefault.jpg"
+            fb_url = f"https://i.ytimg.com/vi/{v_id}/hqdefault.jpg"
+            thumb_html = (
+                f'<a class="creator-thumb-link" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer" title="유튜브 영상 재생">'
+                f'<img class="creator-thumb-img" src="{hd_url}" onerror="this.onerror=null;this.src=\'{fb_url}\';" alt="리뷰 영상 썸네일">'
+                '<span class="creator-thumb-play">▶ 재생</span>'
+                '</a>'
+            )
+
         v_btn = (
             f'<a class="creator-video-btn" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer">▶ 이 영상 보기 ↗</a>'
             if v_id else ""
@@ -1559,6 +1853,8 @@ def render_product_detail(pid):
 
         review_cards_html.append(
             '<div class="creator-review-card">'
+            f'{thumb_html}'
+            '<div class="creator-review-body">'
             '<div class="creator-head">'
             f'<div class="creator-name-wrap"><span class="creator-name">{ch_name}</span>{stat_html}{p_badge}</div>'
             f'{v_btn}'
@@ -1567,6 +1863,7 @@ def render_product_detail(pid):
             f'{reason_html}'
             f'{ev_html}'
             f'{tags_html}'
+            '</div>'
             '</div>'
         )
 
@@ -1583,25 +1880,23 @@ def render_product_detail(pid):
         if (p.get("category") or "기타") == category and str(p.get("product_id")) != pid
     ][:3]
     if related:
-        rel_cards = []
-        for rp in related:
-            r_pid = safe(rp.get("product_id"))
-            r_recs = rp.get("recommendations") or []
-            r_ch_cnt = len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
-            rel_cards.append(
-                f'<a class="related-card" href="?view=detail&pid={r_pid}" target="_self">'
-                f'<div class="related-brand">{safe(rp.get("brand"))}</div>'
-                f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>'
-                f'<div class="related-meta">유튜버 {r_ch_cnt}명 추천 · 상세 비교 →</div>'
-                '</a>'
-            )
-        st.markdown(
-            '<div class="detail-section">'
-            f'<div class="detail-section-title"><span>같은 카테고리({safe(category)}) 인기 추천템</span><span class="detail-section-sub">함께 비교해 보세요</span></div>'
-            f'<div class="related-grid">{"".join(rel_cards)}</div>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"#### 같은 카테고리({safe(category)}) 인기 추천템")
+        with st.container(key="related_grid"):
+            r_cols = st.columns(3, gap="medium")
+            for col, rp in zip(r_cols, related):
+                r_pid = str(rp.get("product_id"))
+                r_recs = rp.get("recommendations") or []
+                r_ch_cnt = len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
+                with col:
+                    with st.container(border=True):
+                        render_product_visual(rp)
+                        st.markdown(
+                            f'<div class="related-brand">{safe(rp.get("brand"))} · 유튜버 {r_ch_cnt}명 추천</div>'
+                            f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>',
+                            unsafe_allow_html=True,
+                        )
+                        if st.button("상세 비교 보기 →", key=f"rel_detail_{r_pid}", use_container_width=True):
+                            open_product_detail(r_pid)
 
     st.markdown(
         '<div class="site-footer">'
@@ -1673,7 +1968,7 @@ def render_home():
     shown = [item[1] for item in scored_items]
 
     st.markdown(
-        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>제품 상자 클릭 시 상세 비교</span></div>',
+        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>썸네일 클릭 시 영상 · 상세 비교 클릭 시 분석</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -2041,10 +2336,9 @@ def render_manage():
 
 
 try:
-    view_param = str(st.query_params.get("view", "")).strip()
-    pid_param = str(st.query_params.get("pid", "")).strip()
-    if st.session_state.page == "home" and view_param == "detail" and pid_param:
-        render_product_detail(pid_param)
+    active_detail_pid = str(st.session_state.get("detail_pid") or "").strip()
+    if st.session_state.page == "home" and active_detail_pid:
+        render_product_detail(active_detail_pid)
     elif st.session_state.page == "home":
         render_home()
     elif st.session_state.page == "dashboard":
