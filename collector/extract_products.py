@@ -2,708 +2,617 @@ import json
 import os
 import re
 import time
-import uuid
+from datetime import datetime, timezone
 
 import requests
 
-from collector.config import OPENROUTER_API_KEY
-from collector.database import select, upsert, update
-from collector.youtube_api import get_creator_comments
+try:
+    from youtube_transcript_api import YouTubeTranscriptApi
+except Exception:
+    YouTubeTranscriptApi = None
 
-TOTAL_FETCH_LIMIT = 35
-BATCH_SIZE = 5
-MIN_CONFIDENCE = 0.70
-MAX_ATTEMPTS = 2
-GEMINI_MIN_INTERVAL_SEC = 13.0
 
-GENERIC_TERMS = {
-    "사레레밴드", "운동밴드", "저항밴드", "고무밴드", "문틀철봉", "철봉",
-    "수평계", "요가매트", "덤벨", "폼롤러", "운동기구", "로봇청소기",
-    "무선청소기", "청소기", "음식물처리기", "공기청정기", "가습기",
-    "제습기", "선풍기", "전기매트", "생활용품", "살림용품", "무선이어폰",
-    "이어폰", "헤드폰", "스피커", "보조배터리", "충전기", "케이블",
-    "노트북", "태블릿", "모니터", "키보드", "마우스", "카메라", "마이크",
-    "화장품", "스킨케어", "쿠션", "파운데이션", "컨실러", "틴트", "립",
-    "선크림", "크림", "세럼", "토너", "향수", "드라이기", "고데기",
-    "주방용품", "조리도구", "프라이팬", "냄비", "에어프라이어", "커피머신",
-    "믹서기", "정수기", "식기세척기", "운동화", "신발", "가방", "캐리어",
-    "패딩", "경량패딩", "자켓", "코트", "니트", "맨투맨", "후드티",
-    "셔츠", "바지", "슬랙스", "청바지", "데님", "치마", "스커트",
-    "원피스", "양말", "모자", "벨트", "안경", "선글라스", "아우터", "상의", "하의",
-    "캠핑용품", "차량용품", "육아용품", "강아지용품", "고양이용품",
-    "추천템", "필수템", "꿀템", "아이템", "제품", "상품",
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "").strip()
+BATCH_SIZE = int(os.getenv("EXTRACT_BATCH_SIZE", "25"))
+AUTO_APPROVE_SCORE = int(os.getenv("AUTO_APPROVE_SCORE", "75"))
+
+CATEGORIES = [
+    "IT·전자",
+    "뷰티",
+    "패션",
+    "생활·살림",
+    "주방",
+    "여행",
+    "자동차",
+    "운동·건강",
+    "육아",
+    "반려동물",
+    "기타",
+]
+
+VALID_PURCHASE_TYPES = {
+    "직접 구매",
+    "제품 제공",
+    "유료 광고",
+    "확인되지 않음",
 }
-UNKNOWN_MODELS = {"", "확인되지않음", "미확인", "unknown", "없음", "미상"}
-COMPOSITE_MARKERS = ("+", "/", "&", " 외 ", " 등 ")
+
 INVALID_POINT_PATTERNS = (
-    "원문에", "명시됨", "후기는 없음", "후기 없음", "언급 없음",
-    "정보가 없음", "정보 없음", "정보 부족", "확인되지 않", "알 수 없",
-    "단점 없음", "장점 없음", "가격 정보", "가격 미공개", "가격이 공개", "가격 알 수",
+    "원문에",
+    "명시됨",
+    "명시되어",
+    "후기는 없음",
+    "후기 없음",
+    "언급 없음",
+    "언급이 없음",
+    "언급되지",
+    "정보가 없음",
+    "정보 없음",
+    "확인되지 않",
+    "알 수 없",
+    "단점 없음",
+    "단점은 없음",
+    "장점 없음",
+    "장점은 없음",
+    "해당 없음",
+    "특이사항 없음",
+    "별도 언급",
 )
 
-STANDARD_CATEGORIES = {
-    "IT·전자", "뷰티", "패션", "생활·살림", "주방", "여행",
-    "자동차", "운동·건강", "육아", "반려동물", "기타",
-}
-CATEGORY_ALIASES = {
-    "it": "IT·전자", "it전자": "IT·전자", "전자": "IT·전자",
-    "전자기기": "IT·전자", "디지털": "IT·전자",
-    "기타뷰티": "뷰티", "뷰티기타": "뷰티", "화장품": "뷰티",
-    "코스메틱": "뷰티", "beauty": "뷰티",
-    "의류": "패션", "잡화": "패션", "코디": "패션", "fashion": "패션",
-    "주방생활살림": "생활·살림", "생활살림주방": "생활·살림",
-    "가전": "생활·살림", "생활가전": "생활·살림", "살림": "생활·살림",
-    "생활": "생활·살림", "주방가전": "주방", "조리": "주방",
-    "스포츠": "운동·건강", "헬스": "운동·건강", "운동": "운동·건강",
-    "펫": "반려동물", "반려견": "반려동물", "반려묘": "반려동물",
-    "아동": "육아", "유아": "육아", "차량": "자동차",
-}
-BRAND_ALIASES = {
-    "dyson": "다이슨", "shark": "샤크", "logitech": "로지텍",
-    "samsung": "삼성", "apple": "애플", "anker": "앤커",
-    "ugreen": "유그린", "lg electronics": "lg", "lge": "lg",
-    "xiaomi": "샤오미", "sony": "소니", "bose": "보스",
-    "uniqlo": "유니클로", "zara": "자라", "musinsa": "무신사",
-    "insilence": "인사일런스", "spao": "스파오", "cos": "코스",
-    "nike": "나이키", "adidas": "아디다스", "newbalance": "뉴발란스",
+GENERIC_ONLY_WORDS = {
+    "티셔츠", "반팔티", "맨투맨", "후드티", "청바지", "슬랙스", "가방", "백팩", "운동화", "스니커즈",
+    "패딩", "코트", "자켓", "원피스", "선크림", "수분크림", "토너", "세럼", "앰플", "립스틱", "쿠션",
+    "파운데이션", "샴푸", "바디워시", "이어폰", "헤드폰", "노트북", "태블릿", "키보드", "마우스",
+    "보조배터리", "청소기", "프라이팬", "냄비", "텀블러", "영양제", "유산균", "비타민",
 }
 
-SPECIFIC_OPTION_PATTERN = re.compile(
-    r"(?:\b\d+(?:\.\d+)?\s?(?:ml|l|g|kg|mg|tb|gb|w|mah|hz|인치|매|개|호|번|세대)\b"
-    r"|\b[A-Za-z]{1,15}[- ]?\d+[A-Za-z0-9-]*\b"
-    r"|(?:핑크골드|베이지|브라운|뉴트럴|피치|로즈|블랙|화이트|레드|블루|그린|퍼플|코랄|네이비|차콜|카키|아이보리))",
-    re.I,
-)
-COMPARISON_TITLE_PATTERN = re.compile(
-    r"(?:비교|실험|테스트|전부|싹\s?다|다\s?사봤|순위|랭킹|대결|\bvs\b|계급도)",
-    re.I,
-)
-TOP_PICK_EVIDENCE_PATTERN = re.compile(
-    r"(?:[123]\s?[위등]|종합\s?(?:1위|우승|추천)|최종\s?(?:추천|선택|픽)|우승|대상|가성비\s?(?:1위|추천|픽)|베스트|best|top\s?[123]|추천\s?픽)",
-    re.I,
-)
-NOISY_KEYWORD_TERMS_PATTERN = re.compile(
-    r"\b(?:mastrotrotto|마스트로또|이태리가죽|이탈리아가죽|천연소가죽|소가죽|양가죽|단독특가|공식몰|정품|리뉴얼|기획세트|증정|단품|본품)\b",
-    re.I,
-)
+CATEGORY_HINTS = {
+    "IT·전자": ("노트북", "태블릿", "아이패드", "갤럭시", "애플", "에어팟", "버즈", "이어폰", "헤드폰", "키보드", "마우스", "모니터", "충전기", "보조배터리", "카메라", "스피커", "스마트워치", "ssd"),
+    "뷰티": ("크림", "세럼", "앰플", "토너", "로션", "선크림", "쿠션", "파운데이션", "립", "틴트", "섀도우", "마스카라", "클렌징", "샴푸", "트리트먼트", "향수", "올리브영", "마스크팩"),
+    "패션": ("자켓", "패딩", "코트", "니트", "가디건", "셔츠", "티셔츠", "팬츠", "데님", "청바지", "스커트", "원피스", "가방", "백팩", "숄더백", "신발", "스니커즈", "로퍼", "부츠", "모자", "무신사"),
+    "생활·살림": ("청소기", "세제", "섬유유연제", "수납", "정리함", "행거", "디퓨저", "방향제", "건조기", "세탁", "매트리스", "베개", "이불", "타월", "휴지", "물티슈", "가습기", "제습기"),
+    "주방": ("프라이팬", "냄비", "에어프라이어", "커피머신", "원두", "텀블러", "밀폐용기", "식기", "그릇", "칼", "도마", "블렌더", "믹서기", "오븐", "토스터", "전기포트"),
+    "여행": ("캐리어", "여권", "파우치", "목베개", "어댑터", "유심", "이심", "트래블", "기내용"),
+    "자동차": ("차량용", "블랙박스", "세차", "와이퍼", "방향제", "거치대", "타이어", "하이패스"),
+    "운동·건강": ("러닝화", "요가매트", "덤벨", "프로틴", "단백질", "영양제", "비타민", "유산균", "오메가3", "마사지건", "폼롤러", "헬스"),
+    "육아": ("기저귀", "분유", "젖병", "유모차", "카시트", "아기", "유아", "장난감", "물티슈"),
+    "반려동물": ("강아지", "고양이", "사료", "간식", "배변패드", "모래", "캣타워", "하네스", "펫"),
+}
 
 
-class AllProvidersRateLimited(RuntimeError):
-    """설정된 모든 무료 LLM 제공자의 일일 한도가 소진된 상태."""
+def sb_headers(prefer=None):
+    h = {
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json",
+    }
+    if SUPABASE_KEY.startswith("eyJ"):
+        h["Authorization"] = f"Bearer {SUPABASE_KEY}"
+    if prefer:
+        h["Prefer"] = prefer
+    return h
 
 
-class TemporaryProviderUnavailable(RuntimeError):
-    """무료 LLM 서버의 일시적 과부하(503) 또는 분당 요청 제한으로 잠시 대기해야 하는 상태."""
+def sb_get(table, params):
+    resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=sb_headers(),
+        params=params,
+        timeout=30,
+    )
+    if not resp.ok:
+        raise RuntimeError(f"{table} 조회 실패: HTTP {resp.status_code} · {resp.text[:250]}")
+    return resp.json()
 
 
-def get_providers():
-    providers = []
-    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if gemini_key:
-        providers.append({
-            "name": "gemini",
-            "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-            "api_key": gemini_key,
-            "model": os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash",
-            "min_interval": GEMINI_MIN_INTERVAL_SEC,
-            "extra_headers": {},
-        })
-
-    or_key = str(OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")).strip()
-    if or_key:
-        providers.append({
-            "name": "openrouter",
-            "url": "https://openrouter.ai/api/v1/chat/completions",
-            "api_key": or_key,
-            "model": os.getenv("OPENROUTER_MODEL", "openrouter/free").strip() or "openrouter/free",
-            "min_interval": 1.0,
-            "extra_headers": {
-                "HTTP-Referer": "https://github.com/kkddww310/ggultem-danawa",
-                "X-Title": "Ggultem Danawa Collector",
-            },
-        })
-
-    groq_key = os.getenv("GROQ_API_KEY", "").strip()
-    if groq_key:
-        providers.append({
-            "name": "groq",
-            "url": "https://api.groq.com/openai/v1/chat/completions",
-            "api_key": groq_key,
-            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b",
-            "min_interval": 2.0,
-            "extra_headers": {},
-        })
-    return providers
+def sb_post(table, payload):
+    resp = requests.post(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=sb_headers("return=representation"),
+        json=payload,
+        timeout=30,
+    )
+    if not resp.ok:
+        raise RuntimeError(f"{table} 저장 실패: HTTP {resp.status_code} · {resp.text[:250]}")
+    return resp.json() if resp.text else []
 
 
-def normalize_text(value):
+def sb_patch(table, values, params):
+    resp = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=sb_headers("return=minimal"),
+        params=params,
+        json=values,
+        timeout=30,
+    )
+    if not resp.ok:
+        raise RuntimeError(f"{table} 수정 실패: HTTP {resp.status_code} · {resp.text[:250]}")
+
+
+def norm_key(value):
     return re.sub(r"[^0-9a-z가-힣]+", "", str(value or "").lower())
 
 
-def apply_brand_aliases(value):
-    text = str(value or "").lower()
-    for source, target in BRAND_ALIASES.items():
-        text = text.replace(source, target)
-    return normalize_text(text)
+def clean_sentence(value, max_len=180):
+    text = re.sub(r"https?://\S+", "", str(value or ""))
+    text = re.sub(r"\s+", " ", text).strip(" ·,-/\"'")
+    if len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "…"
+    return text
 
 
-def normalize_brand(value):
-    return apply_brand_aliases(str(value or "").strip())
-
-
-def clean_search_keyword(keyword, brand="", name=""):
-    """쇼핑몰 검색 0건을 유발하는 언더바, 특수기호, 원산지·프로모션 표기를 정제한다."""
-    raw = str(keyword or "").strip() or str(name or "").strip()
-    text = re.sub(r"[\[\]【】<>]", " ", raw)
-    text = re.sub(r"\(([^)]{1,12})\)", r" \1 ", text)
-    text = re.sub(r"\([^)]*\)", " ", text)
-    text = re.sub(r"[_/|\\•·*#~\"']+", " ", text)
-    text = re.sub(r"(?<=[A-Za-z0-9가-힣])\.(?=\s|$)", " ", text)
-    text = NOISY_KEYWORD_TERMS_PATTERN.sub(" ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-
-    deduped = []
-    for token in text.split():
-        if not deduped or deduped[-1].lower() != token.lower():
-            deduped.append(token)
-    cleaned = " ".join(deduped).strip()
-
-    if len(normalize_text(cleaned)) < 2:
-        fallback = re.sub(r"[_/|\\•·.]+", " ", f"{brand} {name}")
-        cleaned = re.sub(r"\s+", " ", fallback).strip()
-    return cleaned
-
-
-def build_video_source_text(video):
-    desc = str(video.get("description") or "").strip()
-    comments = video.get("creator_comments") or []
-    if comments:
-        joined_comments = "\n\n".join(comments)
-        return f"{desc}\n\n[채널 주인 고정/작성 댓글]\n{joined_comments}".strip()
-    return desc
-
-
-def compact_source_for_batch(video, max_head=750, max_extra_lines=25):
-    """배치 호출 시 토큰 한도를 넘기지 않도록 핵심 줄만 압축한다."""
-    full_text = build_video_source_text(video)
-    head = full_text[:max_head]
-    extra = []
-    for line in full_text[max_head:].splitlines():
-        s = line.strip()
-        if not s:
-            continue
-        has_time = bool(re.search(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", s))
-        has_link_or_brand = any(
-            k in s.lower()
-            for k in ("http://", "https://", "쿠팡", "네이버", "스마트스토어", "무신사", "올리브영", "댓글", "제품", "착용", "리뷰")
-        )
-        if has_time or has_link_or_brand or len(s) <= 90:
-            extra.append(s[:160])
-        if len(extra) >= max_extra_lines:
-            break
-    combined = head + ("\n" + "\n".join(extra) if extra else "")
-    return combined[:2000]
-
-
-def extract_json(text):
-    cleaned = re.sub(r"```(?:json)?", "", str(text or ""), flags=re.I)
-    cleaned = cleaned.replace("```", "").strip()
-    try:
-        return json.loads(cleaned)
-    except Exception:
-        pass
-    decoder = json.JSONDecoder()
-    for index, character in enumerate(cleaned):
-        if character in "[{":
-            try:
-                return decoder.raw_decode(cleaned[index:])[0]
-            except Exception:
-                continue
-    raise ValueError("LLM 응답에서 JSON을 찾지 못했습니다.")
-
-
-def is_generic(value):
-    normalized = normalize_text(value)
-    return not normalized or normalized in GENERIC_TERMS
-
-
-def clean_points(values):
-    cleaned_list = []
-    for raw in values or []:
-        text = re.sub(r"\s+", " ", str(raw or "").strip())
-        if len(text) < 2:
-            continue
-        if any(pattern in text for pattern in INVALID_POINT_PATTERNS):
-            continue
-        cleaned_list.append(text)
-    return cleaned_list[:4]
-
-
-def has_specific_model(model, category=""):
-    normalized = normalize_text(model)
-    if normalized in UNKNOWN_MODELS or len(normalized) < 2:
+def is_meaningful_point(text):
+    cleaned = clean_sentence(text, max_len=240)
+    if len(cleaned) < 3:
         return False
-    if re.search(r"[a-z가-힣]*\d+[a-z0-9가-힣]*", normalized, flags=re.I):
-        return True
-    if category in {"패션", "뷰티", "생활·살림", "주방", "운동·건강", "육아", "반려동물"}:
-        return len(normalized) >= 4
-    return len(normalized) >= 5
+    return not any(pat in cleaned for pat in INVALID_POINT_PATTERNS)
 
 
-def source_contains_identity(video, name, brand, model):
-    full_source = f"{video.get('title', '')} {build_video_source_text(video)}"
-    source_norm = normalize_text(full_source)
-    source_alias = apply_brand_aliases(full_source)
-    name_key = normalize_text(name)
-    name_alias = apply_brand_aliases(name)
-    brand_key = normalize_brand(brand)
-    model_key = normalize_text(model)
-    return bool(
-        (name_key and (name_key in source_norm or name_alias in source_alias))
-        or (brand_key and model_key and brand_key in source_alias and model_key in source_norm)
-    )
+def clean_points_list(items, limit=4):
+    result = []
+    seen = set()
+    for raw in items or []:
+        text = clean_sentence(raw, max_len=90)
+        if not is_meaningful_point(text):
+            continue
+        key = norm_key(text)
+        if key and key not in seen:
+            seen.add(key)
+            result.append(text)
+        if len(result) >= limit:
+            break
+    return result
 
 
-def standardize_category(value, name=""):
-    raw = str(value or "기타").strip()
-    if raw in STANDARD_CATEGORIES:
-        return raw
-    key = normalize_text(raw)
-    if key in CATEGORY_ALIASES:
-        return CATEGORY_ALIASES[key]
-    product_name = str(name or "").lower()
-    if any(word in product_name for word in ("토너", "세럼", "쿠션", "크림", "마스크", "선크림", "틴트", "파운데이션", "고데기", "향수")):
-        return "뷰티"
-    if any(word in product_name for word in ("패딩", "자켓", "코트", "니트", "팬츠", "슬랙스", "데님", "부츠", "스니커즈", "백팩", "가방")):
-        return "패션"
-    if any(word in product_name for word in ("냄비", "프라이팬", "식기", "블렌더", "믹서기", "커피머신", "토스터", "에어프라이어")):
-        return "주방"
-    if any(word in product_name for word in ("청소기", "냉장고", "세탁기", "건조기", "가습기", "제습기", "매트")):
-        return "생활·살림"
+def normalize_category(raw_cat, full_text=""):
+    cat = str(raw_cat or "").strip()
+    if cat in CATEGORIES:
+        return cat
+    alias_map = {
+        "가전": "IT·전자",
+        "디지털": "IT·전자",
+        "전자기기": "IT·전자",
+        "테크": "IT·전자",
+        "화장품": "뷰티",
+        "스킨케어": "뷰티",
+        "메이크업": "뷰티",
+        "의류": "패션",
+        "잡화": "패션",
+        "생활": "생활·살림",
+        "생활용품": "생활·살림",
+        "인테리어": "생활·살림",
+        "주방용품": "주방",
+        "건강": "운동·건강",
+        "운동": "운동·건강",
+        "유아동": "육아",
+        "반려": "반려동물",
+    }
+    for k, v in alias_map.items():
+        if k in cat:
+            return v
+
+    haystack = f"{cat} {full_text}".lower()
+    for target_cat, keywords in CATEGORY_HINTS.items():
+        if any(kw in haystack for kw in keywords):
+            return target_cat
     return "기타"
 
 
-def has_specific_option(name, model):
-    return bool(SPECIFIC_OPTION_PATTERN.search(f"{name} {model}"))
+def normalize_purchase_type(raw_type, context_text=""):
+    val = str(raw_type or "").strip()
+    if val in VALID_PURCHASE_TYPES:
+        return val
+    merged = f"{val} {context_text}"
+    if any(k in merged for k in ("유료광고", "유료 광고", "광고 포함", "브랜디드")):
+        return "유료 광고"
+    if any(k in merged for k in ("제품제공", "제품 제공", "협찬", "단순제공", "무상제공", "선물")):
+        return "제품 제공"
+    if any(k in merged for k in ("내돈내산", "직접 구매", "직접구매", "제 돈 주고", "사비")):
+        return "직접 구매"
+    return "확인되지 않음"
 
 
-def concrete_searchable_product(video, item):
-    if item["confidence"] < 0.90:
-        return False
-    if not item["brand_key"] or is_generic(item["brand"]):
-        return False
-    if is_generic(item["name"]):
-        return False
-    if any(marker in item["name"].lower() for marker in COMPOSITE_MARKERS):
-        return False
-    if not source_contains_identity(video, item["name"], item["brand"], item["model"]):
-        return False
-    if len(item["model_key"]) < 4:
-        return False
-    return has_specific_option(item["name"], item["model"]) or item["category"] in {"패션", "뷰티"}
+def compute_identity_score(brand, model, canonical_name, confidence):
+    b_norm = norm_key(brand)
+    m_norm = norm_key(model)
+    c_norm = norm_key(canonical_name)
 
+    if not c_norm or c_norm in {norm_key(w) for w in GENERIC_ONLY_WORDS}:
+        return 15
 
-def needs_comparison_review(video, item):
-    """비교·실험 영상인데 상위권/우승 근거가 명확하지 않으면 관리자 검수 탭으로 보류한다."""
-    title = str(video.get("title") or "")
-    if not COMPARISON_TITLE_PATTERN.search(title):
-        return False
-    reason_and_evidence = f"{item.get('reason', '')} {item.get('evidence', '')}"
-    return not bool(TOP_PICK_EVIDENCE_PATTERN.search(reason_and_evidence))
-
-
-def validate_product(video, raw):
-    if raw.get("is_recommended") is False:
-        return False, None, "비교군/하위권 또는 단순 착장(OOTD)"
-
-    name = str(raw.get("name", "")).strip()
-    brand = str(raw.get("brand", "")).strip()
-    model = str(raw.get("model", "")).strip()
-    category = standardize_category(raw.get("category", "기타"), name)
-    try:
-        confidence = max(0.0, min(1.0, float(raw.get("confidence", 0) or 0)))
-    except (TypeError, ValueError):
-        confidence = 0.0
-
-    if len(normalize_text(name)) < 5:
-        return False, None, "상품명이 너무 짧음"
-    if confidence < MIN_CONFIDENCE:
-        return False, None, f"신뢰도 부족: {confidence:.2f}"
-    if any(marker in name.lower() for marker in COMPOSITE_MARKERS):
-        return False, None, "복합 품목 표현"
-    if is_generic(name):
-        return False, None, "일반 품목명"
-    if not brand or is_generic(brand):
-        return False, None, "유효한 브랜드 없음"
-    if not has_specific_model(model, category):
-        return False, None, "정확한 모델/제품명 없음"
-    if not source_contains_identity(video, name, brand, model):
-        return False, None, "원문에서 브랜드와 제품명 확인 불가"
-
-    raw_keyword = str(raw.get("keyword", "")).strip() or name
-    cleaned_keyword = clean_search_keyword(raw_keyword, brand=brand, name=name)
-
-    item = {
-        "name": name,
-        "normalized_name": normalize_text(name),
-        "brand": brand,
-        "model": model,
-        "brand_key": normalize_brand(brand),
-        "model_key": normalize_text(model),
-        "keyword": cleaned_keyword,
-        "category": category,
-        "reason": str(raw.get("reason", "")).strip(),
-        "pros": clean_points(raw.get("pros", [])),
-        "cons": clean_points(raw.get("cons", [])),
-        "evidence": str(raw.get("evidence", "")).strip()[:300],
-        "confidence": confidence,
-        "purchase_type": str(raw.get("purchase_type", "확인되지 않음")).strip() or "확인되지 않음",
-    }
-    return True, item, ""
-
-
-def build_batch_prompt(videos):
-    payload = [
-        {
-            "video_id": v["video_id"],
-            "title": str(v.get("title") or "")[:180],
-            "text": compact_source_for_batch(v),
-        }
-        for v in videos
-    ]
-    return f'''너는 유튜브 영상 목록에서 유튜버가 실제로 추천하는 판매 제품을 식별하는 상품 데이터 검수자다.
-각 영상의 title과 text에 직접 명시된 브랜드와 구체적인 제품명(또는 모델명)이 있는 단일 제품만 추출하라.
-
-[필터링 규칙]
-1. 비교·순위 영상: 유튜버가 최종 추천하거나 상위권(1~3위, 종합 우승, 가성비 추천, 상황별 베스트)으로 꼽은 제품만 추출하라. 4위 이하 하위권 제품, 성능이 떨어져 탈락한 비교 대조군, 비추천 제품은 절대 포함하지 마라.
-2. 패션·뷰티 영상: 영상 주제와 무관한 유튜버 본인의 단순 촬영 착장(OOTD 코디용 상하의·신발 등)은 제외하고, 실제로 리뷰·추천하는 메인 제품만 추출하라(영상당 최대 15개).
-3. 브랜드 없는 일반 품목명이나 여러 물건을 + 또는 /로 묶은 표현은 반환하지 마라. 브랜드나 제품명을 추측하지 마라.
-4. pros와 cons에는 실제 제품의 특징·효능·착용감·사용감·가격적 아쉬움만 적고, "원문에 명시됨", "상세 후기 없음", "가격 정보 미공개" 같은 정보 부재 메모는 절대 넣지 마라. 근거가 없으면 빈 배열 []로 두어라.
-5. keyword 필드에는 반드시 쇼핑몰 검색이 바로 되도록 언더바(_)·슬래시(/)·괄호·가죽 원산지 표기(예: MASTROTROTTO, 이태리가죽)를 제거하고 '브랜드 + 핵심 제품명 + 한글 대표 품목명'(예: 올도큐브 iPlay 70 Ultra Pad 태블릿, 다이슨 V15 무선청소기, 어바웃톤 블러 파우더 팩트) 형태로 깔끔하게 적어라.
-
-반드시 아래 JSON 객체 하나만 반환하라. 추천 상품이 없는 영상은 items를 []로 반환하라.
-{{"results":[{{"video_id":"영상ID","items":[{{"is_recommended":true,"name":"브랜드 + 정확한 단일 제품명","brand":"브랜드","model":"모델명 또는 구체 제품명","keyword":"브랜드 핵심제품명 한글품목명","category":"IT·전자|뷰티|패션|생활·살림|주방|여행|자동차|운동·건강|육아|반려동물|기타","reason":"추천 이유 또는 선정 근거","pros":["장점"],"cons":["단점"],"evidence":"원문 근거","confidence":0.0,"purchase_type":"직접 구매|제품 제공|유료 광고|확인되지 않음"}}]}}]}}
-
-[입력 영상 목록]
-{json.dumps(payload, ensure_ascii=False)}'''
-
-
-def call_llm_with_fallback(prompt, providers, exhausted_providers, last_call_ts):
-    available = [p for p in providers if p["name"] not in exhausted_providers]
-    if not available:
-        raise AllProvidersRateLimited("모든 무료 LLM 제공자의 일일 한도가 소진되었습니다.")
-
-    errors = []
-    transient_failures = 0
-
-    for provider in available:
-        name = provider["name"]
-        min_interval = float(provider.get("min_interval") or 0.0)
-
-        for attempt in range(1, MAX_ATTEMPTS + 1):
-            elapsed = time.time() - last_call_ts.get(name, 0.0)
-            if elapsed < min_interval:
-                time.sleep(min_interval - elapsed)
-
-            last_call_ts[name] = time.time()
-            try:
-                headers = {
-                    "Authorization": f"Bearer {provider['api_key']}",
-                    "Content-Type": "application/json",
-                }
-                headers.update(provider.get("extra_headers") or {})
-                response = requests.post(
-                    provider["url"],
-                    headers=headers,
-                    json={
-                        "model": provider["model"],
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": 0.0,
-                    },
-                    timeout=50,
-                )
-
-                if response.status_code >= 400:
-                    body = response.text[:500]
-                    error_text = f"provider={name} model={provider['model']} attempt={attempt} HTTP {response.status_code}: {body}"
-                    errors.append(error_text)
-                    print(f"LLM request failed | {error_text}")
-
-                    if response.status_code == 429:
-                        transient_failures += 1
-                        body_lower = body.lower()
-                        is_daily = any(
-                            m in body_lower
-                            for m in ("per-day", "per day", "daily", "free-models-per-day", "openrouter_free_tier_daily")
-                        )
-                        if is_daily:
-                            exhausted_providers.add(name)
-                            break
-                        if attempt < MAX_ATTEMPTS:
-                            time.sleep(20)
-                            continue
-                        break
-
-                    if response.status_code in {401, 402, 403, 404}:
-                        exhausted_providers.add(name)
-                        break
-
-                    if response.status_code == 503:
-                        transient_failures += 1
-                        break
-
-                    if response.status_code >= 500:
-                        transient_failures += 1
-                        if attempt < MAX_ATTEMPTS:
-                            time.sleep(3)
-                            continue
-                        break
-                    break
-
-                payload = response.json()
-                choices = payload.get("choices") or []
-                if not choices:
-                    raise ValueError(f"choices가 없습니다: {str(payload)[:300]}")
-                content = choices[0].get("message", {}).get("content", "")
-                parsed = extract_json(content)
-                print(f"LLM request succeeded | provider={name} model={provider['model']} attempt={attempt}")
-                return parsed
-
-            except requests.Timeout as error:
-                transient_failures += 1
-                error_text = f"provider={name} model={provider['model']} attempt={attempt} timeout: {error}"
-                errors.append(error_text)
-                print(f"LLM response failed | {error_text}")
-                break
-            except (ValueError, KeyError, json.JSONDecodeError) as error:
-                transient_failures += 1
-                error_text = f"provider={name} model={provider['model']} attempt={attempt} parse_error: {error}"
-                errors.append(error_text)
-                print(f"LLM response failed | {error_text}")
-                if attempt < MAX_ATTEMPTS:
-                    time.sleep(3)
-                    continue
-                break
-            except Exception as error:
-                error_text = f"provider={name} model={provider['model']} attempt={attempt} error: {error}"
-                errors.append(error_text)
-                print(f"LLM unexpected error | {error_text}")
-                break
-
-    if all(p["name"] in exhausted_providers for p in providers):
-        raise AllProvidersRateLimited("모든 무료 LLM 제공자의 일일 한도가 소진되었습니다.")
-    if transient_failures > 0:
-        raise TemporaryProviderUnavailable("무료 LLM 서버 일시 과부하 또는 분당 한도: " + " || ".join(errors[-4:]))
-    raise RuntimeError("LLM 호출 실패: " + " || ".join(errors[-6:]))
-
-
-def extract_for_chunk(videos, providers, exhausted_providers, last_call_ts):
-    """영상 묶음을 한 번에 호출하고, 누락된 video_id만 단건으로 보완한다."""
-    prompt = build_batch_prompt(videos)
-    parsed = call_llm_with_fallback(prompt, providers, exhausted_providers, last_call_ts)
-
-    results_by_id = {}
-    if isinstance(parsed, dict) and isinstance(parsed.get("results"), list):
-        for entry in parsed["results"]:
-            if not isinstance(entry, dict):
-                continue
-            vid = str(entry.get("video_id") or "").strip()
-            items = entry.get("items")
-            if vid and isinstance(items, list):
-                results_by_id[vid] = items[:15]
-
-    missing = [v for v in videos if v["video_id"] not in results_by_id]
-    for video in missing:
-        single_parsed = call_llm_with_fallback(build_batch_prompt([video]), providers, exhausted_providers, last_call_ts)
-        items = []
-        if isinstance(single_parsed, dict) and isinstance(single_parsed.get("results"), list):
-            for entry in single_parsed["results"]:
-                if isinstance(entry, dict) and isinstance(entry.get("items"), list):
-                    items = entry["items"][:15]
-                    break
-        results_by_id[video["video_id"]] = items
-
-    return results_by_id
-
-
-def find_existing_product(item):
-    rows = select(
-        "products",
-        "product_id,canonical_name,review_status,is_visible,merged_into",
-        {
-            "brand_key": f"eq.{item['brand_key']}",
-            "model_key": f"eq.{item['model_key']}",
-            "review_status": "neq.merged",
-        },
-        limit=1,
-        order="is_visible.desc,created_at.asc",
-    )
-    if rows:
-        return rows[0]
-    rows = select(
-        "products",
-        "product_id,canonical_name,review_status,is_visible,merged_into",
-        {"normalized_name": f"eq.{item['normalized_name']}"},
-        limit=1,
-    )
-    return rows[0] if rows else None
-
-
-def identity_score(video, item):
-    full_source = f"{video.get('title', '')} {build_video_source_text(video)}"
-    source_norm = normalize_text(full_source)
-    source_alias = apply_brand_aliases(full_source)
-    score = int(round(item["confidence"] * 40))
-    if item["brand_key"] in source_alias:
-        score += 20
-    if item["model_key"] in source_norm:
+    score = 35
+    if len(b_norm) >= 2 and b_norm not in {"기타", "없음", "미상", "브랜드", "unknown"}:
         score += 25
-    if item["normalized_name"] in source_norm:
+    if len(m_norm) >= 2:
+        score += 18
+    if len(c_norm) >= 5 and c_norm != b_norm:
         score += 10
-    if re.search(r"https?://", full_source):
+    if any(ch.isdigit() for ch in canonical_name):
         score += 5
-    return min(100, score)
+
+    conf_bonus = max(0, min(12, round((float(confidence or 0) - 0.5) * 24)))
+    score += conf_bonus
+    return max(0, min(100, score))
 
 
-def save_item(video, item):
-    product = find_existing_product(item)
-    score = identity_score(video, item)
-
-    if product:
-        product_id = product["product_id"]
-        print(f"Merged recommendation into existing product | product_id={product_id} | name={item['name']}")
-    else:
-        product_id = str(uuid.uuid4())
-        comparison_hold = needs_comparison_review(video, item)
-        searchable_approved = concrete_searchable_product(video, item)
-        auto_approved = (not comparison_hold) and (score >= 93 or searchable_approved)
-
-        if comparison_hold:
-            review_note = "비교·테스트 영상 순위 검수 대기"
-        elif score >= 93:
-            review_note = "자동 검증 93점 이상 공개"
-        elif searchable_approved:
-            review_note = "브랜드·고유 제품명·옵션 확인 자동 공개"
-        else:
-            review_note = "관리자 검수 대기"
-
-        upsert(
-            "products",
-            [{
-                "product_id": product_id,
-                "canonical_name": item["name"],
-                "normalized_name": item["normalized_name"],
-                "brand": item["brand"],
-                "model": item["model"],
-                "brand_key": item["brand_key"],
-                "model_key": item["model_key"],
-                "identity_score": score,
-                "merge_status": "unique",
-                "merged_into": None,
-                "category": item["category"],
-                "search_keyword": item["keyword"],
-                "review_status": "approved" if auto_approved else "pending",
-                "is_visible": auto_approved,
-                "reviewed_at": None,
-                "review_note": review_note,
-            }],
-            "normalized_name",
+def fetch_youtube_description(video_id):
+    if not YOUTUBE_API_KEY or not video_id:
+        return ""
+    try:
+        resp = requests.get(
+            "https://www.googleapis.com/youtube/v3/videos",
+            params={"part": "snippet", "id": video_id, "key": YOUTUBE_API_KEY},
+            timeout=15,
         )
+        if not resp.ok:
+            return ""
+        items = resp.json().get("items") or []
+        if not items:
+            return ""
+        snippet = items[0].get("snippet") or {}
+        return str(snippet.get("description") or "").strip()
+    except Exception:
+        return ""
 
-    upsert(
-        "recommendations",
-        [{
-            "recommendation_id": str(uuid.uuid4()),
-            "product_id": product_id,
-            "video_id": video["video_id"],
-            "channel_id": video["channel_id"],
-            "reason": item["reason"],
-            "pros": item["pros"],
-            "cons": item["cons"],
-            "evidence": item["evidence"],
-            "start_sec": 0,
-            "confidence": item["confidence"],
-            "purchase_type": item["purchase_type"],
-        }],
-        "product_id,video_id",
+
+def fetch_youtube_transcript(video_id):
+    if not YouTubeTranscriptApi or not video_id:
+        return ""
+    try:
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en"])
+        joined = " ".join(seg.get("text", "") for seg in transcript_list)
+        return re.sub(r"\s+", " ", joined).strip()[:7000]
+    except Exception:
+        return ""
+
+
+def call_gemini_extract(title, description, transcript):
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+
+    prompt = f"""
+당신은 한국 유튜브 쇼핑·리뷰 영상을 분석해 소비자가 실제로 구매 비교할 수 있는 상품 데이터만 추출하는 전문 에디터입니다.
+
+[영상 제목]
+{title}
+
+[영상 설명란]
+{description[:3000] if description else "(없음)"}
+
+[영상 자막/내용]
+{transcript[:6500] if transcript else "(없음)"}
+
+[추출 규칙]
+1. 유튜버가 실제로 추천하거나 긍정적으로 리뷰한 구체적인 상품만 추출하세요. (최대 8개)
+2. 단순 일반명사만 있는 경우(예: "흰 반팔티", "수분크림", "프라이팬", "보조배터리")는 절대 추출하지 마세요. 브랜드명이나 정확한 제품명/모델명이 식별되는 상품만 추출하세요.
+3. 쇼핑·제품 리뷰와 무관한 영상(브이로그, 뉴스, 게임, 음악 등)이면 products를 빈 배열 []로 반환하세요.
+4. category는 반드시 아래 11개 중 하나만 선택하세요:
+   {", ".join(CATEGORIES)}
+5. purchase_type은 영상 제목·설명란·자막의 협찬/광고/내돈내산 언급을 근거로 아래 4개 중 하나만 선택하세요:
+   - "직접 구매" (내돈내산, 직접 결제 언급 시)
+   - "제품 제공" (단순 선물, 협찬, 제품 제공 언급 시)
+   - "유료 광고" (유료 광고 포함 표기, 브랜디드 광고 시)
+   - "확인되지 않음" (명확한 언급이 없을 때)
+6. reason: 상세 페이지의 '이런 분께 추천해요' 영역에 들어갈 한 줄 핵심 추천 근거/추천 대상을 구체적으로 작성하세요.
+7. pros / cons: 영상에서 실제로 언급된 장점과 아쉬운 점만 간결한 구절로 작성하세요.
+   - 주의: 영상에 단점이나 특정 정보 언급이 없다면 절대 "원문에 언급 없음", "단점 없음", "정보 없음" 같은 문장을 쓰지 말고 빈 배열 []로 두세요.
+8. evidence: 유튜버의 핵심 평가가 드러나는 실제 발언 요약 또는 인용 문장 1~2문장(URL 제외).
+9. confidence: 상품 식별 및 추천 근거의 명확성 (0.0 ~ 1.0).
+
+반드시 아래 JSON 형식만 출력하세요:
+{{
+  "is_product_video": true,
+  "video_product_score": 85,
+  "products": [
+    {{
+      "brand": "브랜드명",
+      "model": "모델명 또는 라인명 (없으면 빈 문자열)",
+      "canonical_name": "브랜드 + 공식 상품명 (예: 로지텍 MX Master 3S 무선 마우스)",
+      "search_keyword": "쇼핑몰 검색용 핵심 키워드",
+      "category": "IT·전자",
+      "purchase_type": "직접 구매",
+      "reason": "손목 피로도가 적고 다중 기기 전환이 빨라 사무용 마우스를 찾는 분께 적합",
+      "pros": ["무소음 클릭감이 조용함", "가로 휠 스크롤이 엑셀 작업에 편리함"],
+      "cons": ["손이 작은 사용자에게는 다소 크고 무거움"],
+      "evidence": "3개월째 내돈내산으로 매일 쓰고 있는데 휠 감도와 손목 각도가 가장 편했습니다.",
+      "confidence": 0.92
+    }}
+  ]
+}}
+""".strip()
+
+    models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+    last_err = None
+    for model_name in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+        body = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.15,
+                "responseMimeType": "application/json",
+            },
+        }
+        try:
+            resp = requests.post(url, json=body, timeout=60)
+            if resp.status_code == 429:
+                time.sleep(4)
+                resp = requests.post(url, json=body, timeout=60)
+            if not resp.ok:
+                last_err = f"{model_name} HTTP {resp.status_code}: {resp.text[:220]}"
+                continue
+            data = resp.json()
+            text = (
+                data.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+            )
+            cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+            return json.loads(cleaned)
+        except Exception as exc:
+            last_err = str(exc)
+    raise RuntimeError(f"Gemini 분석 실패: {last_err}")
+
+
+def load_existing_catalog():
+    rows = sb_get(
+        "products",
+        {
+            "select": "product_id,canonical_name,normalized_name,brand,model,category,review_status",
+            "review_status": "in.(approved,pending)",
+            "limit": "5000",
+        },
     )
-    return True
+    by_norm = {}
+    by_brand_model = {}
+    for row in rows:
+        n_key = norm_key(row.get("normalized_name") or row.get("canonical_name"))
+        if n_key:
+            by_norm[n_key] = row
+        b_key = norm_key(row.get("brand"))
+        m_key = norm_key(row.get("model"))
+        if len(b_key) >= 2 and len(m_key) >= 2:
+            by_brand_model[(b_key, m_key)] = row
+    return by_norm, by_brand_model
+
+
+def load_existing_rec_pairs(video_ids):
+    if not video_ids:
+        return set()
+    rows = sb_get(
+        "recommendations",
+        {
+            "select": "product_id,video_id",
+            "video_id": f"in.({','.join(video_ids)})",
+            "limit": "5000",
+        },
+    )
+    return {(str(r.get("product_id")), str(r.get("video_id"))) for r in rows}
+
+
+def find_or_create_product(item, by_norm, by_brand_model):
+    canonical_name = clean_sentence(item.get("canonical_name"), max_len=120)
+    brand = clean_sentence(item.get("brand"), max_len=60)
+    model = clean_sentence(item.get("model"), max_len=60)
+    search_keyword = clean_sentence(item.get("search_keyword") or canonical_name, max_len=100)
+    confidence = float(item.get("confidence") or 0.7)
+
+    if brand and canonical_name and norm_key(brand) not in norm_key(canonical_name):
+        canonical_name = f"{brand} {canonical_name}".strip()
+
+    n_key = norm_key(canonical_name)
+    b_key = norm_key(brand)
+    m_key = norm_key(model)
+
+    if n_key in by_norm:
+        return by_norm[n_key]["product_id"], False
+    if len(b_key) >= 2 and len(m_key) >= 2 and (b_key, m_key) in by_brand_model:
+        return by_brand_model[(b_key, m_key)]["product_id"], False
+
+    identity_score = compute_identity_score(brand, model, canonical_name, confidence)
+    if identity_score < 40:
+        return None, False
+
+    category = normalize_category(
+        item.get("category"),
+        f"{canonical_name} {brand} {model} {item.get('reason') or ''}",
+    )
+    auto_approve = identity_score >= AUTO_APPROVE_SCORE and len(b_key) >= 2
+    payload = {
+        "canonical_name": canonical_name,
+        "normalized_name": n_key,
+        "brand": brand or "기타",
+        "model": model,
+        "category": category,
+        "search_keyword": search_keyword or canonical_name,
+        "identity_score": identity_score,
+        "review_status": "approved" if auto_approve else "pending",
+        "is_visible": bool(auto_approve),
+        "review_note": (
+            f"AI 자동 승인 (식별점수 {identity_score}/100)"
+            if auto_approve
+            else f"AI 추출 검수 대기 (식별점수 {identity_score}/100)"
+        ),
+    }
+    created = sb_post("products", [payload])
+    if not created:
+        return None, False
+    new_row = created[0]
+    by_norm[n_key] = new_row
+    if len(b_key) >= 2 and len(m_key) >= 2:
+        by_brand_model[(b_key, m_key)] = new_row
+    return new_row["product_id"], True
+
+
+def fetch_target_videos(limit):
+    queued = sb_get(
+        "videos",
+        {
+            "select": "*",
+            "analysis_status": "eq.queued",
+            "order": "created_at.desc",
+            "limit": str(limit),
+        },
+    )
+    if len(queued) >= limit:
+        return queued[:limit]
+    remain = limit - len(queued)
+    pending = sb_get(
+        "videos",
+        {
+            "select": "*",
+            "analysis_status": "eq.pending",
+            "order": "created_at.desc",
+            "limit": str(remain),
+        },
+    )
+    return queued + pending
+
+
+def process_video(video, by_norm, by_brand_model, existing_pairs):
+    video_id = str(video.get("video_id") or "").strip()
+    channel_id = str(video.get("channel_id") or "").strip()
+    title = str(video.get("title") or "").strip()
+
+    description = str(video.get("description") or "").strip()
+    if not description:
+        description = fetch_youtube_description(video_id)
+
+    transcript = str(video.get("transcript") or "").strip()
+    if not transcript:
+        transcript = fetch_youtube_transcript(video_id)
+
+    result = call_gemini_extract(title, description, transcript)
+    video_score = int(result.get("video_product_score") or 0)
+    raw_products = result.get("products") or []
+
+    if not result.get("is_product_video", True) and not raw_products:
+        sb_patch(
+            "videos",
+            {
+                "analysis_status": "skipped_non_product",
+                "analysis_error": None,
+                "product_score": video_score,
+            },
+            {"video_id": f"eq.{video_id}"},
+        )
+        return "skipped_non_product", 0
+
+    if not raw_products:
+        sb_patch(
+            "videos",
+            {
+                "analysis_status": "no_product",
+                "analysis_error": None,
+                "product_score": video_score,
+            },
+            {"video_id": f"eq.{video_id}"},
+        )
+        return "no_product", 0
+
+    saved_count = 0
+    rejected_generic_count = 0
+
+    for item in raw_products:
+        if not isinstance(item, dict):
+            continue
+        product_id, _ = find_or_create_product(item, by_norm, by_brand_model)
+        if not product_id:
+            rejected_generic_count += 1
+            continue
+
+        pair_key = (str(product_id), video_id)
+        if pair_key in existing_pairs:
+            saved_count += 1
+            continue
+
+        reason = clean_sentence(item.get("reason"), max_len=200)
+        if not is_meaningful_point(reason):
+            reason = ""
+
+        pros = clean_points_list(item.get("pros"), limit=4)
+        cons = clean_points_list(item.get("cons"), limit=4)
+        evidence = clean_sentence(item.get("evidence"), max_len=260)
+        if not is_meaningful_point(evidence):
+            evidence = ""
+
+        purchase_type = normalize_purchase_type(
+            item.get("purchase_type"),
+            f"{title} {description[:500]} {evidence}",
+        )
+        confidence = max(0.0, min(1.0, float(item.get("confidence") or 0.75)))
+
+        rec_payload = {
+            "product_id": product_id,
+            "video_id": video_id,
+            "channel_id": channel_id or None,
+            "reason": reason or None,
+            "pros": pros,
+            "cons": cons,
+            "evidence": evidence or None,
+            "confidence": round(confidence, 3),
+            "purchase_type": purchase_type,
+        }
+        sb_post("recommendations", [rec_payload])
+        existing_pairs.add(pair_key)
+        saved_count += 1
+
+    if saved_count > 0:
+        final_status = "analyzed"
+    elif rejected_generic_count > 0:
+        final_status = "rejected_generic"
+    else:
+        final_status = "no_product"
+
+    sb_patch(
+        "videos",
+        {
+            "analysis_status": final_status,
+            "analysis_error": None,
+            "product_score": max(video_score, 70 if saved_count > 0 else video_score),
+        },
+        {"video_id": f"eq.{video_id}"},
+    )
+    return final_status, saved_count
 
 
 def main():
-    providers = get_providers()
-    if not providers:
-        raise RuntimeError("사용 가능한 LLM API 키(OPENROUTER_API_KEY, GROQ_API_KEY, GEMINI_API_KEY)가 없습니다.")
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise RuntimeError("SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY 환경변수가 없습니다.")
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY 환경변수가 없습니다.")
 
-    videos = select(
-        "videos",
-        "video_id,channel_id,title,description,product_score,view_count",
-        {"analysis_status": "eq.queued"},
-        limit=TOTAL_FETCH_LIMIT,
-        order="product_score.desc,view_count.desc",
-    )
+    videos = fetch_target_videos(BATCH_SIZE)
+    print(f"[extract_products] 분석 대상 영상: {len(videos)}개")
+    if not videos:
+        return
 
-    exhausted_providers = set()
-    last_call_ts = {}
-    processed = saved_total = rejected_total = failures = 0
+    by_norm, by_brand_model = load_existing_catalog()
+    existing_pairs = load_existing_rec_pairs([str(v.get("video_id")) for v in videos if v.get("video_id")])
 
-    for start in range(0, len(videos), BATCH_SIZE):
-        chunk = videos[start:start + BATCH_SIZE]
-        for video in chunk:
-            video["creator_comments"] = get_creator_comments(video["video_id"], video["channel_id"])
-
+    for idx, video in enumerate(videos, start=1):
+        vid = str(video.get("video_id") or "")
+        title = str(video.get("title") or "")[:50]
         try:
-            extracted_map = extract_for_chunk(chunk, providers, exhausted_providers, last_call_ts)
-        except (AllProvidersRateLimited, TemporaryProviderUnavailable) as error:
-            print(f"Batch paused (remaining videos kept queued) | detail={str(error)[:400]}")
-            break
-        except Exception as error:
-            for video in chunk:
-                failures += 1
-                processed += 1
-                update(
+            status, count = process_video(video, by_norm, by_brand_model, existing_pairs)
+            print(f"[{idx}/{len(videos)}] {vid} ({title}) -> {status} (상품 {count}개)")
+        except Exception as exc:
+            err_msg = str(exc)[:400]
+            print(f"[{idx}/{len(videos)}] {vid} 오류: {err_msg}")
+            try:
+                sb_patch(
                     "videos",
-                    {"analysis_status": "ai_error", "analysis_error": str(error)[:1000]},
-                    {"video_id": f"eq.{video['video_id']}"},
+                    {
+                        "analysis_status": "ai_error",
+                        "analysis_error": err_msg,
+                    },
+                    {"video_id": f"eq.{vid}"},
                 )
-            continue
-
-        for video in chunk:
-            extracted = extracted_map.get(video["video_id"], [])
-            saved = rejected = 0
-
-            for raw in extracted if isinstance(extracted, list) else []:
-                if not isinstance(raw, dict):
-                    rejected += 1
-                    continue
-                passed, item, reason = validate_product(video, raw)
-                if not passed:
-                    rejected += 1
-                    print(f"Rejected product | video={video['video_id']} | name={raw.get('name')} | reason={reason}")
-                    continue
-                if save_item(video, item):
-                    saved += 1
-
-            if saved:
-                status, error = "analyzed", None
-            elif rejected:
-                status, error = "rejected_generic", "정확한 브랜드·제품명 검증 실패"
-            else:
-                status, error = "no_product", None
-
-            update(
-                "videos",
-                {"analysis_status": status, "analysis_error": error},
-                {"video_id": f"eq.{video['video_id']}"},
-            )
-            processed += 1
-            saved_total += saved
-            rejected_total += rejected
-
-    print(
-        f"Product extraction completed | processed={processed} | "
-        f"saved={saved_total} | rejected={rejected_total} | failures={failures}"
-    )
+            except Exception:
+                pass
+        time.sleep(0.6)
 
 
 if __name__ == "__main__":
