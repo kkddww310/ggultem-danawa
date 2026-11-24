@@ -15,7 +15,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash").strip()
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "").strip()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "").strip()
 BATCH_SIZE = int(os.getenv("EXTRACT_BATCH_SIZE", "40"))
 AUTO_APPROVE_SCORE = int(os.getenv("AUTO_APPROVE_SCORE", "75"))
@@ -270,8 +270,15 @@ def fetch_youtube_transcript(video_id):
 
 
 def parse_json_response(text):
-    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(text or "").strip())
-    return json.loads(cleaned)
+    raw = str(text or "").strip()
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        match = re.search(r"\{[\s\S]*\}", cleaned)
+        if match:
+            return json.loads(match.group(0))
+        raise
 
 
 def call_gemini_extract(title, description, transcript):
@@ -331,9 +338,10 @@ def call_gemini_extract(title, description, transcript):
 
     errors = []
 
+    # 1축: Google Gemini 무료 티어 모델 순차 호출
     if GEMINI_API_KEY:
-        models = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
-        for model_name in models:
+        gemini_models = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
+        for model_name in gemini_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
             body = {
                 "contents": [{"parts": [{"text": prompt}]}],
@@ -345,10 +353,10 @@ def call_gemini_extract(title, description, transcript):
             try:
                 resp = requests.post(url, json=body, timeout=60)
                 if resp.status_code == 429:
-                    time.sleep(4)
-                    resp = requests.post(url, json=body, timeout=60)
+                    errors.append(f"{model_name} HTTP 429 (무료 한도 도달)")
+                    continue
                 if not resp.ok:
-                    errors.append(f"{model_name} HTTP {resp.status_code}: {resp.text[:180]}")
+                    errors.append(f"{model_name} HTTP {resp.status_code}: {resp.text[:160]}")
                     continue
                 data = resp.json()
                 text = (
@@ -361,28 +369,41 @@ def call_gemini_extract(title, description, transcript):
             except Exception as exc:
                 errors.append(f"{model_name}: {exc}")
 
+    # 2축: OpenRouter 무료 모델 순차 호출 (Gemini 무료 한도 소진 시 자동 이어받기)
     if OPENROUTER_API_KEY:
-        try:
-            resp = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": OPENROUTER_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.15,
-                    "response_format": {"type": "json_object"},
-                },
-                timeout=60,
-            )
-            if resp.ok:
+        or_models = []
+        if OPENROUTER_MODEL:
+            or_models.append(OPENROUTER_MODEL)
+        for fallback_or in ("openrouter/free", "google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"):
+            if fallback_or not in or_models:
+                or_models.append(fallback_or)
+
+        for or_model in or_models:
+            try:
+                resp = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": or_model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.15,
+                    },
+                    timeout=60,
+                )
+                if resp.status_code == 429:
+                    errors.append(f"OpenRouter({or_model}) HTTP 429")
+                    time.sleep(2)
+                    continue
+                if not resp.ok:
+                    errors.append(f"OpenRouter({or_model}) HTTP {resp.status_code}: {resp.text[:160]}")
+                    continue
                 content = resp.json()["choices"][0]["message"]["content"]
                 return parse_json_response(content)
-            errors.append(f"OpenRouter HTTP {resp.status_code}: {resp.text[:180]}")
-        except Exception as exc:
-            errors.append(f"OpenRouter: {exc}")
+            except Exception as exc:
+                errors.append(f"OpenRouter({or_model}): {exc}")
 
     raise RuntimeError("AI 분석 실패: " + " | ".join(errors))
 
