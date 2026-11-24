@@ -76,7 +76,6 @@ def render_product_detail(pid):
     recs = sort_recommendations(product, product.get("recommendations") or [])
     representative = get_representative_rec(product)
     channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
-    confidence = max([float(r.get("confidence") or 0) for r in recs] or [0])
     summary = recommendation_summary(recs)
     category = product.get("category") or "기타"
 
@@ -88,9 +87,9 @@ def render_product_detail(pid):
     with st.container(border=True):
         left_col, right_col = st.columns([1.0, 1.35], gap="large")
         with left_col:
-            render_product_visual(product, representative=representative)
+            render_product_visual(product, representative=representative, link_to_detail=False)
             if representative and representative.get("video_id"):
-                st.caption("▲ 썸네일을 누르면 대표 추천 유튜브 영상으로 바로 이동합니다.")
+                st.caption("썸네일을 누르면 대표 추천 유튜브 영상으로 바로 이동합니다.")
 
         with right_col:
             purchase_html = render_purchase_badges(summary["purchase_counts"])
@@ -102,7 +101,6 @@ def render_product_detail(pid):
                 '<div class="detail-badges">'
                 f'<span class="badge">유튜버 {channel_count}명 추천</span>'
                 f'<span class="badge">근거 영상 {len(recs)}개</span>'
-                f'<span class="badge">AI 검증 신뢰도 {confidence:.0%}</span>'
                 f'{purchase_html}'
                 '</div>',
                 unsafe_allow_html=True,
@@ -130,10 +128,10 @@ def render_product_detail(pid):
                 f'<div class="trust-seg-unk" style="width:{unk_pct}%"></div>'
                 '</div>'
                 '<div class="trust-legend">'
-                f'<span>🟢 직접 구매(내돈내산) {buy_cnt}건</span>'
-                f'<span>🟡 제품 제공 {prov_cnt}건</span>'
-                f'<span>🔴 유료 광고 {ad_cnt}건</span>'
-                f'<span>⚪ 표기 미확인 {unk_cnt}건</span>'
+                f'<span>직접 구매(내돈내산) {buy_cnt}건</span>'
+                f'<span>제품 제공 {prov_cnt}건</span>'
+                f'<span>유료 광고 {ad_cnt}건</span>'
+                f'<span>표기 미확인 {unk_cnt}건</span>'
                 '</div>'
                 '</div>',
                 unsafe_allow_html=True,
@@ -175,8 +173,8 @@ def render_product_detail(pid):
             '<div class="detail-section">'
             '<div class="detail-section-title"><span>핵심 장단점 한눈에 비교</span><span class="detail-section-sub">실사용 리뷰 기반 추출</span></div>'
             '<div class="pros-cons-grid">'
-            f'<div class="pc-col pc-col-pro"><div class="pc-col-title">👍 좋았던 점 (장점)</div>{pro_items_html}</div>'
-            f'<div class="pc-col pc-col-con"><div class="pc-col-title">👎 아쉬운 점 (체크포인트)</div>{con_items_html}</div>'
+            f'<div class="pc-col pc-col-pro"><div class="pc-col-title">좋았던 점 (장점)</div>{pro_items_html}</div>'
+            f'<div class="pc-col pc-col-con"><div class="pc-col-title">아쉬운 점 (체크포인트)</div>{con_items_html}</div>'
             '</div>'
             '</div>',
             unsafe_allow_html=True,
@@ -194,9 +192,9 @@ def render_product_detail(pid):
             c_points = [re.sub(r"\s+", " ", str(x).strip()) for x in (rec.get("cons") or []) if is_meaningful_point(x)]
             point_lines = []
             if p_points:
-                point_lines.append(f"👍 {safe(' · '.join(p_points[:2]))}")
+                point_lines.append(f"장점 · {safe(' / '.join(p_points[:2]))}")
             if c_points:
-                point_lines.append(f"👎 {safe(' · '.join(c_points[:2]))}")
+                point_lines.append(f"체크 · {safe(' / '.join(c_points[:2]))}")
             points_cell = "<br>".join(point_lines) if point_lines else "-"
             matrix_rows.append(
                 f"<tr><td><b>{ch_name}</b></td><td>{p_badge}</td><td>{reason_cell}</td><td>{points_cell}</td></tr>"
@@ -244,12 +242,12 @@ def render_product_detail(pid):
             )
 
         v_btn = (
-            f'<a class="creator-video-btn" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer">▶ 이 영상 보기 ↗</a>'
+            f'<a class="creator-video-btn" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer">▶ 원문 영상 ↗</a>'
             if v_id else ""
         )
         v_title = safe(video.get("title") or "영상 제목 정보 없음")
         reason_txt = re.sub(r"\s+", " ", str(rec.get("reason") or "").strip())
-        reason_html = f'<div class="creator-reason">💡 {safe(reason_txt)}</div>' if is_meaningful_point(reason_txt) else ""
+        reason_html = f'<div class="creator-reason">{safe(reason_txt)}</div>' if is_meaningful_point(reason_txt) else ""
 
         ev_txt = clean_evidence_text(rec.get("evidence"))
         ev_html = f'<div class="creator-evidence">“{safe(ev_txt)}”</div>' if ev_txt else ""
@@ -258,11 +256,11 @@ def render_product_detail(pid):
         for p in (rec.get("pros") or []):
             pt = re.sub(r"\s+", " ", str(p).strip())
             if is_meaningful_point(pt):
-                tag_parts.append(f'<span class="ctag-pro">👍 {safe(pt)}</span>')
+                tag_parts.append(f'<span class="ctag-pro">장점 · {safe(pt)}</span>')
         for c in (rec.get("cons") or []):
             ct = re.sub(r"\s+", " ", str(c).strip())
             if is_meaningful_point(ct):
-                tag_parts.append(f'<span class="ctag-con">👎 {safe(ct)}</span>')
+                tag_parts.append(f'<span class="ctag-con">체크 · {safe(ct)}</span>')
         tags_html = f'<div class="creator-tags">{"".join(tag_parts)}</div>' if tag_parts else ""
 
         review_cards_html.append(
@@ -273,7 +271,7 @@ def render_product_detail(pid):
             f'<div class="creator-name-wrap"><span class="creator-name">{ch_name}</span>{stat_html}{p_badge}</div>'
             f'{v_btn}'
             '</div>'
-            f'<div class="creator-video-title">🎬 {v_title}</div>'
+            f'<div class="creator-video-title">{v_title}</div>'
             f'{reason_html}'
             f'{ev_html}'
             f'{tags_html}'
@@ -303,13 +301,13 @@ def render_product_detail(pid):
                 r_ch_cnt = len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
                 with col:
                     with st.container(border=True):
-                        render_product_visual(rp)
+                        render_product_visual(rp, link_to_detail=True)
                         st.markdown(
+                            f'<a class="card-body-link" href="?view=detail&pid={safe(r_pid)}" target="_self">'
                             f'<div class="related-brand">{safe(rp.get("brand"))} · 유튜버 {r_ch_cnt}명 추천</div>'
-                            f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>',
+                            f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>'
+                            '</a>',
                             unsafe_allow_html=True,
                         )
-                        if st.button("상세 비교 보기 →", key=f"rel_detail_{r_pid}", use_container_width=True):
-                            open_product_detail(r_pid)
 
     render_footer()
