@@ -10,7 +10,7 @@ from ui.common import (
     get_representative_rec,
     handle_click_redirect,
     inject_styles,
-    load_public_data,
+    load_public_catalog,
     log_event,
     recommendation_summary,
     render_footer,
@@ -23,6 +23,10 @@ from ui.common import (
 from ui.detail import render_product_detail
 
 st.set_page_config(page_title="에디션 픽 EDITION PICK · 검증된 리뷰 큐레이션", page_icon="✦", layout="wide")
+
+if str(st.query_params.get("health", "")).strip() == "1":
+    st.markdown("OK")
+    st.stop()
 
 handle_click_redirect()
 inject_styles()
@@ -86,6 +90,24 @@ components.html(
     "    window.parent.__editionChromeObserver = new MutationObserver(cleanTopChrome);"
     "    window.parent.__editionChromeObserver.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });"
     "  }"
+    "  if (!window.parent.__editionCardClickBound) {"
+    "    window.parent.__editionCardClickBound = true;"
+    "    doc.addEventListener('click', function(e) {"
+    "      if (e.target.closest('a, button, input, select, textarea, [role=\"button\"]')) return;"
+    "      let zone = e.target.closest('[data-detail-url]');"
+    "      if (!zone) {"
+    "        const card = e.target.closest('[data-testid=\"stVerticalBlockBorderWrapper\"], .st-key-product_grid [data-testid=\"stColumn\"] > div, .st-key-related_grid [data-testid=\"stColumn\"] > div');"
+    "        if (card) zone = card.querySelector('[data-detail-url]');"
+    "      }"
+    "      if (zone) {"
+    "        const url = zone.getAttribute('data-detail-url');"
+    "        if (url) {"
+    "          e.preventDefault();"
+    "          window.parent.location.href = url;"
+    "        }"
+    "      }"
+    "    }, true);"
+    "  }"
     f"  {scroll_js}"
     "})();"
     "</script>",
@@ -118,21 +140,24 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
             st.rerun()
 
 
-def render_product_card(product):
+def render_product_card(product, used_video_ids=None):
     recs = product["recommendations"]
     pid = str(product.get("product_id"))
     detail_href = f"?view=detail&pid={safe(pid)}"
-    representative = get_representative_rec(product)
-    channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
+    representative = get_representative_rec(product, exclude_video_ids=used_video_ids)
+    if used_video_ids is not None and not product.get("image_verified") and representative and representative.get("video_id"):
+        used_video_ids.add(str(representative["video_id"]))
+
+    channel_count = product.get("_channel_count") or len({r.get("channel_id") for r in recs if r.get("channel_id")})
     rep_channel = ((representative or {}).get("channel") or {}).get("channel_name") or (
         ((recs[0].get("channel") or {}).get("channel_name") if recs else "") or "유튜버 추천"
     )
     source_label = f"{rep_channel} 외 {channel_count - 1}명" if channel_count > 1 else rep_channel
 
     with st.container(border=True):
-        render_product_visual(product, representative=representative, link_to_detail=True)
+        render_product_visual(product, representative=representative, link_to_detail=True, is_detail=False)
 
-        summary = recommendation_summary(recs)
+        summary = product.get("_summary") or recommendation_summary(recs)
         purchase_html = render_purchase_badges(summary["purchase_counts"])
 
         pro_line = summary["pros"][0] if summary["pros"] else ""
@@ -155,7 +180,7 @@ def render_product_card(product):
         summary_html = f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>' if summary_blocks else ""
 
         st.markdown(
-            f'<a class="card-body-link" href="{detail_href}" target="_self">'
+            f'<div class="card-info-block" data-detail-url="{detail_href}">'
             '<div class="card-source-bar">'
             f'<span class="source-chip"><b>▶</b> {safe(source_label)}</span>'
             f'<span class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
@@ -167,7 +192,7 @@ def render_product_card(product):
             f'{purchase_html}'
             '</div>'
             f'{summary_html}'
-            '</a>',
+            '</div>',
             unsafe_allow_html=True,
         )
 
@@ -175,7 +200,7 @@ def render_product_card(product):
 
 
 def render_home():
-    products = load_public_data()
+    products = load_public_catalog()
     channel_ids = {r.get("channel_id") for p in products for r in p["recommendations"] if r.get("channel_id")}
     video_ids = {r.get("video_id") for p in products for r in p["recommendations"] if r.get("video_id")}
     st.markdown(
@@ -196,7 +221,7 @@ def render_home():
         keyword = a.text_input("검색", placeholder="상품명, 브랜드, 유튜버 검색", label_visibility="collapsed")
         categories = sorted({p.get("category") or "기타" for p in products})
         category = b.selectbox("카테고리", ["전체 카테고리"] + categories, label_visibility="collapsed")
-        sort_by = c.selectbox("정렬", ["추천 많은순", "최신 등록순"], label_visibility="collapsed")
+        sort_by = c.selectbox("정렬", ["추천 많은순", "제휴 최저가순", "최신 등록순"], label_visibility="collapsed")
 
     clean_kw = keyword.strip()
     filter_sig = (clean_kw, category, sort_by)
@@ -220,22 +245,42 @@ def render_home():
     if clean_kw:
         if sort_by == "최신 등록순":
             scored_items.sort(key=lambda item: (item[0], str(item[1].get("created_at") or "")), reverse=True)
+        elif sort_by == "제휴 최저가순":
+            scored_items.sort(
+                key=lambda item: (
+                    item[0],
+                    1 if item[1].get("_has_partner") else 0,
+                    item[1].get("_channel_count", 0),
+                    len(item[1]["recommendations"]),
+                ),
+                reverse=True,
+            )
         else:
             scored_items.sort(
                 key=lambda item: (
                     item[0],
-                    len({r.get("channel_id") for r in item[1]["recommendations"]}),
+                    item[1].get("_channel_count", 0),
                     len(item[1]["recommendations"]),
+                    1 if item[1].get("_has_partner") else 0,
                 ),
                 reverse=True,
             )
     elif sort_by == "최신 등록순":
         scored_items.sort(key=lambda item: str(item[1].get("created_at") or ""), reverse=True)
+    elif sort_by == "제휴 최저가순":
+        scored_items.sort(
+            key=lambda item: (
+                1 if item[1].get("_has_partner") else 0,
+                item[1].get("_channel_count", 0),
+                len(item[1]["recommendations"]),
+            ),
+            reverse=True,
+        )
 
     shown = [item[1] for item in scored_items]
 
     st.markdown(
-        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>상품 클릭 시 상세 비교 · 영상 배지 클릭 시 원문 재생</span></div>',
+        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>카드 클릭 시 상세 비교 · 영상 배지 클릭 시 원문 재생</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -244,12 +289,13 @@ def render_home():
     page = min(max(int(st.session_state.get("catalog_page", 1)), 1), pages)
     page_products = shown[(page - 1) * page_size:page * page_size]
 
+    used_video_ids = set()
     with st.container(key="product_grid"):
         for start in range(0, len(page_products), 3):
             cols = st.columns(3, gap="medium")
             for col, product in zip(cols, page_products[start:start + 3]):
                 with col:
-                    render_product_card(product)
+                    render_product_card(product, used_video_ids=used_video_ids)
 
     if pages > 1:
         page_nums = get_page_numbers(page, pages)
