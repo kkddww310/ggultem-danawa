@@ -5,6 +5,7 @@ import streamlit as st
 from ui.common import (
     AFFILIATE_DISCLOSURE,
     MALL_META,
+    build_product_visual_html,
     clean_evidence_text,
     detect_product_malls,
     format_korean_count,
@@ -79,8 +80,6 @@ def render_product_detail(pid):
     channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
     summary = recommendation_summary(recs)
     category = product.get("category") or "기타"
-    safe_pid = safe(pid)
-    detail_href = f"?view=detail&pid={safe_pid}"
 
     st.markdown(
         f'<div class="detail-breadcrumb">에디션 픽 &gt; {safe(category)} &gt; {safe(product.get("brand"))}</div>',
@@ -239,7 +238,9 @@ def render_product_detail(pid):
             fb_url = f"https://i.ytimg.com/vi/{v_id}/hqdefault.jpg"
             thumb_html = (
                 '<div class="creator-thumb-box">'
+                f'<a class="creator-thumb-link" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer">'
                 f'<img class="creator-thumb-img" src="{hd_url}" onerror="this.onerror=null;this.src=\'{fb_url}\';" alt="리뷰 영상 썸네일">'
+                '</a>'
                 '</div>'
             )
 
@@ -267,7 +268,6 @@ def render_product_detail(pid):
 
         review_cards_html.append(
             '<div class="creator-review-card">'
-            f'<a class="card-cover-link" href="{detail_href}" target="_self" aria-label="{safe(product.get("canonical_name"))} 상세 페이지"></a>'
             f'{thumb_html}'
             '<div class="creator-review-body">'
             '<div class="creator-head">'
@@ -299,19 +299,21 @@ def render_product_detail(pid):
         with st.container(key="related_grid"):
             r_cols = st.columns(3, gap="medium")
             for col, rp in zip(r_cols, related):
-                r_pid = safe(rp.get("product_id") or "")
+                raw_r_pid = str(rp.get("product_id") or "").strip()
+                r_href = f"?view=detail&pid={safe(raw_r_pid)}"
                 r_recs = rp.get("recommendations") or []
                 r_ch_cnt = rp.get("_channel_count") or len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
+                r_visual = build_product_visual_html(rp, detail_href=r_href, is_detail=False)
                 with col:
-                    with st.container(border=True):
-                        render_product_visual(rp, link_to_detail=True, is_detail=False)
-                        st.markdown(
-                            f'<a class="card-cover-link" href="?view=detail&pid={r_pid}" target="_self" aria-label="{safe(rp.get("canonical_name"))} 상세 비교 보기"></a>'
-                            '<div class="card-info-block">'
-                            f'<div class="related-brand">{safe(rp.get("brand"))} · 유튜버 {r_ch_cnt}명 추천</div>'
-                            f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>'
-                            '</div>',
-                            unsafe_allow_html=True,
-                        )
+                    st.markdown(
+                        '<article class="product-card">'
+                        f'{r_visual}'
+                        f'<a class="card-body-link" href="{r_href}" target="_self" aria-label="{safe(rp.get("canonical_name"))} 상세 비교 보기">'
+                        f'<div class="related-brand">{safe(rp.get("brand"))} · 유튜버 {r_ch_cnt}명 추천</div>'
+                        f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>'
+                        '</a>'
+                        '</article>',
+                        unsafe_allow_html=True,
+                    )
 
     render_footer()
