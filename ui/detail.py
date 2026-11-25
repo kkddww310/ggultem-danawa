@@ -21,8 +21,8 @@ from ui.common import (
 )
 
 
-def render_danawa_price_table(product):
-    """상세 페이지용 다나와 스타일 쇼핑몰별 최저가 비교 리스트."""
+def build_danawa_price_html(product):
+    """상세 페이지 상단 우측용 컴팩트 쇼핑몰별 최저가 비교 박스 HTML."""
     pid = safe(product.get("product_id"))
     malls = detect_product_malls(product, include_all_default=True)
     rows_html = []
@@ -31,7 +31,7 @@ def render_danawa_price_table(product):
         meta = MALL_META[mall_key]
         status_label = "공식 제휴 최저가 링크" if item["is_partner"] else "쇼핑몰 실시간 최저가 검색"
         partner_tag = '<span class="danawa-partner-badge">제휴연결</span>' if item["is_partner"] else ""
-        btn_label = "최저가 보러가기 →" if item["is_partner"] else "가격 비교하기 →"
+        btn_label = "최저가 보기 →" if item["is_partner"] else "가격 비교 →"
         rows_html.append(
             '<div class="danawa-row">'
             '<div class="danawa-mall-info">'
@@ -44,12 +44,11 @@ def render_danawa_price_table(product):
             f'<a class="danawa-go-btn" href="?go={safe(mall_key)}&pid={pid}" target="_blank" rel="noopener noreferrer">{btn_label}</a>'
             '</div>'
         )
-    st.markdown(
+    return (
         '<div class="danawa-box">'
-        '<div class="danawa-head"><span>쇼핑몰별 최저가 비교</span><span>클릭 시 공식몰·검색 페이지 이동</span></div>'
-        f'{"".join(rows_html)}'
-        '</div>',
-        unsafe_allow_html=True,
+        '<div class="danawa-head"><span>쇼핑몰별 최저가 비교</span><span>공식몰·검색 바로 이동</span></div>'
+        f'<div class="danawa-list">{"".join(rows_html)}</div>'
+        '</div>'
     )
 
 
@@ -97,14 +96,19 @@ def render_product_detail(pid):
     ad_pct = round(ad_cnt / total_recs * 100)
     unk_pct = max(0, 100 - buy_pct - prov_pct - ad_pct)
 
+    danawa_html = build_danawa_price_html(product)
+
     st.markdown(
+        '<div class="detail-top-grid">'
         '<div class="detail-hero-card">'
+        '<div>'
         f'<div class="detail-brand-line">{safe(brand_line)}</div>'
         f'<div class="detail-title">{safe(product.get("canonical_name"))}</div>'
         '<div class="detail-badges">'
         f'<span class="badge">유튜버 {channel_count}명 추천</span>'
         f'<span class="badge">근거 영상 {len(recs)}개</span>'
         f'{purchase_html}'
+        '</div>'
         '</div>'
         '<div class="trust-box">'
         '<div class="trust-box-head"><span>리뷰 구매 방식 투명도 분석</span>'
@@ -122,12 +126,11 @@ def render_product_detail(pid):
         f'<span>표기 미확인 {unk_cnt}건</span>'
         '</div>'
         '</div>'
+        '</div>'
+        f'{danawa_html}'
         '</div>',
         unsafe_allow_html=True,
     )
-
-    render_danawa_price_table(product)
-    st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
 
     if summary["reasons"]:
         fit_html = "".join(
