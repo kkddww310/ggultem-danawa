@@ -93,17 +93,21 @@ components.html(
     "  if (!window.parent.__editionCardClickBound) {"
     "    window.parent.__editionCardClickBound = true;"
     "    doc.addEventListener('click', function(e) {"
-    "      if (e.target.closest('a, button, input, select, textarea, [role=\"button\"]')) return;"
-    "      let zone = e.target.closest('[data-detail-url]');"
+    "      if (e.target.closest('a, button, input, select, textarea, [role=\"button\"], .thumb-video-badge, .shop-btn, .creator-video-btn')) return;"
+    "      let zone = e.target.closest('.ep-detail-zone');"
     "      if (!zone) {"
     "        const card = e.target.closest('[data-testid=\"stVerticalBlockBorderWrapper\"], .st-key-product_grid [data-testid=\"stColumn\"] > div, .st-key-related_grid [data-testid=\"stColumn\"] > div');"
-    "        if (card) zone = card.querySelector('[data-detail-url]');"
+    "        if (card) zone = card.querySelector('.ep-detail-zone');"
     "      }"
-    "      if (zone) {"
-    "        const url = zone.getAttribute('data-detail-url');"
-    "        if (url) {"
+    "      if (zone && zone.id) {"
+    "        const pid = zone.id.replace(/^ep-(detail|thumb)-/, '');"
+    "        if (pid) {"
     "          e.preventDefault();"
-    "          window.parent.location.href = url;"
+    "          e.stopPropagation();"
+    "          const targetUrl = new URL(window.parent.location.href);"
+    "          targetUrl.searchParams.set('view', 'detail');"
+    "          targetUrl.searchParams.set('pid', pid);"
+    "          window.parent.location.href = targetUrl.toString();"
     "        }"
     "      }"
     "    }, true);"
@@ -142,8 +146,7 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
 
 def render_product_card(product, used_video_ids=None):
     recs = product["recommendations"]
-    pid = str(product.get("product_id"))
-    detail_href = f"?view=detail&pid={safe(pid)}"
+    pid = safe(product.get("product_id") or "")
     representative = get_representative_rec(product, exclude_video_ids=used_video_ids)
     if used_video_ids is not None and not product.get("image_verified") and representative and representative.get("video_id"):
         used_video_ids.add(str(representative["video_id"]))
@@ -180,7 +183,7 @@ def render_product_card(product, used_video_ids=None):
         summary_html = f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>' if summary_blocks else ""
 
         st.markdown(
-            f'<div class="card-info-block" data-detail-url="{detail_href}">'
+            f'<div class="card-info-block ep-detail-zone" id="ep-detail-{pid}">'
             '<div class="card-source-bar">'
             f'<span class="source-chip"><b>▶</b> {safe(source_label)}</span>'
             f'<span class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
