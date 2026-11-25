@@ -17,6 +17,9 @@ def secret(name):
 
 SUPABASE_URL = secret("SUPABASE_URL").rstrip("/")
 SUPABASE_KEY = secret("SUPABASE_SERVICE_ROLE_KEY")
+MAX_CURATED_PRODUCTS = 220
+AUTO_APPROVE_MIN_SCORE = 80
+
 CATEGORIES = ["IT·전자", "뷰티", "패션", "생활·살림", "주방", "여행", "자동차", "운동·건강", "육아", "반려동물", "기타"]
 IMAGE_SOURCES = ["", "brand_official", "affiliate", "manual", "youtube_thumbnail"]
 IMAGE_SOURCE_LABELS = {
@@ -44,6 +47,10 @@ INVALID_POINT_PATTERNS = (
     "정보가 없음", "확인되지 않", "알 수 없", "단점 없음", "장점 없음",
     "해당 없음", "내용 없음", "특이사항 없음",
 )
+GENERIC_BRAND_KEYS = {
+    "대기업", "중소기업", "가성비", "추천템", "인기템", "꿀템", "필수템",
+    "기타", "미상", "알수없음", "무명", "브랜드", "제품", "상품",
+}
 HOLLOW_COPY_REGEX = re.compile(
     r"(에\s*사용된|에서\s*소개된|에서\s*추천한|에서\s*언급된|에서\s*리뷰한|으로\s*구매한|직접\s*구매\s*제품|추천\s*제품|소개\s*제품|언급\s*제품|리뷰\s*제품|협찬\s*제품|제공\s*제품)$"
 )
@@ -228,6 +235,76 @@ def is_meaningful_point(text):
     if HOLLOW_COPY_REGEX.search(cleaned):
         return False
     return True
+
+
+def has_valid_brand_and_model(product):
+    brand = str(product.get("brand") or "").strip()
+    model = str(product.get("model") or "").strip()
+    b_key = norm_key(brand)
+    m_key = norm_key(model)
+    if len(b_key) < 1 or len(m_key) < 2:
+        return False
+    if b_key in GENERIC_BRAND_KEYS or m_key in GENERIC_BRAND_KEYS:
+        return False
+    if b_key == m_key:
+        return False
+    return True
+
+
+def is_auto_approvable_product(product, recommendations=None):
+    """식별 점수 80점 이상 + 브랜드/모델명 완비 + 유효 리뷰 근거 보유 여부 판별."""
+    try:
+        score = float(product.get("identification_score") or 0)
+    except (TypeError, ValueError):
+        score = 0
+    if score < AUTO_APPROVE_MIN_SCORE:
+        return False
+    if not has_valid_brand_and_model(product):
+        return False
+    recs = recommendations if recommendations is not None else (product.get("recommendations") or [])
+    if recs:
+        summary = recommendation_summary(recs)
+        if not (summary["pros"] or summary["cons"] or summary["reasons"]):
+            return False
+    return True
+
+
+def passes_quality_gate(product):
+    """홈 카탈로그 노출을 위한 기본 자격 필터 (과락 기준)."""
+    recs = product.get("recommendations") or []
+    if not recs:
+        return False
+    if not product.get("_has_quality_copy"):
+        return False
+    if not has_valid_brand_and_model(product):
+        return False
+
+    channel_count = int(product.get("_channel_count") or 0)
+    raw_score = product.get("identification_score")
+    if raw_score is not None and str(raw_score).strip() != "":
+        try:
+            id_score = float(raw_score)
+            if id_score < AUTO_APPROVE_MIN_SCORE and channel_count < 2:
+                return False
+        except (TypeError, ValueError):
+            pass
+    return True
+
+
+def compute_curation_score(product):
+    """다중 채널 교차 검증 중심 알짜 가치 점수."""
+    recs = product.get("recommendations") or []
+    channel_count = int(product.get("_channel_count") or 0)
+    rec_count = len(recs)
+    summary = product.get("_summary") or {}
+
+    score = (channel_count * 30) + (rec_count * 10)
+    if any(is_single_product_video(product, r) for r in recs):
+        score += 10
+    point_count = len(summary.get("all_pros") or []) + len(summary.get("all_cons") or [])
+    if point_count >= 2:
+        score += 5
+    return score
 
 
 def score_product_search(product, query):
@@ -490,15 +567,16 @@ def _attach_recommendations(products, recs):
         item["_has_partner"] = has_partner_deal(item)
         item["_channel_count"] = len({r.get("channel_id") for r in p_recs if r.get("channel_id")})
         item["_has_quality_copy"] = bool(summary["pros"] or summary["cons"] or summary["reasons"])
+        item["_has_self_buy"] = int(summary["purchase_counts"].get("직접 구매", 0)) > 0
+        item["_quality_score"] = compute_curation_score(item)
         enriched.append(item)
 
     enriched.sort(
         key=lambda p: (
+            p["_quality_score"],
             p["_channel_count"],
             len(p["recommendations"]),
-            1 if p.get("image_verified") else 0,
             1 if p["_has_partner"] else 0,
-            1 if p["_has_quality_copy"] else 0,
         ),
         reverse=True,
     )
@@ -507,13 +585,21 @@ def _attach_recommendations(products, recs):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_public_catalog():
-    """홈 목록 전용 경량 데이터 로더."""
-    products = api_get_all(
-        "products",
-        "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,affiliate_note,image_url,image_source,image_verified,created_at",
-        {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc"},
-        max_rows=3000,
-    )
+    """홈 목록 전용 경량 데이터 로더 (자격 필터 + 점수제 상위 220개 압축)."""
+    try:
+        products = api_get_all(
+            "products",
+            "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,affiliate_note,image_url,image_source,image_verified,identification_score,created_at",
+            {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc"},
+            max_rows=3000,
+        )
+    except Exception:
+        products = api_get_all(
+            "products",
+            "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,affiliate_note,image_url,image_source,image_verified,created_at",
+            {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc"},
+            max_rows=3000,
+        )
     recs = api_get_all(
         "recommendations",
         "recommendation_id,product_id,video_id,channel_id,reason,pros,cons,confidence,purchase_type",
@@ -521,7 +607,8 @@ def load_public_catalog():
         max_rows=10000,
     )
     all_items = _attach_recommendations(products, recs)
-    return [p for p in all_items if p["recommendations"] and (p["_has_quality_copy"] or p["_channel_count"] >= 2)]
+    qualified = [p for p in all_items if passes_quality_gate(p)]
+    return qualified[:MAX_CURATED_PRODUCTS]
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -605,7 +692,8 @@ def get_representative_rec(product, exclude_video_ids=None):
     return valid[0]
 
 
-def render_product_visual(product, representative=None, link_to_detail=False, is_detail=False):
+def build_product_visual_html(product, representative=None, detail_href="", is_detail=False):
+    """썸네일 HTML 생성 (detail_href가 있으면 썸네일 클릭 시 상세페이지 이동, 영상 배지는 유튜브 이동)."""
     if representative is None:
         representative = get_representative_rec(product)
     video_id = safe((representative or {}).get("video_id") or "")
@@ -615,15 +703,17 @@ def render_product_visual(product, representative=None, link_to_detail=False, is
         if video_href else ""
     )
     loading_attr = ' loading="eager"' if is_detail else ' loading="lazy" decoding="async"'
+    title_safe = safe(product.get("canonical_name"))
+
+    def wrap_link(inner_html):
+        if detail_href:
+            return f'<a class="card-thumb-link" href="{detail_href}" target="_self" aria-label="{title_safe} 상세 비교 보기">{inner_html}</a>'
+        return inner_html
 
     image_url = str(product.get("image_url") or "").strip()
     if product.get("image_verified") and image_url.startswith(("https://", "http://")):
-        img_tag = f'<img class="video-thumbnail"{loading_attr} src="{safe(image_url)}" alt="{safe(product.get("canonical_name"))}">'
-        st.markdown(
-            f'<div class="video-thumbnail-wrap">{img_tag}{badge_html}</div>',
-            unsafe_allow_html=True,
-        )
-        return
+        img_tag = f'<img class="video-thumbnail"{loading_attr} src="{safe(image_url)}" alt="{title_safe}">'
+        return f'<div class="video-thumbnail-wrap">{wrap_link(img_tag)}{badge_html}</div>'
 
     if video_id:
         if is_detail:
@@ -632,17 +722,21 @@ def render_product_visual(product, representative=None, link_to_detail=False, is
             img_tag = f'<img class="video-thumbnail"{loading_attr} src="{hd_url}" onerror="this.onerror=null;this.src=\'{fallback_url}\';" alt="추천 영상 썸네일">'
         else:
             img_tag = f'<img class="video-thumbnail"{loading_attr} src="https://i.ytimg.com/vi/{video_id}/hqdefault.jpg" alt="추천 영상 썸네일">'
-        st.markdown(
-            f'<div class="video-thumbnail-wrap">{img_tag}{badge_html}</div>',
-            unsafe_allow_html=True,
-        )
-        return
+        return f'<div class="video-thumbnail-wrap">{wrap_link(img_tag)}{badge_html}</div>'
 
     category = product.get("category") or "기타"
     tag_en, background, color = CATEGORY_VISUALS.get(category, CATEGORY_VISUALS["기타"])
-    st.markdown(
+    placeholder = (
         f'<div class="product-placeholder" style="background:{background};color:{color}">'
-        f'<span>{safe(tag_en)}</span><small>{safe(category)}</small></div>',
+        f'<span>{safe(tag_en)}</span><small>{safe(category)}</small></div>'
+    )
+    return wrap_link(placeholder)
+
+
+def render_product_visual(product, representative=None, link_to_detail=False, is_detail=False):
+    detail_href = f"?view=detail&pid={safe(product.get('product_id'))}" if link_to_detail else ""
+    st.markdown(
+        build_product_visual_html(product, representative=representative, detail_href=detail_href, is_detail=is_detail),
         unsafe_allow_html=True,
     )
 
@@ -705,7 +799,7 @@ def render_purchase_badges(counts):
     return "".join(parts)
 
 
-def render_mall_buttons(product):
+def build_mall_buttons_html(product):
     pid = safe(product.get("product_id"))
     mall_buttons = detect_product_malls(product)
     if len(mall_buttons) == 1:
@@ -718,7 +812,11 @@ def render_mall_buttons(product):
         f'<a class="shop-btn {safe(btn["css"])}" href="?go={safe(btn["mall"])}&pid={pid}" target="_blank" rel="noopener noreferrer">{safe(btn["label"])}</a>'
         for btn in mall_buttons
     )
-    st.markdown(f'<div class="{grid_cls}">{btn_html}</div>', unsafe_allow_html=True)
+    return f'<div class="{grid_cls}">{btn_html}</div>'
+
+
+def render_mall_buttons(product):
+    st.markdown(build_mall_buttons_html(product), unsafe_allow_html=True)
 
 
 def open_product_detail(product_id):
@@ -858,9 +956,10 @@ div[data-testid="stSelectbox"] svg{fill:var(--sub)!important;color:var(--sub)!im
 div[data-testid="stForm"]{border:1px solid #E2E8F2!important;background:#F9FAFC!important;border-radius:14px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드 & 카드 동일 높이 + 상하 대칭 여백(10px) */
+/* 상품 그리드 & 단일 HTML 카드 (상·하·좌·우 12px 완전 대칭 여백 + 3열 동일 높이) */
 .st-key-product_grid,.st-key-related_grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important}
-.st-key-product_grid [data-testid="stHorizontalBlock"]{
+.st-key-product_grid [data-testid="stHorizontalBlock"],
+.st-key-related_grid [data-testid="stHorizontalBlock"]{
   display:flex!important;
   gap:16px!important;
   align-items:stretch!important;
@@ -871,7 +970,9 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   box-sizing:border-box!important;
 }
 .st-key-product_grid [data-testid="stColumn"],
-.st-key-product_grid [data-testid="column"]{
+.st-key-product_grid [data-testid="column"],
+.st-key-related_grid [data-testid="stColumn"],
+.st-key-related_grid [data-testid="column"]{
   flex:1 1 0%!important;
   width:0!important;
   min-width:0!important;
@@ -880,115 +981,56 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   flex-direction:column!important;
   box-sizing:border-box!important;
 }
-.st-key-product_grid [data-testid="stColumn"] > [data-testid="stVerticalBlock"],
-.st-key-product_grid [data-testid="column"] > [data-testid="stVerticalBlock"],
 .st-key-product_grid [data-testid="stColumn"] > div,
 .st-key-product_grid [data-testid="column"] > div,
-.st-key-product_grid [data-testid="stColumn"] > div > [data-testid="stVerticalBlock"],
-.st-key-product_grid [data-testid="column"] > div > [data-testid="stVerticalBlock"]{
+.st-key-product_grid [data-testid="stVerticalBlock"],
+.st-key-product_grid [data-testid="stElementContainer"],
+.st-key-product_grid [data-testid="stMarkdownContainer"],
+.st-key-product_grid [data-testid="stMarkdownContainer"] > div,
+.st-key-related_grid [data-testid="stColumn"] > div,
+.st-key-related_grid [data-testid="column"] > div,
+.st-key-related_grid [data-testid="stVerticalBlock"],
+.st-key-related_grid [data-testid="stElementContainer"],
+.st-key-related_grid [data-testid="stMarkdownContainer"],
+.st-key-related_grid [data-testid="stMarkdownContainer"] > div{
   flex:1 1 auto!important;
   display:flex!important;
   flex-direction:column!important;
   height:100%!important;
   width:100%!important;
-}
-
-/* 바깥 래퍼 초기화 (이중 테두리·상단 과다 여백 제거) */
-[class*="st-key-pcard_"],
-[class*="st-key-rcard_"]{
-  position:relative!important;
-  flex:1 1 auto!important;
-  display:flex!important;
-  flex-direction:column!important;
-  width:100%!important;
-  height:100%!important;
-  box-sizing:border-box!important;
-  border-radius:16px!important;
-  cursor:pointer!important;
-}
-[class*="st-key-pcard_"]:has(> [data-testid="stVerticalBlock"]),
-[class*="st-key-rcard_"]:has(> [data-testid="stVerticalBlock"]){
-  border:none!important;
-  background:transparent!important;
-  box-shadow:none!important;
-  padding:0!important;
   margin:0!important;
+  padding:0!important;
 }
 
-/* 실제 카드 박스 (상단 10px · 하단 10px 동일 대칭 여백, 좌우 14px) */
-[class*="st-key-pcard_"]:has(> [data-testid="stVerticalBlock"]) > [data-testid="stVerticalBlock"],
-[class*="st-key-rcard_"]:has(> [data-testid="stVerticalBlock"]) > [data-testid="stVerticalBlock"],
-[class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])),
-[class*="st-key-rcard_"]:not(:has(> [data-testid="stVerticalBlock"])){
-  position:relative!important;
-  flex:1 1 auto!important;
+.product-card{
   display:flex!important;
   flex-direction:column!important;
-  justify-content:space-between!important;
   width:100%!important;
   height:100%!important;
-  box-sizing:border-box!important;
-  border:1px solid #E2E8F0!important;
-  background:#FFFFFF!important;
-  border-radius:16px!important;
-  box-shadow:0 2px 10px rgba(15,23,42,.03)!important;
-  padding:10px 14px 10px 14px!important;
+  padding:12px!important;
   margin:0!important;
   gap:10px!important;
+  background:#FFFFFF!important;
+  border:1px solid #E2E8F0!important;
+  border-radius:16px!important;
+  box-shadow:0 2px 10px rgba(15,23,42,.03)!important;
+  box-sizing:border-box!important;
   transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease!important;
 }
-
-/* 카드 내부 중간 래퍼는 static으로 유지해 .card-cover-link가 카드 100% 영역을 덮도록 보장 */
-[class*="st-key-pcard_"] *:not(.card-cover-link):not(.video-thumbnail-wrap):not(.product-placeholder):not(.thumb-video-badge):not(.shop-btn-grid):not(.shop-btn),
-[class*="st-key-rcard_"] *:not(.card-cover-link):not(.video-thumbnail-wrap):not(.product-placeholder):not(.thumb-video-badge):not(.shop-btn-grid):not(.shop-btn){
-  position:static!important;
-}
-.card-cover-link{
-  position:absolute!important;
-  inset:0!important;
-  z-index:5!important;
-  border-radius:16px!important;
-  background:transparent!important;
-  display:block!important;
-  cursor:pointer!important;
-}
-[class*="st-key-pcard_"]:hover > [data-testid="stVerticalBlock"],
-[class*="st-key-rcard_"]:hover > [data-testid="stVerticalBlock"],
-[class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])):hover,
-[class*="st-key-rcard_"]:not(:has(> [data-testid="stVerticalBlock"])):hover{
+.product-card:hover{
   transform:translateY(-2px)!important;
   border-color:#CBD5E1!important;
   box-shadow:0 10px 26px rgba(15,23,42,.08)!important;
 }
-[class*="st-key-pcard_"]:hover .product-title,
-[class*="st-key-rcard_"]:hover .related-name{
+.product-card:hover .product-title,
+.product-card:hover .related-name{
   color:#1D4ED8!important;
 }
-[class*="st-key-pcard_"] [data-testid="stElementContainer"],
-[class*="st-key-rcard_"] [data-testid="stElementContainer"],
-[class*="st-key-pcard_"] [data-testid="stMarkdownContainer"],
-[class*="st-key-rcard_"] [data-testid="stMarkdownContainer"]{
-  margin:0!important;
-  padding:0!important;
-  width:100%!important;
-}
-[class*="st-key-pcard_"] [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:first-child,
-[class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])) > [data-testid="stElementContainer"]:first-child{
-  margin-top:0!important;
-  padding-top:0!important;
-}
-/* 하단 쇼핑몰 버튼 영역을 카드 맨 아래 여백(10px) 위로 고정 정렬 */
-[class*="st-key-pcard_"] [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child,
-[class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])) > [data-testid="stElementContainer"]:last-child{
-  margin-top:auto!important;
-  margin-bottom:0!important;
-  padding:0!important;
-}
 
-/* 썸네일 */
+/* 썸네일 (이미지 클릭 = 상세페이지 이동, 영상 배지 클릭 = 유튜브 이동) */
 .video-thumbnail-wrap{
   position:relative!important;
-  display:block;
+  display:block!important;
   width:100%!important;
   aspect-ratio:16 / 9!important;
   margin:0!important;
@@ -997,24 +1039,31 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   background:#F1F3F6!important;
   overflow:hidden!important;
   box-sizing:border-box!important;
+  flex-shrink:0!important;
+}
+.card-thumb-link{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  cursor:pointer!important;
+  text-decoration:none!important;
 }
 .video-thumbnail{
-  display:block;
+  display:block!important;
   width:100%!important;
   height:100%!important;
   object-fit:cover!important;
   object-position:center center!important;
   transition:transform .24s ease!important;
 }
-[class*="st-key-pcard_"]:hover .video-thumbnail,
-[class*="st-key-rcard_"]:hover .video-thumbnail{
+.product-card:hover .video-thumbnail{
   transform:scale(1.025);
 }
 .thumb-video-badge{
   position:absolute!important;
   right:8px!important;
   bottom:8px!important;
-  z-index:20!important;
+  z-index:10!important;
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
@@ -1043,19 +1092,20 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   margin:0!important;
   border-radius:10px!important;
   border:1px solid rgba(15,23,42,.06)!important;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:4px;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:4px!important;
   overflow:hidden!important;
   box-sizing:border-box!important;
 }
 .product-placeholder span{font-size:13.5px;font-weight:850;letter-spacing:.12em}
 .product-placeholder small{font-size:12px;font-weight:700;opacity:.9}
 
-/* 카드 본문 정보 블록 (좌우 0px ~ 100% 일직선 정렬) */
-.card-info-block{
+/* 카드 본문 전체 클릭 링크 (하단 버튼 위 남은 여백까지 모두 상세페이지 이동) */
+.card-body-link{
+  flex:1 1 auto!important;
   display:flex!important;
   flex-direction:column!important;
   align-items:stretch!important;
@@ -1064,7 +1114,9 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   margin:0!important;
   width:100%!important;
   box-sizing:border-box!important;
-  user-select:none;
+  color:inherit!important;
+  text-decoration:none!important;
+  cursor:pointer!important;
 }
 .card-source-bar{
   display:flex!important;
@@ -1188,7 +1240,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   padding:0!important;
   margin:0!important;
 }
-.st-key-product_grid .summary-line{
+.summary-line{
   display:flex!important;
   flex-direction:row!important;
   align-items:center!important;
@@ -1235,23 +1287,20 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .summary-reason{background:#F4F6F9!important;border:1px solid #E5E9F0!important}
 .sum-tag-fit{background:#DCE3EC!important;color:#1E293B!important}
 
-/* 쇼핑몰 버튼 (썸네일·장점 바와 좌우 100% 정렬 & 오버레이 링크 위 z-index: 20) */
+/* 쇼핑몰 버튼 (하단 12px 여백 위에 고정 정렬) */
 .shop-btn-grid{
-  position:relative!important;
-  z-index:20!important;
   display:grid!important;
   grid-template-columns:repeat(2,minmax(0,1fr))!important;
   gap:6px!important;
   width:100%!important;
-  margin:0!important;
+  margin:auto 0 0 0!important;
   padding:0!important;
+  flex-shrink:0!important;
   box-sizing:border-box!important;
 }
 .shop-btn-grid.cols-1{grid-template-columns:minmax(0,1fr)!important}
 .shop-btn-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 .shop-btn{
-  position:relative!important;
-  z-index:20!important;
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
@@ -1346,9 +1395,8 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .creator-matrix td{padding:10px 12px;border-bottom:1px solid #F1F4F8;vertical-align:top;line-height:1.45;color:var(--ink);word-break:keep-all}
 .creator-matrix tr:last-child td{border-bottom:0}
 
-/* 유튜버 · 영상별 상세 리뷰 비교 카드 (원문 영상 버튼 제외 전체 클릭) */
+/* 유튜버 · 영상별 상세 리뷰 비교 카드 */
 .creator-review-card{
-  position:relative!important;
   display:flex;
   align-items:flex-start;
   gap:14px;
@@ -1358,9 +1406,6 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   padding:13px;
   margin-bottom:10px;
   transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease;
-}
-.creator-review-card *:not(.card-cover-link):not(.creator-video-btn){
-  position:static!important;
 }
 .creator-review-card:last-child{margin-bottom:0}
 .creator-review-card:hover{
@@ -1377,13 +1422,14 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   border:1px solid rgba(15,23,42,.08);
   background:#E9EDF3;
 }
+.creator-thumb-link{display:block;width:100%;height:100%}
 .creator-thumb-img{width:100%;height:100%;object-fit:cover;display:block}
 .creator-review-body{flex:1;min-width:0}
 .creator-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;flex-wrap:wrap}
 .creator-name-wrap{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 .creator-name{font-size:15px;font-weight:800;color:var(--ink)}
 .creator-stat{font-size:12px;font-weight:650;color:var(--muted)}
-.creator-video-btn{position:relative!important;z-index:20!important;display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:999px;background:#111827;color:#FFFFFF!important;font-size:11.5px;font-weight:750;text-decoration:none!important}
+.creator-video-btn{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:999px;background:#111827;color:#FFFFFF!important;font-size:11.5px;font-weight:750;text-decoration:none!important}
 .creator-video-btn:hover{background:#DC2626}
 .creator-video-title{font-size:13px;font-weight:650;color:var(--sub);margin-bottom:6px;line-height:1.4}
 .creator-reason{font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:6px;line-height:1.45;word-break:keep-all}
@@ -1423,17 +1469,17 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   .hero-stats{flex-wrap:nowrap!important;gap:4px!important;margin-top:9px!important;overflow-x:auto!important}
   .stat-pill{padding:4px 8px!important;font-size:11px!important;gap:4px!important;letter-spacing:-.02em!important;flex-shrink:0!important}
   .top-disclosure{font-size:11px;padding:6px 8px}
-  .st-key-filter_bar [data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;width:100%!important;margin:0!important}
+  .st-key-filter_bar [data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;width:100%!important;margin:0!important}
   .st-key-filter_bar [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child,
   .st-key-filter_bar [data-testid="stHorizontalBlock"] > [data-testid="column"]:first-child{grid-column:1 / -1!important;width:100%!important;min-width:0!important}
   .st-key-filter_bar [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
   .st-key-filter_bar [data-testid="stHorizontalBlock"] > [data-testid="column"]{width:100%!important;min-width:0!important}
-  .st-key-product_grid > div > [data-testid="stHorizontalBlock"],
-  .st-key-related_grid > div > [data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:11px!important;width:100%!important;margin:0!important}
-  .st-key-product_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
-  .st-key-product_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="column"],
-  .st-key-related_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
-  .st-key-related_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]{width:100%!important;min-width:0!important;max-width:100%!important;flex:none!important;margin:0!important;padding:0!important}
+  .st-key-product_grid [data-testid="stHorizontalBlock"],
+  .st-key-related_grid [data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important;width:100%!important;margin:0 0 12px 0!important}
+  .st-key-product_grid [data-testid="stColumn"],
+  .st-key-product_grid [data-testid="column"],
+  .st-key-related_grid [data-testid="stColumn"],
+  .st-key-related_grid [data-testid="column"]{width:100%!important;min-width:0!important;max-width:100%!important;flex:none!important;margin:0!important;padding:0!important}
   .pros-cons-grid{grid-template-columns:minmax(0,1fr)!important}
   .detail-title{font-size:19px}
   .creator-review-card{flex-direction:column;gap:10px}
