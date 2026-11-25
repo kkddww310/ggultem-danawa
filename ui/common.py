@@ -848,8 +848,7 @@ div[data-testid="stSelectbox"] svg{fill:var(--sub)!important;color:var(--sub)!im
 .result-bar{display:flex;align-items:center;justify-content:space-between;margin:8px 2px 11px;font-size:13px;color:var(--sub);font-weight:600}
 .result-bar b{color:var(--ink);font-weight:800}
 
-/* 기본 컨테이너 & 버튼 */
-div[data-testid="stVerticalBlockBorderWrapper"]{border:1px solid #E2E8F0!important;outline:0!important;background:#fff!important;border-radius:16px!important;box-shadow:0 2px 12px rgba(15,23,42,.03)!important;padding:16px!important;margin-bottom:12px!important}
+/* 기본 버튼 & 폼 */
 .stButton>button,.stLinkButton>a{min-height:39px!important;border-radius:10px!important;font-weight:700!important;font-size:13px!important;transition:all .15s!important}
 .stButton>button[kind="primary"],.stLinkButton>a[kind="primary"]{background:#111827!important;border-color:#111827!important;color:#fff!important}
 .stButton>button[kind="primary"]:hover,.stLinkButton>a[kind="primary"]:hover{background:#2563EB!important;border-color:#2563EB!important}
@@ -859,7 +858,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]{border:1px solid #E2E8F0!importa
 div[data-testid="stForm"]{border:1px solid #E2E8F2!important;background:#F9FAFC!important;border-radius:14px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드 & 카드 동일 높이 + 전체 클릭 오버레이 링크 */
+/* 상품 그리드 & 카드 동일 높이 + 단일 테두리 & 상하좌우 대칭 15px 여백 */
 .st-key-product_grid,.st-key-related_grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important}
 .st-key-product_grid [data-testid="stHorizontalBlock"]{
   display:flex!important;
@@ -882,16 +881,48 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   box-sizing:border-box!important;
 }
 .st-key-product_grid [data-testid="stColumn"] > div,
-.st-key-product_grid [data-testid="column"] > div{
+.st-key-product_grid [data-testid="column"] > div,
+.st-key-product_grid [data-testid="stColumn"] > div > [data-testid="stVerticalBlock"],
+.st-key-product_grid [data-testid="column"] > div > [data-testid="stVerticalBlock"]{
   flex:1 1 auto!important;
   display:flex!important;
   flex-direction:column!important;
   height:100%!important;
+  width:100%!important;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"],
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"]{
+
+/* 바깥 래퍼 초기화 (이중 테두리·이중 여백 방지) */
+[class*="st-key-pcard_"],
+[class*="st-key-rcard_"]{
   position:relative!important;
   flex:1 1 auto!important;
+  display:flex!important;
+  flex-direction:column!important;
+  width:100%!important;
+  height:100%!important;
+  box-sizing:border-box!important;
+  border-radius:16px!important;
+  cursor:pointer!important;
+}
+[class*="st-key-pcard_"]:has(> [data-testid="stVerticalBlock"]),
+[class*="st-key-rcard_"]:has(> [data-testid="stVerticalBlock"]){
+  border:none!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  padding:0!important;
+  margin:0!important;
+}
+
+/* 실제 카드 박스 (단일 테두리 + 상·하·좌·우 동일 15px 여백) */
+[class*="st-key-pcard_"]:has(> [data-testid="stVerticalBlock"]) > [data-testid="stVerticalBlock"],
+[class*="st-key-rcard_"]:has(> [data-testid="stVerticalBlock"]) > [data-testid="stVerticalBlock"],
+[class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])),
+[class*="st-key-rcard_"]:not(:has(> [data-testid="stVerticalBlock"])){
+  position:relative!important;
+  flex:1 1 auto!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:space-between!important;
   width:100%!important;
   height:100%!important;
   box-sizing:border-box!important;
@@ -899,62 +930,52 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   background:#FFFFFF!important;
   border-radius:16px!important;
   box-shadow:0 2px 10px rgba(15,23,42,.03)!important;
-  padding:13px!important;
-  margin-bottom:0!important;
-  display:flex!important;
-  flex-direction:column!important;
+  padding:15px!important;
+  margin:0!important;
+  gap:10px!important;
   transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease!important;
 }
-/* 카드 내부 중간 래퍼들은 static으로 풀어 오버레이 링크가 카드 전체(100%)를 덮도록 보장 */
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] *:not(.card-cover-link):not(.video-thumbnail-wrap):not(.product-placeholder):not(.thumb-video-badge):not(.shop-btn-grid):not(.shop-btn),
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] *:not(.card-cover-link):not(.video-thumbnail-wrap):not(.product-placeholder):not(.thumb-video-badge):not(.shop-btn-grid):not(.shop-btn){
+
+/* 카드 내부 중간 래퍼는 static으로 유지해 .card-cover-link가 카드 100% 영역을 덮도록 보장 */
+[class*="st-key-pcard_"] *:not(.card-cover-link):not(.video-thumbnail-wrap):not(.product-placeholder):not(.thumb-video-badge):not(.shop-btn-grid):not(.shop-btn),
+[class*="st-key-rcard_"] *:not(.card-cover-link):not(.video-thumbnail-wrap):not(.product-placeholder):not(.thumb-video-badge):not(.shop-btn-grid):not(.shop-btn){
   position:static!important;
 }
 .card-cover-link{
   position:absolute!important;
   inset:0!important;
-  z-index:3!important;
+  z-index:5!important;
   border-radius:16px!important;
   background:transparent!important;
   display:block!important;
   cursor:pointer!important;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]:hover,
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"]:hover{
+[class*="st-key-pcard_"]:hover > [data-testid="stVerticalBlock"],
+[class*="st-key-rcard_"]:hover > [data-testid="stVerticalBlock"],
+[class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])):hover,
+[class*="st-key-rcard_"]:not(:has(> [data-testid="stVerticalBlock"])):hover{
   transform:translateY(-2px)!important;
   border-color:#CBD5E1!important;
   box-shadow:0 10px 26px rgba(15,23,42,.08)!important;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]:hover .product-title,
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"]:hover .related-name{
+[class*="st-key-pcard_"]:hover .product-title,
+[class*="st-key-rcard_"]:hover .related-name{
   color:#1D4ED8!important;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div,
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"],
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] .stVerticalBlock,
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] > div,
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"],
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] .stVerticalBlock{
-  flex:1 1 auto!important;
-  display:flex!important;
-  flex-direction:column!important;
-  height:100%!important;
-  gap:10px!important;
-  padding:0!important;
-  margin:0!important;
-}
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stElementContainer"],
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] .element-container,
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stElementContainer"],
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] .element-container{
+[class*="st-key-pcard_"] [data-testid="stElementContainer"],
+[class*="st-key-rcard_"] [data-testid="stElementContainer"],
+[class*="st-key-pcard_"] [data-testid="stMarkdownContainer"],
+[class*="st-key-rcard_"] [data-testid="stMarkdownContainer"]{
   margin:0!important;
   padding:0!important;
   width:100%!important;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child,
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] .stVerticalBlock > .element-container:last-child{
+/* 하단 쇼핑몰 버튼 영역을 카드 맨 아래 여백(15px) 위로 정렬 */
+[class*="st-key-pcard_"] [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child,
+[class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])) > [data-testid="stElementContainer"]:last-child{
   margin-top:auto!important;
-  padding-top:2px!important;
+  margin-bottom:0!important;
+  padding:0!important;
 }
 
 /* 썸네일 */
@@ -978,25 +999,27 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   object-position:center center!important;
   transition:transform .24s ease!important;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]:hover .video-thumbnail,
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"]:hover .video-thumbnail{
+[class*="st-key-pcard_"]:hover .video-thumbnail,
+[class*="st-key-rcard_"]:hover .video-thumbnail{
   transform:scale(1.025);
 }
 .thumb-video-badge{
   position:absolute!important;
   right:8px!important;
   bottom:8px!important;
-  z-index:10!important;
+  z-index:20!important;
   display:inline-flex!important;
   align-items:center!important;
+  justify-content:center!important;
   gap:4px!important;
   padding:4px 10px!important;
   border-radius:999px!important;
-  background:rgba(17,24,39,.84)!important;
+  background:rgba(17,24,39,.86)!important;
   border:1px solid rgba(255,255,255,.2)!important;
   color:#FFFFFF!important;
   font-size:11px!important;
   font-weight:750!important;
+  line-height:1.2!important;
   letter-spacing:-.01em!important;
   text-decoration:none!important;
   backdrop-filter:blur(6px);
@@ -1024,12 +1047,12 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .product-placeholder span{font-size:13.5px;font-weight:850;letter-spacing:.12em}
 .product-placeholder small{font-size:12px;font-weight:700;opacity:.9}
 
-/* 카드 본문 정보 블록 (모든 요소 좌우 0px~100% 일직선 정렬) */
+/* 카드 본문 정보 블록 (좌우 0px ~ 100% 일직선 정렬) */
 .card-info-block{
   display:flex!important;
   flex-direction:column!important;
   align-items:stretch!important;
-  gap:7px!important;
+  gap:8px!important;
   padding:0!important;
   margin:0!important;
   width:100%!important;
@@ -1041,7 +1064,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   flex-direction:row!important;
   align-items:center!important;
   justify-content:space-between!important;
-  gap:10px!important;
+  gap:8px!important;
   width:100%!important;
   height:18px!important;
   min-width:0!important;
@@ -1060,7 +1083,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   color:#374151!important;
   font-size:12px!important;
   font-weight:700!important;
-  line-height:1!important;
+  line-height:1.2!important;
   white-space:nowrap!important;
   overflow:hidden!important;
   text-overflow:ellipsis!important;
@@ -1076,7 +1099,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   font-size:12px!important;
   font-weight:650!important;
   color:#6B7280!important;
-  line-height:1!important;
+  line-height:1.2!important;
   letter-spacing:-.01em!important;
   white-space:nowrap!important;
   overflow:hidden!important;
@@ -1118,6 +1141,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .badge{
   display:inline-flex!important;
   align-items:center!important;
+  justify-content:center!important;
   height:24px!important;
   color:#1E293B!important;
   background:#F1F5F9!important;
@@ -1125,20 +1149,21 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   border-radius:6px!important;
   font-size:11.5px!important;
   font-weight:700!important;
-  line-height:1!important;
+  line-height:1.2!important;
   white-space:nowrap!important;
   flex-shrink:0!important;
 }
 .purchase-dot{
   display:inline-flex!important;
   align-items:center!important;
+  justify-content:center!important;
   gap:4px!important;
   height:24px!important;
   padding:0 8px!important;
   border-radius:6px!important;
   font-size:11.5px!important;
   font-weight:700!important;
-  line-height:1!important;
+  line-height:1.2!important;
   white-space:nowrap!important;
   flex-shrink:0!important;
 }
@@ -1168,7 +1193,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   border-radius:8px!important;
   font-size:12.5px!important;
   font-weight:600!important;
-  line-height:1!important;
+  line-height:1.2!important;
   white-space:nowrap!important;
   overflow:hidden!important;
   text-overflow:ellipsis!important;
@@ -1192,6 +1217,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   border-radius:4px!important;
   font-size:10.5px!important;
   font-weight:800!important;
+  line-height:1.2!important;
   flex-shrink:0!important;
   letter-spacing:-.02em!important;
 }
@@ -1202,10 +1228,10 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .summary-reason{background:#F4F6F9!important;border:1px solid #E5E9F0!important}
 .sum-tag-fit{background:#DCE3EC!important;color:#1E293B!important}
 
-/* 쇼핑몰 버튼 (썸네일·본문과 좌우 100% 정렬 & 오버레이 링크 위 레이어) */
+/* 쇼핑몰 버튼 (썸네일·장점 바와 좌우 100% 정렬 & 오버레이 링크 위 z-index: 20) */
 .shop-btn-grid{
   position:relative!important;
-  z-index:10!important;
+  z-index:20!important;
   display:grid!important;
   grid-template-columns:repeat(2,minmax(0,1fr))!important;
   gap:6px!important;
@@ -1218,7 +1244,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .shop-btn-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 .shop-btn{
   position:relative!important;
-  z-index:10!important;
+  z-index:20!important;
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
@@ -1229,7 +1255,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   border-radius:8px!important;
   font-size:13px!important;
   font-weight:750!important;
-  line-height:1!important;
+  line-height:1.2!important;
   text-align:center!important;
   text-decoration:none!important;
   white-space:nowrap!important;
@@ -1350,7 +1376,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .creator-name-wrap{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 .creator-name{font-size:15px;font-weight:800;color:var(--ink)}
 .creator-stat{font-size:12px;font-weight:650;color:var(--muted)}
-.creator-video-btn{position:relative!important;z-index:10!important;display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:999px;background:#111827;color:#FFFFFF!important;font-size:11.5px;font-weight:750;text-decoration:none!important}
+.creator-video-btn{position:relative!important;z-index:20!important;display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:999px;background:#111827;color:#FFFFFF!important;font-size:11.5px;font-weight:750;text-decoration:none!important}
 .creator-video-btn:hover{background:#DC2626}
 .creator-video-title{font-size:13px;font-weight:650;color:var(--sub);margin-bottom:6px;line-height:1.4}
 .creator-reason{font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:6px;line-height:1.45;word-break:keep-all}
@@ -1359,7 +1385,6 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .ctag-pro{background:#DCFCE7;color:#14532D;padding:3px 9px;border-radius:7px;font-size:11.5px;font-weight:700}
 .ctag-con{background:#FEE2E2;color:#7F1D1D;padding:3px 9px;border-radius:7px;font-size:11.5px;font-weight:700}
 
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:12px!important;border-radius:14px!important;margin-bottom:8px!important}
 .related-brand{font-size:12px;font-weight:700;color:#4B5563;text-decoration:none!important}
 .related-name{font-size:14.5px;font-weight:800;color:#111827;line-height:1.38;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;text-decoration:none!important;transition:color .15s ease}
 
