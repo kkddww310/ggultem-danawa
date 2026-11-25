@@ -10,9 +10,9 @@ from ui.common import (
     format_korean_count,
     get_representative_rec,
     is_meaningful_point,
-    load_public_data,
+    load_product_detail_recs,
+    load_public_catalog,
     log_event,
-    open_product_detail,
     recommendation_summary,
     render_footer,
     render_product_visual,
@@ -56,7 +56,7 @@ def render_danawa_price_table(product):
 
 
 def render_product_detail(pid):
-    products = load_public_data()
+    products = load_public_catalog()
     product = next((p for p in products if str(p.get("product_id")) == pid), None)
 
     if st.button("← 전체 목록으로", key="detail_back_btn", type="secondary"):
@@ -73,11 +73,13 @@ def render_product_detail(pid):
         st.session_state.last_viewed_pid = pid
         log_event("product_view", product_id=pid, product_name=product.get("canonical_name"))
 
-    recs = sort_recommendations(product, product.get("recommendations") or [])
+    detail_recs = load_product_detail_recs(pid) or (product.get("recommendations") or [])
+    recs = sort_recommendations(product, detail_recs)
     representative = get_representative_rec(product)
     channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
     summary = recommendation_summary(recs)
     category = product.get("category") or "기타"
+    detail_href = f"?view=detail&pid={safe(pid)}"
 
     st.markdown(
         f'<div class="detail-breadcrumb">에디션 픽 &gt; {safe(category)} &gt; {safe(product.get("brand"))}</div>',
@@ -87,9 +89,9 @@ def render_product_detail(pid):
     with st.container(border=True):
         left_col, right_col = st.columns([1.0, 1.35], gap="large")
         with left_col:
-            render_product_visual(product, representative=representative, link_to_detail=False)
+            render_product_visual(product, representative=representative, link_to_detail=False, is_detail=True)
             if representative and representative.get("video_id"):
-                st.caption("썸네일을 누르면 대표 추천 유튜브 영상으로 바로 이동합니다.")
+                st.caption("우측 하단의 ‘영상 보기’ 배지를 누르면 대표 추천 유튜브 영상으로 이동합니다.")
 
         with right_col:
             purchase_html = render_purchase_badges(summary["purchase_counts"])
@@ -235,10 +237,9 @@ def render_product_detail(pid):
             hd_url = f"https://i.ytimg.com/vi/{v_id}/maxresdefault.jpg"
             fb_url = f"https://i.ytimg.com/vi/{v_id}/hqdefault.jpg"
             thumb_html = (
-                f'<a class="creator-thumb-link" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer" title="유튜브 영상 재생">'
+                '<div class="creator-thumb-box">'
                 f'<img class="creator-thumb-img" src="{hd_url}" onerror="this.onerror=null;this.src=\'{fb_url}\';" alt="리뷰 영상 썸네일">'
-                '<span class="creator-thumb-play">▶ 재생</span>'
-                '</a>'
+                '</div>'
             )
 
         v_btn = (
@@ -264,7 +265,7 @@ def render_product_detail(pid):
         tags_html = f'<div class="creator-tags">{"".join(tag_parts)}</div>' if tag_parts else ""
 
         review_cards_html.append(
-            '<div class="creator-review-card">'
+            f'<div class="creator-review-card" data-detail-url="{detail_href}">'
             f'{thumb_html}'
             '<div class="creator-review-body">'
             '<div class="creator-head">'
@@ -298,15 +299,15 @@ def render_product_detail(pid):
             for col, rp in zip(r_cols, related):
                 r_pid = str(rp.get("product_id"))
                 r_recs = rp.get("recommendations") or []
-                r_ch_cnt = len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
+                r_ch_cnt = rp.get("_channel_count") or len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
                 with col:
                     with st.container(border=True):
-                        render_product_visual(rp, link_to_detail=True)
+                        render_product_visual(rp, link_to_detail=True, is_detail=False)
                         st.markdown(
-                            f'<a class="card-body-link" href="?view=detail&pid={safe(r_pid)}" target="_self">'
+                            f'<div class="card-info-block" data-detail-url="?view=detail&pid={safe(r_pid)}">'
                             f'<div class="related-brand">{safe(rp.get("brand"))} · 유튜버 {r_ch_cnt}명 추천</div>'
                             f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>'
-                            '</a>',
+                            '</div>',
                             unsafe_allow_html=True,
                         )
 
