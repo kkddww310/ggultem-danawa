@@ -507,7 +507,7 @@ def _attach_recommendations(products, recs):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_public_catalog():
-    """홈 목록 전용 경량 데이터 로더 (긴 원문 evidence 제외로 초기 로딩 최소화)."""
+    """홈 목록 전용 경량 데이터 로더."""
     products = api_get_all(
         "products",
         "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,affiliate_note,image_url,image_source,image_verified,created_at",
@@ -609,7 +609,8 @@ def render_product_visual(product, representative=None, link_to_detail=False, is
     if representative is None:
         representative = get_representative_rec(product)
     pid = safe(product.get("product_id") or "")
-    detail_attr = f' data-detail-url="?view=detail&pid={pid}"' if link_to_detail and pid else ""
+    zone_cls = " ep-detail-zone" if link_to_detail and pid else ""
+    zone_id = f' id="ep-thumb-{pid}"' if link_to_detail and pid else ""
     video_id = safe((representative or {}).get("video_id") or "")
     video_href = f"https://youtu.be/{video_id}" if video_id else ""
     badge_html = (
@@ -622,7 +623,7 @@ def render_product_visual(product, representative=None, link_to_detail=False, is
     if product.get("image_verified") and image_url.startswith(("https://", "http://")):
         img_tag = f'<img class="video-thumbnail"{loading_attr} src="{safe(image_url)}" alt="{safe(product.get("canonical_name"))}">'
         st.markdown(
-            f'<div class="video-thumbnail-wrap"{detail_attr}>{img_tag}{badge_html}</div>',
+            f'<div class="video-thumbnail-wrap{zone_cls}"{zone_id}>{img_tag}{badge_html}</div>',
             unsafe_allow_html=True,
         )
         return
@@ -635,7 +636,7 @@ def render_product_visual(product, representative=None, link_to_detail=False, is
         else:
             img_tag = f'<img class="video-thumbnail"{loading_attr} src="https://i.ytimg.com/vi/{video_id}/hqdefault.jpg" alt="추천 영상 썸네일">'
         st.markdown(
-            f'<div class="video-thumbnail-wrap"{detail_attr}>{img_tag}{badge_html}</div>',
+            f'<div class="video-thumbnail-wrap{zone_cls}"{zone_id}>{img_tag}{badge_html}</div>',
             unsafe_allow_html=True,
         )
         return
@@ -643,7 +644,7 @@ def render_product_visual(product, representative=None, link_to_detail=False, is
     category = product.get("category") or "기타"
     tag_en, background, color = CATEGORY_VISUALS.get(category, CATEGORY_VISUALS["기타"])
     st.markdown(
-        f'<div class="product-placeholder"{detail_attr} style="background:{background};color:{color}">'
+        f'<div class="product-placeholder{zone_cls}"{zone_id} style="background:{background};color:{color}">'
         f'<span>{safe(tag_en)}</span><small>{safe(category)}</small></div>',
         unsafe_allow_html=True,
     )
@@ -890,10 +891,11 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   flex-direction:column!important;
   height:100%!important;
 }
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"],
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"],
-.st-key-product_grid [data-testid="stColumn"] [data-testid="stVerticalBlock"]:has([data-detail-url]),
-.st-key-related_grid [data-testid="stColumn"] [data-testid="stVerticalBlock"]:has([data-detail-url]){
+.ep-detail-zone,
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"]:has(.ep-detail-zone),
+.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"]:has(.ep-detail-zone),
+.st-key-product_grid [data-testid="stColumn"] [data-testid="stVerticalBlock"]:has(.ep-detail-zone),
+.st-key-related_grid [data-testid="stColumn"] [data-testid="stVerticalBlock"]:has(.ep-detail-zone){
   cursor:pointer!important;
 }
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"],
@@ -906,7 +908,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   background:#FFFFFF!important;
   border-radius:16px!important;
   box-shadow:0 2px 10px rgba(15,23,42,.03)!important;
-  padding:13px!important;
+  padding:14px!important;
   margin-bottom:0!important;
   display:flex!important;
   flex-direction:column!important;
@@ -923,13 +925,22 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   color:#1D4ED8!important;
 }
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] > div,
-.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"],
+.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] > div,
+.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{
   flex:1 1 auto!important;
   display:flex!important;
   flex-direction:column!important;
   height:100%!important;
-  gap:9px!important;
-  padding-bottom:0!important;
+  gap:10px!important;
+  padding:0!important;
+  margin:0!important;
+}
+.st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stElementContainer"],
+.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stElementContainer"]{
+  margin:0!important;
+  padding:0!important;
+  width:100%!important;
 }
 .st-key-product_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child{
   margin-top:auto!important;
@@ -971,8 +982,8 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   gap:4px!important;
   padding:4px 10px!important;
   border-radius:999px!important;
-  background:rgba(17,24,39,.82)!important;
-  border:1px solid rgba(255,255,255,.18)!important;
+  background:rgba(17,24,39,.84)!important;
+  border:1px solid rgba(255,255,255,.2)!important;
   color:#FFFFFF!important;
   font-size:11px!important;
   font-weight:750!important;
@@ -1003,12 +1014,14 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .product-placeholder span{font-size:13.5px;font-weight:850;letter-spacing:.12em}
 .product-placeholder small{font-size:12px;font-weight:700;opacity:.9}
 
-/* 카드 본문 정보 블록 */
+/* 카드 본문 정보 블록 (모든 좌우 시작선 0px 일직선 정렬) */
 .card-info-block{
   display:flex!important;
   flex-direction:column!important;
+  align-items:stretch!important;
   gap:8px!important;
-  padding:2px 1px 0!important;
+  padding:0!important;
+  margin:0!important;
   width:100%!important;
   box-sizing:border-box!important;
   user-select:none;
@@ -1018,22 +1031,23 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   flex-direction:row!important;
   align-items:center!important;
   justify-content:space-between!important;
-  gap:8px!important;
+  gap:10px!important;
   width:100%!important;
-  min-height:24px!important;
+  height:20px!important;
   min-width:0!important;
+  padding:0!important;
+  margin:0!important;
 }
 .source-chip{
   display:inline-flex!important;
   align-items:center!important;
   gap:5px!important;
-  height:24px!important;
+  height:20px!important;
   min-width:0!important;
-  max-width:60%!important;
-  padding:0 8px!important;
-  border-radius:6px!important;
-  background:#F1F5F9!important;
-  color:#1F2937!important;
+  max-width:62%!important;
+  padding:0!important;
+  background:transparent!important;
+  color:#374151!important;
   font-size:12px!important;
   font-weight:700!important;
   line-height:1!important;
@@ -1045,11 +1059,13 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .brand-eyebrow{
   display:inline-flex!important;
   align-items:center!important;
-  height:24px!important;
+  justify-content:flex-end!important;
+  height:20px!important;
   margin-left:auto!important;
+  padding:0!important;
   font-size:12px!important;
   font-weight:650!important;
-  color:#4B5563!important;
+  color:#6B7280!important;
   line-height:1!important;
   letter-spacing:-.01em!important;
   white-space:nowrap!important;
@@ -1059,14 +1075,15 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   flex-shrink:0!important;
 }
 
-/* 2줄 고정 높이 상품명 */
+/* 상품명 (자연스러운 줄바꿈 & 불필요한 공백 제거) */
 .product-title{
-  font-size:16px!important;
+  font-size:15.5px!important;
   font-weight:800!important;
   color:#111827!important;
-  line-height:1.4!important;
+  line-height:1.38!important;
   letter-spacing:-.02em!important;
-  min-height:2.8em!important;
+  margin:0!important;
+  padding:0!important;
   display:-webkit-box!important;
   -webkit-line-clamp:2!important;
   -webkit-box-orient:vertical!important;
@@ -1084,15 +1101,17 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   align-items:center!important;
   gap:5px!important;
   width:100%!important;
+  padding:0!important;
+  margin:0!important;
   overflow:hidden!important;
 }
 .badge{
   display:inline-flex!important;
   align-items:center!important;
-  height:23px!important;
+  height:24px!important;
   color:#1E293B!important;
-  background:#EEF2F6!important;
-  padding:0 7px!important;
+  background:#F1F5F9!important;
+  padding:0 8px!important;
   border-radius:6px!important;
   font-size:11.5px!important;
   font-weight:700!important;
@@ -1103,8 +1122,8 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   display:inline-flex!important;
   align-items:center!important;
   gap:4px!important;
-  height:23px!important;
-  padding:0 7px!important;
+  height:24px!important;
+  padding:0 8px!important;
   border-radius:6px!important;
   font-size:11.5px!important;
   font-weight:700!important;
@@ -1122,22 +1141,27 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   flex-direction:column!important;
   gap:5px!important;
   width:100%!important;
+  padding:0!important;
+  margin:0!important;
 }
 .st-key-product_grid .summary-line{
   display:flex!important;
   flex-direction:row!important;
   align-items:center!important;
   gap:7px!important;
+  width:100%!important;
+  height:32px!important;
   margin:0!important;
-  padding:6px 9px!important;
+  padding:0 9px!important;
   border-radius:8px!important;
   font-size:12.5px!important;
   font-weight:600!important;
-  line-height:1.35!important;
+  line-height:1!important;
   white-space:nowrap!important;
   overflow:hidden!important;
   text-overflow:ellipsis!important;
   text-decoration:none!important;
+  box-sizing:border-box!important;
 }
 .summary-text{
   min-width:0!important;
@@ -1159,19 +1183,22 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   flex-shrink:0!important;
   letter-spacing:-.02em!important;
 }
-.summary-pro{background:#F0F9F4!important}
+.summary-pro{background:#F0F9F4!important;border:1px solid #DCF2E5!important}
 .sum-tag-pro{background:#BBF7D0!important;color:#14532D!important}
-.summary-con{background:#FDF3F3!important}
+.summary-con{background:#FDF3F3!important;border:1px solid #F8DFDF!important}
 .sum-tag-con{background:#FECACA!important;color:#7F1D1D!important}
-.summary-reason{background:#F3F5F8!important}
+.summary-reason{background:#F4F6F9!important;border:1px solid #E5E9F0!important}
 .sum-tag-fit{background:#DCE3EC!important;color:#1E293B!important}
 
-/* 쇼핑몰 버튼 */
+/* 쇼핑몰 버튼 (썸네일·본문과 좌우 폭 100% 정렬) */
 .shop-btn-grid{
   display:grid!important;
   grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  gap:6px!important;
+  gap:8px!important;
   width:100%!important;
+  margin:0!important;
+  padding:0!important;
+  box-sizing:border-box!important;
 }
 .shop-btn-grid.cols-1{grid-template-columns:minmax(0,1fr)!important}
 .shop-btn-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))!important}
@@ -1179,15 +1206,17 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
+  width:100%!important;
   min-width:0!important;
-  min-height:38px!important;
-  padding:4px 8px!important;
-  border-radius:9px!important;
-  font-size:12.5px!important;
+  height:40px!important;
+  padding:0 8px!important;
+  border-radius:10px!important;
+  font-size:13px!important;
   font-weight:750!important;
   text-decoration:none!important;
   white-space:nowrap!important;
   letter-spacing:-.02em!important;
+  box-sizing:border-box!important;
   transition:background-color .15s ease,transform .12s ease!important;
 }
 .shop-btn:active{transform:scale(0.99)}
@@ -1311,7 +1340,6 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .ctag-con{background:#FEE2E2;color:#7F1D1D;padding:3px 9px;border-radius:7px;font-size:11.5px;font-weight:700}
 
 .st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"]{padding:12px!important;border-radius:14px!important;margin-bottom:8px!important}
-.st-key-related_grid div[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{gap:7px!important}
 .related-brand{font-size:12px;font-weight:700;color:#4B5563;text-decoration:none!important}
 .related-name{font-size:14.5px;font-weight:800;color:#111827;line-height:1.38;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;text-decoration:none!important;transition:color .15s ease}
 
@@ -1354,7 +1382,6 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   .st-key-product_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="column"],
   .st-key-related_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
   .st-key-related_grid > div > [data-testid="stHorizontalBlock"] > [data-testid="column"]{width:100%!important;min-width:0!important;max-width:100%!important;flex:none!important;margin:0!important;padding:0!important}
-  .product-title{min-height:auto!important}
   .pros-cons-grid{grid-template-columns:minmax(0,1fr)!important}
   .detail-title{font-size:19px}
   .creator-review-card{flex-direction:column;gap:10px}
