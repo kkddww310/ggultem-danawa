@@ -220,7 +220,7 @@ div[data-testid="stSelectbox"] svg{fill:var(--sub)!important;color:var(--sub)!im
 div[data-testid="stForm"]{border:1px solid #E2E8F2!important;background:#F9FAFC!important;border-radius:14px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드: 행(Row) 기준 세로 높이 통일 + 상·하·좌·우 12px 완전 대칭 여백 */
+/* 상품 그리드: 행(Row) 기준 세로 높이 완전 통일 + 상·하·좌·우 12px 대칭 여백 */
 .st-key-product_grid,.st-key-related_grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important}
 .st-key-product_grid [data-testid="stHorizontalBlock"],
 .st-key-related_grid [data-testid="stHorizontalBlock"]{
@@ -246,24 +246,15 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   align-items:stretch!important;
   box-sizing:border-box!important;
 }
-.st-key-product_grid [data-testid="stColumn"] > div,
-.st-key-product_grid [data-testid="column"] > div,
-.st-key-product_grid [data-testid="stVerticalBlock"],
-.st-key-product_grid [data-testid="stElementContainer"],
-.st-key-product_grid [data-testid="stMarkdownContainer"],
-.st-key-product_grid [data-testid="stMarkdownContainer"] > div,
-.st-key-related_grid [data-testid="stColumn"] > div,
-.st-key-related_grid [data-testid="column"] > div,
-.st-key-related_grid [data-testid="stVerticalBlock"],
-.st-key-related_grid [data-testid="stElementContainer"],
-.st-key-related_grid [data-testid="stMarkdownContainer"],
-.st-key-related_grid [data-testid="stMarkdownContainer"] > div{
+.st-key-product_grid [data-testid="stColumn"] div:has(.product-card),
+.st-key-product_grid [data-testid="column"] div:has(.product-card),
+.st-key-related_grid [data-testid="stColumn"] div:has(.product-card),
+.st-key-related_grid [data-testid="column"] div:has(.product-card){
   flex:1 1 auto!important;
   display:flex!important;
   flex-direction:column!important;
   align-items:stretch!important;
   height:100%!important;
-  min-height:100%!important;
   width:100%!important;
   margin:0!important;
   padding:0!important;
@@ -603,47 +594,91 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .shop-btn-ably{background:#DE5462!important;border:1px solid #CC4755!important;color:#FFFFFF!important}
 .shop-btn-ably:hover{background:#C74250!important}
 
-/* 상세 비교 페이지 스타일 */
+/* 상세 비교 페이지: 상단 2단 균형 레이아웃 (상품 요약 + 쇼핑몰 최저가 비교) */
 .detail-breadcrumb{font-size:12.5px;font-weight:650;color:var(--muted);margin:2px 0 8px}
+.detail-top-grid{
+  display:grid;
+  grid-template-columns:1.25fr 1fr;
+  gap:14px;
+  align-items:stretch;
+  margin-bottom:12px;
+}
 .detail-hero-card{
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
   background:#FFFFFF;
   border:1px solid #E2E8F0;
   border-radius:16px;
   padding:18px;
-  margin-bottom:12px;
+  margin:0;
   box-shadow:0 2px 12px rgba(15,23,42,.03);
+  box-sizing:border-box;
 }
-.detail-brand-line{font-size:13.5px;font-weight:750;color:var(--brand);margin-bottom:4px}
-.detail-title{font-size:23px;font-weight:850;color:var(--ink);line-height:1.32;letter-spacing:-.025em;margin-bottom:9px;word-break:keep-all}
+.detail-brand-line{font-size:13px;font-weight:750;color:var(--brand);margin-bottom:4px}
+.detail-title{font-size:22px;font-weight:850;color:var(--ink);line-height:1.32;letter-spacing:-.025em;margin-bottom:9px;word-break:keep-all}
 .detail-badges{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
 .trust-box{
   background:#F8FAFC;
   border:1px solid #E2E8F0;
   border-radius:12px;
   padding:11px 13px;
-  margin-bottom:12px;
+  margin-top:auto;
 }
 .trust-box-head{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:750;color:var(--sub);margin-bottom:6px}
 .trust-bar{display:flex;height:7px;border-radius:999px;overflow:hidden;background:#E5E9F0;margin-bottom:6px}
 .trust-seg-buy{background:#1F9D63}.trust-seg-prov{background:#CA8A04}.trust-seg-ad{background:#D64545}.trust-seg-unk{background:#94A3B8}
-.trust-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;font-weight:650;color:var(--sub)}
+.trust-legend{display:flex;flex-wrap:wrap;gap:8px 11px;font-size:11.5px;font-weight:650;color:var(--sub)}
 
-.danawa-box{border:1px solid #DFE6F0;border-radius:13px;background:#FFFFFF;overflow:hidden}
-.danawa-head{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:#F6F8FC;border-bottom:1px solid #E6ECF4;font-size:13px;font-weight:800;color:var(--ink)}
-.danawa-head span:last-child{font-size:11.5px;font-weight:600;color:var(--muted)}
-.danawa-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 13px;border-bottom:1px solid #F1F4F8}
+.danawa-box{
+  display:flex;
+  flex-direction:column;
+  border:1px solid #E2E8F0;
+  border-radius:16px;
+  background:#FFFFFF;
+  overflow:hidden;
+  box-shadow:0 2px 12px rgba(15,23,42,.03);
+  box-sizing:border-box;
+}
+.danawa-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:11px 14px;
+  background:#F8FAFC;
+  border-bottom:1px solid #E6ECF4;
+  font-size:13.5px;
+  font-weight:800;
+  color:var(--ink);
+}
+.danawa-head span:last-child{font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap}
+.danawa-list{
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.danawa-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:11px 14px;
+  border-bottom:1px solid #F1F4F8;
+}
 .danawa-row:last-child{border-bottom:0}
 .danawa-row:hover{background:#FAFBFD}
 .danawa-mall-info{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
-.mall-pill{display:inline-flex;align-items:center;justify-content:center;min-width:74px;height:26px;padding:0 9px;border-radius:7px;font-size:11.5px;font-weight:800;color:#FFFFFF;flex-shrink:0}
+.mall-pill{display:inline-flex;align-items:center;justify-content:center;min-width:68px;height:26px;padding:0 8px;border-radius:7px;font-size:11.5px;font-weight:800;color:#FFFFFF;flex-shrink:0}
 .mall-pill-naver{background:#1F9D63}.mall-pill-coupang{background:#D64545}.mall-pill-oliveyoung{background:#6E9B26}
 .mall-pill-musinsa{background:#1E2229}.mall-pill-29cm{background:#333945}.mall-pill-zigzag{background:#C94A96}.mall-pill-ably{background:#DE5462}
 .danawa-desc-wrap{min-width:0;display:flex;flex-direction:column;gap:2px}
 .danawa-tag-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .danawa-status-tag{font-size:12px;font-weight:750;color:var(--ink)}
 .danawa-partner-badge{font-size:10px;font-weight:750;color:#1D4ED8;background:#EFF6FF;padding:1px 6px;border-radius:999px}
-.danawa-benefit{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.danawa-go-btn{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 13px;border-radius:8px;background:#111827;color:#FFFFFF!important;font-size:12px;font-weight:750;text-decoration:none!important;transition:background-color .15s}
+.danawa-benefit{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.danawa-go-btn{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 11px;border-radius:8px;background:#111827;color:#FFFFFF!important;font-size:11.5px;font-weight:750;white-space:nowrap;text-decoration:none!important;transition:background-color .15s}
 .danawa-go-btn:hover{background:#2563EB}
 
 .detail-section{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;padding:16px 18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(15,23,42,.025)}
@@ -733,6 +768,9 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .status-row:last-child{border-bottom:0}
 .error-box{background:#FEF2F2;color:#991B1B;padding:10px;border-radius:10px;font-size:12px;margin:6px 0;word-break:break-word}
 
+@media(max-width:900px){
+  .detail-top-grid{grid-template-columns:minmax(0,1fr)!important}
+}
 @media(max-width:900px) and (min-width:641px){
   .st-key-product_grid [data-testid="stHorizontalBlock"]{flex-wrap:wrap!important}
   .st-key-product_grid [data-testid="stColumn"],.st-key-product_grid [data-testid="column"]{flex:0 0 calc(50% - 8px)!important;width:calc(50% - 8px)!important;min-width:calc(50% - 8px)!important}
