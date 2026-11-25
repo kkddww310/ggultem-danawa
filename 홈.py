@@ -90,28 +90,6 @@ components.html(
     "    window.parent.__editionChromeObserver = new MutationObserver(cleanTopChrome);"
     "    window.parent.__editionChromeObserver.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });"
     "  }"
-    "  if (!window.parent.__editionCardClickBound) {"
-    "    window.parent.__editionCardClickBound = true;"
-    "    doc.addEventListener('click', function(e) {"
-    "      if (e.target.closest('a, button, input, select, textarea, [role=\"button\"], .thumb-video-badge, .shop-btn, .creator-video-btn')) return;"
-    "      let zone = e.target.closest('.ep-detail-zone');"
-    "      if (!zone) {"
-    "        const card = e.target.closest('[data-testid=\"stVerticalBlockBorderWrapper\"], .st-key-product_grid [data-testid=\"stColumn\"] > div, .st-key-related_grid [data-testid=\"stColumn\"] > div');"
-    "        if (card) zone = card.querySelector('.ep-detail-zone');"
-    "      }"
-    "      if (zone && zone.id) {"
-    "        const pid = zone.id.replace(/^ep-(detail|thumb)-/, '');"
-    "        if (pid) {"
-    "          e.preventDefault();"
-    "          e.stopPropagation();"
-    "          const targetUrl = new URL(window.parent.location.href);"
-    "          targetUrl.searchParams.set('view', 'detail');"
-    "          targetUrl.searchParams.set('pid', pid);"
-    "          window.parent.location.href = targetUrl.toString();"
-    "        }"
-    "      }"
-    "    }, true);"
-    "  }"
     f"  {scroll_js}"
     "})();"
     "</script>",
@@ -147,6 +125,7 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
 def render_product_card(product, used_video_ids=None):
     recs = product["recommendations"]
     pid = safe(product.get("product_id") or "")
+    detail_href = f"?view=detail&pid={pid}"
     representative = get_representative_rec(product, exclude_video_ids=used_video_ids)
     if used_video_ids is not None and not product.get("image_verified") and representative and representative.get("video_id"):
         used_video_ids.add(str(representative["video_id"]))
@@ -183,7 +162,8 @@ def render_product_card(product, used_video_ids=None):
         summary_html = f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>' if summary_blocks else ""
 
         st.markdown(
-            f'<div class="card-info-block ep-detail-zone" id="ep-detail-{pid}">'
+            f'<a class="card-cover-link" href="{detail_href}" target="_self" aria-label="{safe(product.get("canonical_name"))} 상세 비교 보기"></a>'
+            '<div class="card-info-block">'
             '<div class="card-source-bar">'
             f'<span class="source-chip"><b>▶</b> {safe(source_label)}</span>'
             f'<span class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
