@@ -3,20 +3,18 @@ import re
 import streamlit as st
 
 from ui.common import (
-    AFFILIATE_DISCLOSURE,
     MALL_META,
     build_product_visual_html,
     clean_evidence_text,
     detect_product_malls,
     format_korean_count,
-    get_representative_rec,
+    get_related_products,
     is_meaningful_point,
     load_product_detail_recs,
     load_public_catalog,
     log_event,
     recommendation_summary,
     render_footer,
-    render_product_visual,
     render_purchase_badges,
     safe,
     sort_recommendations,
@@ -50,8 +48,7 @@ def render_danawa_price_table(product):
         '<div class="danawa-box">'
         '<div class="danawa-head"><span>쇼핑몰별 최저가 비교</span><span>클릭 시 공식몰·검색 페이지 이동</span></div>'
         f'{"".join(rows_html)}'
-        '</div>'
-        f'<div class="detail-cta-note">{safe(AFFILIATE_DISCLOSURE)}</div>',
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -76,7 +73,6 @@ def render_product_detail(pid):
 
     detail_recs = load_product_detail_recs(pid) or (product.get("recommendations") or [])
     recs = sort_recommendations(product, detail_recs)
-    representative = get_representative_rec(product)
     channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
     summary = recommendation_summary(recs)
     category = product.get("category") or "기타"
@@ -86,60 +82,52 @@ def render_product_detail(pid):
         unsafe_allow_html=True,
     )
 
-    with st.container(border=True):
-        left_col, right_col = st.columns([1.0, 1.35], gap="large")
-        with left_col:
-            render_product_visual(product, representative=representative, link_to_detail=False, is_detail=True)
-            if representative and representative.get("video_id"):
-                st.caption("우측 하단의 ‘영상 보기’ 배지를 누르면 대표 추천 유튜브 영상으로 이동합니다.")
+    purchase_html = render_purchase_badges(summary["purchase_counts"])
+    model_text = str(product.get("model") or "").strip()
+    brand_line = f"{product.get('brand')} · {category}" + (f" · {model_text}" if model_text else "")
 
-        with right_col:
-            purchase_html = render_purchase_badges(summary["purchase_counts"])
-            model_text = str(product.get("model") or "").strip()
-            brand_line = f"{product.get('brand')} · {category}" + (f" · {model_text}" if model_text else "")
-            st.markdown(
-                f'<div class="detail-brand-line">{safe(brand_line)}</div>'
-                f'<div class="detail-title">{safe(product.get("canonical_name"))}</div>'
-                '<div class="detail-badges">'
-                f'<span class="badge">유튜버 {channel_count}명 추천</span>'
-                f'<span class="badge">근거 영상 {len(recs)}개</span>'
-                f'{purchase_html}'
-                '</div>',
-                unsafe_allow_html=True,
-            )
+    counts = summary["purchase_counts"]
+    total_recs = max(1, len(recs))
+    buy_cnt = int(counts.get("직접 구매", 0))
+    prov_cnt = int(counts.get("제품 제공", 0))
+    ad_cnt = int(counts.get("유료 광고", 0))
+    unk_cnt = max(0, len(recs) - buy_cnt - prov_cnt - ad_cnt)
+    buy_pct = round(buy_cnt / total_recs * 100)
+    prov_pct = round(prov_cnt / total_recs * 100)
+    ad_pct = round(ad_cnt / total_recs * 100)
+    unk_pct = max(0, 100 - buy_pct - prov_pct - ad_pct)
 
-            counts = summary["purchase_counts"]
-            total_recs = max(1, len(recs))
-            buy_cnt = int(counts.get("직접 구매", 0))
-            prov_cnt = int(counts.get("제품 제공", 0))
-            ad_cnt = int(counts.get("유료 광고", 0))
-            unk_cnt = max(0, len(recs) - buy_cnt - prov_cnt - ad_cnt)
-            buy_pct = round(buy_cnt / total_recs * 100)
-            prov_pct = round(prov_cnt / total_recs * 100)
-            ad_pct = round(ad_cnt / total_recs * 100)
-            unk_pct = max(0, 100 - buy_pct - prov_pct - ad_pct)
+    st.markdown(
+        '<div class="detail-hero-card">'
+        f'<div class="detail-brand-line">{safe(brand_line)}</div>'
+        f'<div class="detail-title">{safe(product.get("canonical_name"))}</div>'
+        '<div class="detail-badges">'
+        f'<span class="badge">유튜버 {channel_count}명 추천</span>'
+        f'<span class="badge">근거 영상 {len(recs)}개</span>'
+        f'{purchase_html}'
+        '</div>'
+        '<div class="trust-box">'
+        '<div class="trust-box-head"><span>리뷰 구매 방식 투명도 분석</span>'
+        f'<span>내돈내산 비중 {buy_pct}%</span></div>'
+        '<div class="trust-bar">'
+        f'<div class="trust-seg-buy" style="width:{buy_pct}%"></div>'
+        f'<div class="trust-seg-prov" style="width:{prov_pct}%"></div>'
+        f'<div class="trust-seg-ad" style="width:{ad_pct}%"></div>'
+        f'<div class="trust-seg-unk" style="width:{unk_pct}%"></div>'
+        '</div>'
+        '<div class="trust-legend">'
+        f'<span>직접 구매(내돈내산) {buy_cnt}건</span>'
+        f'<span>제품 제공 {prov_cnt}건</span>'
+        f'<span>유료 광고 {ad_cnt}건</span>'
+        f'<span>표기 미확인 {unk_cnt}건</span>'
+        '</div>'
+        '</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
-            st.markdown(
-                '<div class="trust-box">'
-                '<div class="trust-box-head"><span>리뷰 구매 방식 투명도 분석</span>'
-                f'<span>내돈내산 비중 {buy_pct}%</span></div>'
-                '<div class="trust-bar">'
-                f'<div class="trust-seg-buy" style="width:{buy_pct}%"></div>'
-                f'<div class="trust-seg-prov" style="width:{prov_pct}%"></div>'
-                f'<div class="trust-seg-ad" style="width:{ad_pct}%"></div>'
-                f'<div class="trust-seg-unk" style="width:{unk_pct}%"></div>'
-                '</div>'
-                '<div class="trust-legend">'
-                f'<span>직접 구매(내돈내산) {buy_cnt}건</span>'
-                f'<span>제품 제공 {prov_cnt}건</span>'
-                f'<span>유료 광고 {ad_cnt}건</span>'
-                f'<span>표기 미확인 {unk_cnt}건</span>'
-                '</div>'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-
-            render_danawa_price_table(product)
+    render_danawa_price_table(product)
+    st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
 
     if summary["reasons"]:
         fit_html = "".join(
@@ -290,12 +278,9 @@ def render_product_detail(pid):
         unsafe_allow_html=True,
     )
 
-    related = [
-        p for p in products
-        if (p.get("category") or "기타") == category and str(p.get("product_id")) != pid
-    ][:3]
+    related, related_label = get_related_products(product, products, limit=3)
     if related:
-        st.markdown(f"#### 같은 카테고리({safe(category)}) 인기 추천템")
+        st.markdown(f"#### 같은 {safe(related_label)} 인기 추천템")
         with st.container(key="related_grid"):
             r_cols = st.columns(3, gap="medium")
             for col, rp in zip(r_cols, related):
