@@ -6,6 +6,8 @@ from ui.common import (
     AFFILIATE_DISCLOSURE,
     SUPABASE_KEY,
     SUPABASE_URL,
+    build_mall_buttons_html,
+    build_product_visual_html,
     get_page_numbers,
     get_representative_rec,
     handle_click_redirect,
@@ -14,8 +16,6 @@ from ui.common import (
     log_event,
     recommendation_summary,
     render_footer,
-    render_mall_buttons,
-    render_product_visual,
     render_purchase_badges,
     safe,
     score_product_search,
@@ -124,7 +124,8 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
 
 def render_product_card(product, used_video_ids=None):
     recs = product["recommendations"]
-    pid = safe(product.get("product_id") or "")
+    raw_pid = str(product.get("product_id") or "").strip()
+    pid = safe(raw_pid)
     detail_href = f"?view=detail&pid={pid}"
     representative = get_representative_rec(product, exclude_video_ids=used_video_ids)
     if used_video_ids is not None and not product.get("image_verified") and representative and representative.get("video_id"):
@@ -136,50 +137,50 @@ def render_product_card(product, used_video_ids=None):
     )
     source_label = f"{rep_channel} 외 {channel_count - 1}명" if channel_count > 1 else rep_channel
 
-    with st.container(border=True):
-        render_product_visual(product, representative=representative, link_to_detail=True, is_detail=False)
+    visual_html = build_product_visual_html(product, representative=representative, detail_href=detail_href, is_detail=False)
+    summary = product.get("_summary") or recommendation_summary(recs)
+    purchase_html = render_purchase_badges(summary["purchase_counts"])
 
-        summary = product.get("_summary") or recommendation_summary(recs)
-        purchase_html = render_purchase_badges(summary["purchase_counts"])
+    pro_line = summary["pros"][0] if summary["pros"] else ""
+    con_line = summary["cons"][0] if summary["cons"] else ""
+    fallback_reason = summary["reasons"][0] if summary["reasons"] else ""
 
-        pro_line = summary["pros"][0] if summary["pros"] else ""
-        con_line = summary["cons"][0] if summary["cons"] else ""
-        fallback_reason = summary["reasons"][0] if summary["reasons"] else ""
-
-        summary_blocks = []
-        if pro_line:
-            summary_blocks.append(
-                f'<div class="summary-line summary-pro"><span class="sum-tag sum-tag-pro">장점</span><span class="summary-text">{safe(pro_line)}</span></div>'
-            )
-        if con_line:
-            summary_blocks.append(
-                f'<div class="summary-line summary-con"><span class="sum-tag sum-tag-con">체크</span><span class="summary-text">{safe(con_line)}</span></div>'
-            )
-        if not summary_blocks and fallback_reason:
-            summary_blocks.append(
-                f'<div class="summary-line summary-reason"><span class="sum-tag sum-tag-fit">추천</span><span class="summary-text">{safe(fallback_reason)}</span></div>'
-            )
-        summary_html = f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>' if summary_blocks else ""
-
-        st.markdown(
-            f'<a class="card-cover-link" href="{detail_href}" target="_self" aria-label="{safe(product.get("canonical_name"))} 상세 비교 보기"></a>'
-            '<div class="card-info-block">'
-            '<div class="card-source-bar">'
-            f'<span class="source-chip"><b>▶</b> {safe(source_label)}</span>'
-            f'<span class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
-            '</div>'
-            f'<div class="product-title">{safe(product.get("canonical_name"))}</div>'
-            '<div class="card-meta-row">'
-            f'<span class="badge">유튜버 {channel_count}명</span>'
-            f'<span class="badge">영상 {len(recs)}개</span>'
-            f'{purchase_html}'
-            '</div>'
-            f'{summary_html}'
-            '</div>',
-            unsafe_allow_html=True,
+    summary_blocks = []
+    if pro_line:
+        summary_blocks.append(
+            f'<div class="summary-line summary-pro"><span class="sum-tag sum-tag-pro">장점</span><span class="summary-text">{safe(pro_line)}</span></div>'
         )
+    if con_line:
+        summary_blocks.append(
+            f'<div class="summary-line summary-con"><span class="sum-tag sum-tag-con">체크</span><span class="summary-text">{safe(con_line)}</span></div>'
+        )
+    if not summary_blocks and fallback_reason:
+        summary_blocks.append(
+            f'<div class="summary-line summary-reason"><span class="sum-tag sum-tag-fit">추천</span><span class="summary-text">{safe(fallback_reason)}</span></div>'
+        )
+    summary_html = f'<div class="card-summary-wrap">{"".join(summary_blocks)}</div>' if summary_blocks else ""
+    mall_buttons_html = build_mall_buttons_html(product)
 
-        render_mall_buttons(product)
+    st.markdown(
+        '<article class="product-card">'
+        f'{visual_html}'
+        f'<a class="card-body-link" href="{detail_href}" target="_self" aria-label="{safe(product.get("canonical_name"))} 상세 비교 보기">'
+        '<div class="card-source-bar">'
+        f'<span class="source-chip"><b>▶</b> {safe(source_label)}</span>'
+        f'<span class="brand-eyebrow">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
+        '</div>'
+        f'<div class="product-title">{safe(product.get("canonical_name"))}</div>'
+        '<div class="card-meta-row">'
+        f'<span class="badge">유튜버 {channel_count}명</span>'
+        f'<span class="badge">영상 {len(recs)}개</span>'
+        f'{purchase_html}'
+        '</div>'
+        f'{summary_html}'
+        '</a>'
+        f'{mall_buttons_html}'
+        '</article>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_home():
@@ -200,14 +201,15 @@ def render_home():
         unsafe_allow_html=True,
     )
     with st.container(key="filter_bar"):
-        a, b, c = st.columns([1.8, 1, 0.9])
+        a, b, c, d = st.columns([1.6, 0.95, 0.85, 0.85])
         keyword = a.text_input("검색", placeholder="상품명, 브랜드, 유튜버 검색", label_visibility="collapsed")
         categories = sorted({p.get("category") or "기타" for p in products})
         category = b.selectbox("카테고리", ["전체 카테고리"] + categories, label_visibility="collapsed")
-        sort_by = c.selectbox("정렬", ["추천 많은순", "제휴 최저가순", "최신 등록순"], label_visibility="collapsed")
+        purchase_filter = c.selectbox("구매방식", ["전체 구매방식", "내돈내산만"], label_visibility="collapsed")
+        sort_by = d.selectbox("정렬", ["추천 많은순", "제휴 최저가순", "최신 등록순"], label_visibility="collapsed")
 
     clean_kw = keyword.strip()
-    filter_sig = (clean_kw, category, sort_by)
+    filter_sig = (clean_kw, category, purchase_filter, sort_by)
     if st.session_state.get("last_filter_sig") != filter_sig:
         st.session_state.last_filter_sig = filter_sig
         st.session_state.catalog_page = 1
@@ -219,6 +221,8 @@ def render_home():
     scored_items = []
     for product in products:
         if category != "전체 카테고리" and (product.get("category") or "기타") != category:
+            continue
+        if purchase_filter == "내돈내산만" and not product.get("_has_self_buy"):
             continue
         match_score = score_product_search(product, clean_kw)
         if clean_kw and match_score <= 0:
@@ -233,8 +237,7 @@ def render_home():
                 key=lambda item: (
                     item[0],
                     1 if item[1].get("_has_partner") else 0,
-                    item[1].get("_channel_count", 0),
-                    len(item[1]["recommendations"]),
+                    item[1].get("_quality_score", 0),
                 ),
                 reverse=True,
             )
@@ -242,9 +245,9 @@ def render_home():
             scored_items.sort(
                 key=lambda item: (
                     item[0],
+                    item[1].get("_quality_score", 0),
                     item[1].get("_channel_count", 0),
                     len(item[1]["recommendations"]),
-                    1 if item[1].get("_has_partner") else 0,
                 ),
                 reverse=True,
             )
@@ -254,8 +257,7 @@ def render_home():
         scored_items.sort(
             key=lambda item: (
                 1 if item[1].get("_has_partner") else 0,
-                item[1].get("_channel_count", 0),
-                len(item[1]["recommendations"]),
+                item[1].get("_quality_score", 0),
             ),
             reverse=True,
         )
@@ -263,7 +265,7 @@ def render_home():
     shown = [item[1] for item in scored_items]
 
     st.markdown(
-        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>카드 클릭 시 상세 비교 · 영상 배지 클릭 시 원문 재생</span></div>',
+        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>썸네일·카드 클릭 시 상세 비교 · 영상 배지 클릭 시 원문 재생</span></div>',
         unsafe_allow_html=True,
     )
 
