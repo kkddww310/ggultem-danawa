@@ -80,6 +80,7 @@ def render_product_detail(pid):
     summary = recommendation_summary(recs)
     category = product.get("category") or "기타"
     safe_pid = safe(pid)
+    detail_href = f"?view=detail&pid={safe_pid}"
 
     st.markdown(
         f'<div class="detail-breadcrumb">에디션 픽 &gt; {safe(category)} &gt; {safe(product.get("brand"))}</div>',
@@ -265,7 +266,8 @@ def render_product_detail(pid):
         tags_html = f'<div class="creator-tags">{"".join(tag_parts)}</div>' if tag_parts else ""
 
         review_cards_html.append(
-            f'<div class="creator-review-card ep-detail-zone" id="ep-detail-{safe_pid}">'
+            '<div class="creator-review-card">'
+            f'<a class="card-cover-link" href="{detail_href}" target="_self" aria-label="{safe(product.get("canonical_name"))} 상세 페이지"></a>'
             f'{thumb_html}'
             '<div class="creator-review-body">'
             '<div class="creator-head">'
@@ -304,7 +306,8 @@ def render_product_detail(pid):
                     with st.container(border=True):
                         render_product_visual(rp, link_to_detail=True, is_detail=False)
                         st.markdown(
-                            f'<div class="card-info-block ep-detail-zone" id="ep-detail-{r_pid}">'
+                            f'<a class="card-cover-link" href="?view=detail&pid={r_pid}" target="_self" aria-label="{safe(rp.get("canonical_name"))} 상세 비교 보기"></a>'
+                            '<div class="card-info-block">'
                             f'<div class="related-brand">{safe(rp.get("brand"))} · 유튜버 {r_ch_cnt}명 추천</div>'
                             f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>'
                             '</div>',
