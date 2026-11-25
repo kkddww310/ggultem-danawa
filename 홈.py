@@ -69,7 +69,7 @@ components.html(
     "    ';"
     "    doc.head.appendChild(st);"
     "  }"
-    "  const cleanTopChrome = () => {"
+    "  const enhancePage = () => {"
     "    doc.querySelectorAll('header, [data-testid=\"stHeader\"], [data-testid=\"stAppHeader\"], [data-testid=\"stDecoration\"]').forEach(el => {"
     "      el.style.setProperty('display', 'none', 'important');"
     "      el.style.setProperty('border', 'none', 'important');"
@@ -85,10 +85,19 @@ components.html(
     "        el.style.setProperty('display', 'none', 'important');"
     "      }"
     "    });"
+    "    doc.querySelectorAll('[data-testid=\"stSelectbox\"] input').forEach(inp => {"
+    "      if (inp.getAttribute('inputmode') !== 'none') {"
+    "        inp.setAttribute('inputmode', 'none');"
+    "        inp.setAttribute('readonly', 'readonly');"
+    "        inp.setAttribute('autocomplete', 'off');"
+    "        inp.style.setProperty('caret-color', 'transparent', 'important');"
+    "        inp.style.setProperty('cursor', 'pointer', 'important');"
+    "      }"
+    "    });"
     "  };"
-    "  cleanTopChrome();"
+    "  enhancePage();"
     "  if (!window.parent.__editionChromeObserver) {"
-    "    window.parent.__editionChromeObserver = new MutationObserver(cleanTopChrome);"
+    "    window.parent.__editionChromeObserver = new MutationObserver(enhancePage);"
     "    window.parent.__editionChromeObserver.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });"
     "  }"
     f"  {scroll_js}"
@@ -201,15 +210,14 @@ def render_home():
         unsafe_allow_html=True,
     )
     with st.container(key="filter_bar"):
-        a, b, c = st.columns([1.7, 1, 1])
+        a, b = st.columns([3, 1], gap="small")
         keyword = a.text_input("검색", placeholder="상품명, 브랜드, 유튜버 검색", label_visibility="collapsed")
         categories = sorted({p.get("category") or "기타" for p in products})
-        category = b.selectbox("카테고리", ["전체 카테고리"] + categories, label_visibility="collapsed")
-        sort_by = c.selectbox("정렬", ["추천 많은순", "제휴 최저가순", "최신 등록순"], label_visibility="collapsed")
+        category = b.selectbox("카테고리", ["전체"] + categories, label_visibility="collapsed")
 
     only_self_buy = bool(st.session_state.get("only_self_buy", False))
     clean_kw = keyword.strip()
-    filter_sig = (clean_kw, category, only_self_buy, sort_by)
+    filter_sig = (clean_kw, category, only_self_buy)
     if st.session_state.get("last_filter_sig") != filter_sig:
         st.session_state.last_filter_sig = filter_sig
         st.session_state.catalog_page = 1
@@ -220,7 +228,7 @@ def render_home():
 
     scored_items = []
     for product in products:
-        if category != "전체 카테고리" and (product.get("category") or "기타") != category:
+        if category != "전체" and (product.get("category") or "기타") != category:
             continue
         if only_self_buy and not product.get("_has_self_buy"):
             continue
@@ -230,34 +238,12 @@ def render_home():
         scored_items.append((match_score, product))
 
     if clean_kw:
-        if sort_by == "최신 등록순":
-            scored_items.sort(key=lambda item: (item[0], str(item[1].get("created_at") or "")), reverse=True)
-        elif sort_by == "제휴 최저가순":
-            scored_items.sort(
-                key=lambda item: (
-                    item[0],
-                    1 if item[1].get("_has_partner") else 0,
-                    item[1].get("_quality_score", 0),
-                ),
-                reverse=True,
-            )
-        else:
-            scored_items.sort(
-                key=lambda item: (
-                    item[0],
-                    item[1].get("_quality_score", 0),
-                    item[1].get("_channel_count", 0),
-                    len(item[1]["recommendations"]),
-                ),
-                reverse=True,
-            )
-    elif sort_by == "최신 등록순":
-        scored_items.sort(key=lambda item: str(item[1].get("created_at") or ""), reverse=True)
-    elif sort_by == "제휴 최저가순":
         scored_items.sort(
             key=lambda item: (
-                1 if item[1].get("_has_partner") else 0,
+                item[0],
                 item[1].get("_quality_score", 0),
+                item[1].get("_channel_count", 0),
+                len(item[1]["recommendations"]),
             ),
             reverse=True,
         )
@@ -272,7 +258,7 @@ def render_home():
         )
         with r_right:
             if st.button(
-                "내돈내산만 보기",
+                "내돈내산",
                 key="self_buy_toggle",
                 type="primary" if only_self_buy else "secondary",
             ):
