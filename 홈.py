@@ -3,7 +3,6 @@ import streamlit.components.v1 as components
 
 from ui.admin import render_dashboard, render_manage, render_review
 from ui.common import (
-    AFFILIATE_DISCLOSURE,
     SUPABASE_KEY,
     SUPABASE_URL,
     build_mall_buttons_html,
@@ -39,6 +38,8 @@ if "page" not in st.session_state:
     st.session_state.page = "home"
 if "detail_pid" not in st.session_state:
     st.session_state.detail_pid = ""
+if "only_self_buy" not in st.session_state:
+    st.session_state.only_self_buy = False
 
 view_param = str(st.query_params.get("view", "")).strip()
 pid_param = str(st.query_params.get("pid", "")).strip()
@@ -196,20 +197,19 @@ def render_home():
         f'<span class="stat-pill">근거 영상 <strong>{len(video_ids):,}개</strong></span>'
         '<span class="stat-pill"><i class="live-dot"></i> 매일 자동 업데이트</span>'
         '</div>'
-        '</div>'
-        f'<div class="top-disclosure">{safe(AFFILIATE_DISCLOSURE)}</div>',
+        '</div>',
         unsafe_allow_html=True,
     )
     with st.container(key="filter_bar"):
-        a, b, c, d = st.columns([1.6, 0.95, 0.85, 0.85])
+        a, b, c = st.columns([1.7, 1, 1])
         keyword = a.text_input("검색", placeholder="상품명, 브랜드, 유튜버 검색", label_visibility="collapsed")
         categories = sorted({p.get("category") or "기타" for p in products})
         category = b.selectbox("카테고리", ["전체 카테고리"] + categories, label_visibility="collapsed")
-        purchase_filter = c.selectbox("구매방식", ["전체 구매방식", "내돈내산만"], label_visibility="collapsed")
-        sort_by = d.selectbox("정렬", ["추천 많은순", "제휴 최저가순", "최신 등록순"], label_visibility="collapsed")
+        sort_by = c.selectbox("정렬", ["추천 많은순", "제휴 최저가순", "최신 등록순"], label_visibility="collapsed")
 
+    only_self_buy = bool(st.session_state.get("only_self_buy", False))
     clean_kw = keyword.strip()
-    filter_sig = (clean_kw, category, purchase_filter, sort_by)
+    filter_sig = (clean_kw, category, only_self_buy, sort_by)
     if st.session_state.get("last_filter_sig") != filter_sig:
         st.session_state.last_filter_sig = filter_sig
         st.session_state.catalog_page = 1
@@ -222,7 +222,7 @@ def render_home():
     for product in products:
         if category != "전체 카테고리" and (product.get("category") or "기타") != category:
             continue
-        if purchase_filter == "내돈내산만" and not product.get("_has_self_buy"):
+        if only_self_buy and not product.get("_has_self_buy"):
             continue
         match_score = score_product_search(product, clean_kw)
         if clean_kw and match_score <= 0:
@@ -264,10 +264,21 @@ def render_home():
 
     shown = [item[1] for item in scored_items]
 
-    st.markdown(
-        f'<div class="result-bar"><span>검색 결과 <b>{len(shown):,}</b>개</span><span>썸네일·카드 클릭 시 상세 비교 · 영상 배지 클릭 시 원문 재생</span></div>',
-        unsafe_allow_html=True,
-    )
+    with st.container(key="result_bar"):
+        r_left, r_right = st.columns([1.4, 1])
+        r_left.markdown(
+            f'<div class="result-count-text">검색 결과 <b>{len(shown):,}</b>개</div>',
+            unsafe_allow_html=True,
+        )
+        with r_right:
+            if st.button(
+                "내돈내산만 보기",
+                key="self_buy_toggle",
+                type="primary" if only_self_buy else "secondary",
+            ):
+                st.session_state.only_self_buy = not only_self_buy
+                st.session_state.catalog_page = 1
+                st.rerun()
 
     page_size = 24
     pages = max(1, (len(shown) + page_size - 1) // page_size)
