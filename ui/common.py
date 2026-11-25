@@ -858,7 +858,7 @@ div[data-testid="stSelectbox"] svg{fill:var(--sub)!important;color:var(--sub)!im
 div[data-testid="stForm"]{border:1px solid #E2E8F2!important;background:#F9FAFC!important;border-radius:14px!important;padding:16px!important}
 div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-testid="stForm"] div[role="combobox"]{background:#fff!important;color:var(--ink)!important;-webkit-text-fill-color:var(--ink)!important}
 
-/* 상품 그리드 & 카드 동일 높이 + 단일 테두리 & 상하좌우 대칭 15px 여백 */
+/* 상품 그리드 & 카드 동일 높이 + 상하 대칭 여백(10px) */
 .st-key-product_grid,.st-key-related_grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important}
 .st-key-product_grid [data-testid="stHorizontalBlock"]{
   display:flex!important;
@@ -880,6 +880,8 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   flex-direction:column!important;
   box-sizing:border-box!important;
 }
+.st-key-product_grid [data-testid="stColumn"] > [data-testid="stVerticalBlock"],
+.st-key-product_grid [data-testid="column"] > [data-testid="stVerticalBlock"],
 .st-key-product_grid [data-testid="stColumn"] > div,
 .st-key-product_grid [data-testid="column"] > div,
 .st-key-product_grid [data-testid="stColumn"] > div > [data-testid="stVerticalBlock"],
@@ -891,7 +893,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   width:100%!important;
 }
 
-/* 바깥 래퍼 초기화 (이중 테두리·이중 여백 방지) */
+/* 바깥 래퍼 초기화 (이중 테두리·상단 과다 여백 제거) */
 [class*="st-key-pcard_"],
 [class*="st-key-rcard_"]{
   position:relative!important;
@@ -913,7 +915,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   margin:0!important;
 }
 
-/* 실제 카드 박스 (단일 테두리 + 상·하·좌·우 동일 15px 여백) */
+/* 실제 카드 박스 (상단 10px · 하단 10px 동일 대칭 여백, 좌우 14px) */
 [class*="st-key-pcard_"]:has(> [data-testid="stVerticalBlock"]) > [data-testid="stVerticalBlock"],
 [class*="st-key-rcard_"]:has(> [data-testid="stVerticalBlock"]) > [data-testid="stVerticalBlock"],
 [class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])),
@@ -930,7 +932,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   background:#FFFFFF!important;
   border-radius:16px!important;
   box-shadow:0 2px 10px rgba(15,23,42,.03)!important;
-  padding:15px!important;
+  padding:10px 14px 10px 14px!important;
   margin:0!important;
   gap:10px!important;
   transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease!important;
@@ -970,7 +972,12 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
   padding:0!important;
   width:100%!important;
 }
-/* 하단 쇼핑몰 버튼 영역을 카드 맨 아래 여백(15px) 위로 정렬 */
+[class*="st-key-pcard_"] [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:first-child,
+[class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])) > [data-testid="stElementContainer"]:first-child{
+  margin-top:0!important;
+  padding-top:0!important;
+}
+/* 하단 쇼핑몰 버튼 영역을 카드 맨 아래 여백(10px) 위로 고정 정렬 */
 [class*="st-key-pcard_"] [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:last-child,
 [class*="st-key-pcard_"]:not(:has(> [data-testid="stVerticalBlock"])) > [data-testid="stElementContainer"]:last-child{
   margin-top:auto!important;
