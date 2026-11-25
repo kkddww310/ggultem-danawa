@@ -79,7 +79,7 @@ def render_product_detail(pid):
     channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
     summary = recommendation_summary(recs)
     category = product.get("category") or "기타"
-    detail_href = f"?view=detail&pid={safe(pid)}"
+    safe_pid = safe(pid)
 
     st.markdown(
         f'<div class="detail-breadcrumb">에디션 픽 &gt; {safe(category)} &gt; {safe(product.get("brand"))}</div>',
@@ -265,7 +265,7 @@ def render_product_detail(pid):
         tags_html = f'<div class="creator-tags">{"".join(tag_parts)}</div>' if tag_parts else ""
 
         review_cards_html.append(
-            f'<div class="creator-review-card" data-detail-url="{detail_href}">'
+            f'<div class="creator-review-card ep-detail-zone" id="ep-detail-{safe_pid}">'
             f'{thumb_html}'
             '<div class="creator-review-body">'
             '<div class="creator-head">'
@@ -297,14 +297,14 @@ def render_product_detail(pid):
         with st.container(key="related_grid"):
             r_cols = st.columns(3, gap="medium")
             for col, rp in zip(r_cols, related):
-                r_pid = str(rp.get("product_id"))
+                r_pid = safe(rp.get("product_id") or "")
                 r_recs = rp.get("recommendations") or []
                 r_ch_cnt = rp.get("_channel_count") or len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
                 with col:
                     with st.container(border=True):
                         render_product_visual(rp, link_to_detail=True, is_detail=False)
                         st.markdown(
-                            f'<div class="card-info-block" data-detail-url="?view=detail&pid={safe(r_pid)}">'
+                            f'<div class="card-info-block ep-detail-zone" id="ep-detail-{r_pid}">'
                             f'<div class="related-brand">{safe(rp.get("brand"))} · 유튜버 {r_ch_cnt}명 추천</div>'
                             f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>'
                             '</div>',
