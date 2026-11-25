@@ -42,6 +42,10 @@ CATEGORY_VISUALS = {
 INVALID_POINT_PATTERNS = (
     "원문에", "명시됨", "후기는 없음", "후기 없음", "언급 없음",
     "정보가 없음", "확인되지 않", "알 수 없", "단점 없음", "장점 없음",
+    "해당 없음", "내용 없음", "특이사항 없음",
+)
+HOLLOW_COPY_REGEX = re.compile(
+    r"(에\s*사용된|에서\s*소개된|에서\s*추천한|에서\s*언급된|에서\s*리뷰한|으로\s*구매한|직접\s*구매\s*제품|추천\s*제품|소개\s*제품|언급\s*제품|리뷰\s*제품|협찬\s*제품|제공\s*제품)$"
 )
 SEARCH_SYNONYMS = {
     "태블릿": ["pad", "탭", "아이패드", "갤럭시탭", "tablet"],
@@ -216,10 +220,14 @@ def count_by(rows, key):
 
 
 def is_meaningful_point(text):
-    cleaned = re.sub(r"\s+", " ", str(text or "").strip())
-    if len(cleaned) < 2:
+    cleaned = re.sub(r"\s+", " ", str(text or "").strip()).strip(" .·,-")
+    if len(cleaned) < 3:
         return False
-    return not any(pattern in cleaned for pattern in INVALID_POINT_PATTERNS)
+    if any(pattern in cleaned for pattern in INVALID_POINT_PATTERNS):
+        return False
+    if HOLLOW_COPY_REGEX.search(cleaned):
+        return False
+    return True
 
 
 def score_product_search(product, query):
@@ -306,6 +314,13 @@ def serialize_extra_partner_links(links, memo=""):
     if clean_memo:
         payload["memo"] = clean_memo
     return json.dumps(payload, ensure_ascii=False)
+
+
+def has_partner_deal(product):
+    if product.get("affiliate_verified") and str(product.get("coupang_url") or "").startswith("https://link.coupang.com/"):
+        return True
+    extra_links, _ = parse_extra_partner_links(product)
+    return any(bool(url) for url in extra_links.values())
 
 
 def detect_product_malls(product, include_all_default=False):
@@ -451,20 +466,7 @@ def handle_click_redirect():
     st.stop()
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def load_public_data():
-    products = api_get_all(
-        "products",
-        "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,affiliate_note,image_url,image_source,image_verified,image_checked_at,image_note,created_at",
-        {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc"},
-        max_rows=3000,
-    )
-    recs = api_get_all(
-        "recommendations",
-        "recommendation_id,product_id,video_id,channel_id,reason,pros,cons,evidence,confidence,purchase_type,created_at",
-        {"order": "created_at.desc"},
-        max_rows=10000,
-    )
+def _attach_recommendations(products, recs):
     video_ids = [r.get("video_id") for r in recs if r.get("video_id")]
     channel_ids = [r.get("channel_id") for r in recs if r.get("channel_id")]
     videos = fetch_by_ids("videos", "video_id,title,view_count,published_at", "video_id", video_ids)
@@ -477,13 +479,93 @@ def load_public_data():
         item["video"] = video_map.get(rec.get("video_id"), {})
         item["channel"] = channel_map.get(rec.get("channel_id"), {})
         grouped.setdefault(rec.get("product_id"), []).append(item)
+
+    enriched = []
     for product in products:
-        product["recommendations"] = grouped.get(product["product_id"], [])
-    products.sort(
-        key=lambda p: (len({r.get("channel_id") for r in p["recommendations"]}), len(p["recommendations"])),
+        item = dict(product)
+        p_recs = grouped.get(item["product_id"], [])
+        item["recommendations"] = p_recs
+        summary = recommendation_summary(p_recs)
+        item["_summary"] = summary
+        item["_has_partner"] = has_partner_deal(item)
+        item["_channel_count"] = len({r.get("channel_id") for r in p_recs if r.get("channel_id")})
+        item["_has_quality_copy"] = bool(summary["pros"] or summary["cons"] or summary["reasons"])
+        enriched.append(item)
+
+    enriched.sort(
+        key=lambda p: (
+            p["_channel_count"],
+            len(p["recommendations"]),
+            1 if p.get("image_verified") else 0,
+            1 if p["_has_partner"] else 0,
+            1 if p["_has_quality_copy"] else 0,
+        ),
         reverse=True,
     )
-    return products
+    return enriched
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_public_catalog():
+    """홈 목록 전용 경량 데이터 로더 (긴 원문 evidence 제외로 초기 로딩 최소화)."""
+    products = api_get_all(
+        "products",
+        "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,affiliate_note,image_url,image_source,image_verified,created_at",
+        {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc"},
+        max_rows=3000,
+    )
+    recs = api_get_all(
+        "recommendations",
+        "recommendation_id,product_id,video_id,channel_id,reason,pros,cons,confidence,purchase_type",
+        {"order": "created_at.desc"},
+        max_rows=10000,
+    )
+    all_items = _attach_recommendations(products, recs)
+    return [p for p in all_items if p["recommendations"] and (p["_has_quality_copy"] or p["_channel_count"] >= 2)]
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_product_detail_recs(product_id):
+    """상세 페이지 진입 시에만 해당 상품의 원문 근거(evidence) 포함 리뷰 조회."""
+    pid = str(product_id or "").strip()
+    if not pid:
+        return []
+    recs = api_get(
+        "recommendations",
+        "recommendation_id,product_id,video_id,channel_id,reason,pros,cons,evidence,confidence,purchase_type,created_at",
+        {"product_id": f"eq.{pid}", "order": "created_at.desc", "limit": "200"},
+    )
+    video_ids = [r.get("video_id") for r in recs if r.get("video_id")]
+    channel_ids = [r.get("channel_id") for r in recs if r.get("channel_id")]
+    videos = fetch_by_ids("videos", "video_id,title,view_count,published_at", "video_id", video_ids)
+    channels = fetch_by_ids("channels", "channel_id,channel_name,subscriber_count", "channel_id", channel_ids)
+    video_map = {row["video_id"]: row for row in videos}
+    channel_map = {row["channel_id"]: row for row in channels}
+    enriched = []
+    for rec in recs:
+        item = dict(rec)
+        item["video"] = video_map.get(rec.get("video_id"), {})
+        item["channel"] = channel_map.get(rec.get("channel_id"), {})
+        enriched.append(item)
+    return enriched
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_public_data():
+    """관리자 화면 호환용 전체 데이터 로더."""
+    products = api_get_all(
+        "products",
+        "product_id,canonical_name,brand,model,category,search_keyword,coupang_url,affiliate_verified,affiliate_note,image_url,image_source,image_verified,image_checked_at,image_note,created_at",
+        {"review_status": "eq.approved", "is_visible": "eq.true", "order": "created_at.desc"},
+        max_rows=3000,
+    )
+    recs = api_get_all(
+        "recommendations",
+        "recommendation_id,product_id,video_id,channel_id,reason,pros,cons,evidence,confidence,purchase_type,created_at",
+        {"order": "created_at.desc"},
+        max_rows=10000,
+    )
+    return _attach_recommendations(products, recs)
 
 
 def is_single_product_video(product, rec):
@@ -511,12 +593,19 @@ def sort_recommendations(product, recommendations):
     )
 
 
-def get_representative_rec(product):
+def get_representative_rec(product, exclude_video_ids=None):
     ranked = sort_recommendations(product, product.get("recommendations") or [])
-    return next((rec for rec in ranked if rec.get("video_id")), None)
+    valid = [rec for rec in ranked if rec.get("video_id")]
+    if not valid:
+        return None
+    if exclude_video_ids:
+        distinct = [rec for rec in valid if str(rec.get("video_id")) not in exclude_video_ids]
+        if distinct:
+            return distinct[0]
+    return valid[0]
 
 
-def render_product_visual(product, representative=None, link_to_detail=False):
+def render_product_visual(product, representative=None, link_to_detail=False, is_detail=False):
     if representative is None:
         representative = get_representative_rec(product)
     pid = safe(product.get("product_id") or "")
@@ -527,10 +616,11 @@ def render_product_visual(product, representative=None, link_to_detail=False):
         f'<a class="thumb-video-badge" href="{video_href}" target="_blank" rel="noopener noreferrer" title="추천 유튜브 영상 바로 보기">▶ 영상 보기</a>'
         if video_href else ""
     )
+    loading_attr = ' loading="eager"' if is_detail else ' loading="lazy" decoding="async"'
 
     image_url = str(product.get("image_url") or "").strip()
     if product.get("image_verified") and image_url.startswith(("https://", "http://")):
-        img_tag = f'<img class="video-thumbnail" src="{safe(image_url)}" alt="{safe(product.get("canonical_name"))}">'
+        img_tag = f'<img class="video-thumbnail"{loading_attr} src="{safe(image_url)}" alt="{safe(product.get("canonical_name"))}">'
         st.markdown(
             f'<div class="video-thumbnail-wrap"{detail_attr}>{img_tag}{badge_html}</div>',
             unsafe_allow_html=True,
@@ -538,9 +628,12 @@ def render_product_visual(product, representative=None, link_to_detail=False):
         return
 
     if video_id:
-        hd_url = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
-        fallback_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
-        img_tag = f'<img class="video-thumbnail" src="{hd_url}" onerror="this.onerror=null;this.src=\'{fallback_url}\';" alt="추천 영상 썸네일">'
+        if is_detail:
+            hd_url = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
+            fallback_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+            img_tag = f'<img class="video-thumbnail"{loading_attr} src="{hd_url}" onerror="this.onerror=null;this.src=\'{fallback_url}\';" alt="추천 영상 썸네일">'
+        else:
+            img_tag = f'<img class="video-thumbnail"{loading_attr} src="https://i.ytimg.com/vi/{video_id}/hqdefault.jpg" alt="추천 영상 썸네일">'
         st.markdown(
             f'<div class="video-thumbnail-wrap"{detail_attr}>{img_tag}{badge_html}</div>',
             unsafe_allow_html=True,
@@ -560,24 +653,36 @@ def recommendation_summary(recommendations):
     purchase_counts = Counter()
     pros = Counter()
     cons = Counter()
+    seen_pros = {}
+    seen_cons = {}
     reasons = []
     seen_reasons = set()
+
     for rec in recommendations:
         purchase_counts[str(rec.get("purchase_type") or "확인되지 않음").strip()] += 1
-        reason_text = re.sub(r"\s+", " ", str(rec.get("reason") or "").strip())
+        reason_text = re.sub(r"\s+", " ", str(rec.get("reason") or "").strip()).strip(" .")
         if is_meaningful_point(reason_text):
             r_key = norm_key(reason_text)
             if r_key and r_key not in seen_reasons:
                 seen_reasons.add(r_key)
                 reasons.append(reason_text)
+
         for value in rec.get("pros") or []:
-            text = re.sub(r"\s+", " ", str(value).strip())
+            text = re.sub(r"\s+", " ", str(value).strip()).strip(" .")
             if is_meaningful_point(text):
-                pros[text] += 1
+                p_key = norm_key(text)
+                if p_key:
+                    canonical = seen_pros.setdefault(p_key, text)
+                    pros[canonical] += 1
+
         for value in rec.get("cons") or []:
-            text = re.sub(r"\s+", " ", str(value).strip())
+            text = re.sub(r"\s+", " ", str(value).strip()).strip(" .")
             if is_meaningful_point(text):
-                cons[text] += 1
+                c_key = norm_key(text)
+                if c_key:
+                    canonical = seen_cons.setdefault(c_key, text)
+                    cons[canonical] += 1
+
     return {
         "purchase_counts": purchase_counts,
         "pros": [text for text, _ in pros.most_common(3)],
@@ -898,7 +1003,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .product-placeholder span{font-size:13.5px;font-weight:850;letter-spacing:.12em}
 .product-placeholder small{font-size:12px;font-weight:700;opacity:.9}
 
-/* 카드 본문 정보 블록 (높은 가독성 & 밑줄 없음) */
+/* 카드 본문 정보 블록 */
 .card-info-block{
   display:flex!important;
   flex-direction:column!important;
@@ -1061,7 +1166,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .summary-reason{background:#F3F5F8!important}
 .sum-tag-fit{background:#DCE3EC!important;color:#1E293B!important}
 
-/* 톤다운된 쇼핑몰 버튼 */
+/* 쇼핑몰 버튼 */
 .shop-btn-grid{
   display:grid!important;
   grid-template-columns:repeat(2,minmax(0,1fr))!important;
@@ -1161,7 +1266,7 @@ div[data-testid="stForm"] input,div[data-testid="stForm"] textarea,div[data-test
 .creator-matrix td{padding:10px 12px;border-bottom:1px solid #F1F4F8;vertical-align:top;line-height:1.45;color:var(--ink);word-break:keep-all}
 .creator-matrix tr:last-child td{border-bottom:0}
 
-/* 유튜버 · 영상별 상세 리뷰 비교 카드 (원문 영상 버튼 제외 전체 클릭 가능) */
+/* 유튜버 · 영상별 상세 리뷰 비교 카드 */
 .creator-review-card{
   display:flex;
   align-items:flex-start;
