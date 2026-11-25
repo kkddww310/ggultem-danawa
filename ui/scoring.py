@@ -54,27 +54,35 @@ SEARCH_SYNONYMS = {
     "신발": ["스니커즈", "운동화", "로퍼", "부츠", "구두", "슬리퍼", "샌들", "shoes", "sneakers"],
 }
 
-# 세부 품목군 매칭 테이블 (상세페이지 연관 추천템 정확도 향상용)
+# 전 카테고리 세부 품목군 매칭 테이블 (상세페이지 연관 추천템 정확도 향상용)
 ITEM_GROUPS = (
-    ("음향기기", ("헤드폰", "헤드셋", "이어폰", "버즈", "에어팟", "스피커", "사운드바", "앰프", "dac", "headphone", "headset", "earbuds", "earphone", "speaker")),
+    ("음향기기", ("헤드폰", "헤드셋", "이어폰", "버즈", "에어팟", "스피커", "사운드바", "앰프", "dac", "이어팁", "headphone", "headset", "earbuds", "earphone", "speaker")),
     ("태블릿", ("태블릿", "아이패드", "갤럭시탭", "울트라패드", "미니패드", "패드", "ipad", "tablet", "pad")),
     ("노트북·PC", ("노트북", "맥북", "그램", "갤럭시북", "미니pc", "데스크탑", "laptop", "macbook")),
     ("모니터", ("모니터", "디스플레이", "포터블모니터", "monitor", "display")),
-    ("키보드·마우스", ("키보드", "마우스", "트랙패드", "keyboard", "mouse")),
-    ("충전·배터리", ("보조배터리", "충전기", "멀티탭", "맥세이프", "파워뱅크", "케이블", "charger", "powerbank")),
+    ("키보드·마우스", ("키보드", "마우스", "트랙패드", "장패드", "keyboard", "mouse")),
+    ("충전·배터리", ("보조배터리", "충전기", "멀티탭", "맥세이프", "파워뱅크", "케이블", "어댑터", "charger", "powerbank")),
     ("스마트워치", ("스마트워치", "애플워치", "갤럭시워치", "미밴드", "워치", "watch")),
-    ("카메라·촬영장비", ("카메라", "짐벌", "액션캠", "삼각대", "마이크", "조명", "오즈모", "고프로", "camera", "gimbal")),
-    ("생활·청소가전", ("청소기", "로봇청소기", "공기청정기", "가습기", "제습기", "드라이기", "고데기", "면도기", "전동칫솔", "다이슨")),
-    ("주방가전·용품", ("커피머신", "에스프레소", "에어프라이어", "블렌더", "믹서기", "텀블러", "프라이팬", "냄비", "식기세척기")),
-    ("메이크업·립", ("쿠션", "파운데이션", "컨실러", "파우더", "립", "틴트", "립스틱", "립밤", "푸딩팟", "블러셔", "치크", "섀도우", "마스카라", "아이라이너")),
-    ("스킨·선케어", ("선크림", "선스틱", "썬크림", "토너", "스킨", "세럼", "앰플", "에센스", "로션", "수분크림", "크림", "클렌징", "마스크팩")),
-    ("헤어·바디케어", ("샴푸", "트리트먼트", "헤어에센스", "헤어오일", "바디워시", "바디로션", "핸드크림", "향수")),
-    ("가방·백", ("가방", "백팩", "숄더백", "토트백", "크로스백", "에코백", "핸드백", "파우치", "캐리어", "bag", "backpack")),
-    ("신발", ("신발", "스니커즈", "운동화", "러닝화", "런닝화", "로퍼", "구두", "부츠", "슬리퍼", "샌들", "슈즈", "shoes", "sneakers")),
-    ("아우터", ("패딩", "다운", "자켓", "재킷", "코트", "점퍼", "바람막이", "가디건", "후리스", "플리스", "jacket", "coat")),
-    ("의류", ("티셔츠", "셔츠", "맨투맨", "후드", "니트", "스웨터", "바지", "팬츠", "데님", "청바지", "슬랙스", "스커트", "원피스")),
-    ("자동차용품", ("블랙박스", "차량용", "세차", "방향제", "거치대", "하이패스", "와이퍼")),
-    ("캠핑·여행용품", ("텐트", "캠핑", "체어", "랜턴", "침낭", "어댑터")),
+    ("카메라·촬영장비", ("카메라", "짐벌", "액션캠", "삼각대", "마이크", "조명", "오즈모", "고프로", "웹캠", "camera", "gimbal")),
+    ("아이·브로우 메이크업", ("아이라이터", "아이라이너", "아이섀도우", "섀도우", "팔레트", "마스카라", "아이브로우", "브로우", "애교살", "글리터", "속눈썹", "뷰러", "eyeliner", "shadow", "mascara", "brow")),
+    ("립·치크 메이크업", ("립", "틴트", "립스틱", "립밤", "립글로스", "립오일", "립펜슬", "푸딩팟", "블러셔", "치크", "하이라이터", "쉐딩", "셰딩", "컨투어", "tint", "lip", "blush", "cheek", "highlighter")),
+    ("베이스 메이크업", ("쿠션", "파운데이션", "컨실러", "파우더", "팩트", "프라이머", "비비크림", "톤업크림", "cushion", "foundation", "concealer", "powder")),
+    ("스킨·선케어", ("선크림", "선스틱", "썬크림", "선쿠션", "토너", "스킨", "세럼", "앰플", "에센스", "로션", "수분크림", "크림", "클렌징", "폼클렌징", "클렌징오일", "클렌징밤", "마스크팩", "필링", "패드", "sunscreen", "toner", "serum", "cream", "cleansing")),
+    ("헤어·바디·향수", ("샴푸", "트리트먼트", "헤어에센스", "헤어오일", "헤어팩", "드라이기", "고데기", "바디워시", "바디로션", "핸드크림", "향수", "퍼퓸", "미스트", "shampoo", "perfume")),
+    ("청소·생활가전", ("청소기", "로봇청소기", "공기청정기", "가습기", "제습기", "선풍기", "서큘레이터", "온풍기", "다리미", "스팀다리미", "면도기", "전동칫솔", "다이슨")),
+    ("수납·생활용품", ("수납", "정리함", "행거", "바구니", "빨래", "건조대", "세제", "섬유유연제", "탈취제", "디퓨저", "캔들", "베개", "이불", "매트리스", "타월", "수건")),
+    ("주방가전·용품", ("커피머신", "에스프레소", "에어프라이어", "블렌더", "믹서기", "전기포트", "토스터", "텀블러", "보온병", "프라이팬", "냄비", "밀폐용기", "식기", "수저", "칼", "도마")),
+    ("가방·파우치", ("가방", "백팩", "숄더백", "토트백", "크로스백", "에코백", "핸드백", "파우치", "카드지갑", "지갑", "캐리어", "bag", "backpack", "pouch", "wallet")),
+    ("신발", ("신발", "스니커즈", "운동화", "러닝화", "런닝화", "로퍼", "구두", "부츠", "슬리퍼", "샌들", "뮬", "슈즈", "shoes", "sneakers")),
+    ("아우터", ("패딩", "다운", "자켓", "재킷", "코트", "점퍼", "바람막이", "가디건", "후리스", "플리스", "베스트", "조끼", "jacket", "coat")),
+    ("상의·하의", ("티셔츠", "셔츠", "블라우스", "맨투맨", "후드", "니트", "스웨터", "바지", "팬츠", "데님", "청바지", "슬랙스", "스커트", "원피스")),
+    ("패션잡화", ("모자", "볼캡", "비니", "안경", "선글라스", "벨트", "머플러", "스카프", "양말", "시계", "목걸이", "반지", "귀걸이")),
+    ("영양제·건강식품", ("유산균", "비타민", "오메가3", "마그네슘", "루테인", "콜라겐", "단백질", "프로틴", "효소", "홍삼", "영양제", "보조제")),
+    ("운동·홈트용품", ("덤벨", "아령", "요가매트", "폼롤러", "밴드", "마사지건", "마사지기", "러닝", "등산", "골프", "테니스")),
+    ("차량용품", ("블랙박스", "차량용", "세차", "방향제", "거치대", "하이패스", "와이퍼", "코일매트")),
+    ("여행·캠핑", ("텐트", "캠핑", "체어", "랜턴", "침낭", "목베개", "압축파우치")),
+    ("육아·유아용품", ("기저귀", "물티슈", "젖병", "유모차", "카시트", "아기띠", "분유", "이유식", "장난감", "유아")),
+    ("반려동물용품", ("사료", "간식", "배변패드", "모래", "캣타워", "하네스", "리드줄", "강아지", "고양이")),
 )
 
 EXTRA_MALLS = ("naver", "oliveyoung", "musinsa", "29cm", "zigzag", "ably")
@@ -251,7 +259,7 @@ def compute_curation_score(product):
 
 
 def detect_item_group(product):
-    """상품명·모델명·검색 키워드에서 세부 품목군(예: 음향기기, 태블릿 등) 추출."""
+    """상품명·모델명·검색 키워드에서 세부 품목군(예: 음향기기, 아이·브로우 메이크업 등) 추출."""
     text = " ".join([
         str(product.get("canonical_name") or ""),
         str(product.get("model") or ""),
@@ -265,24 +273,66 @@ def detect_item_group(product):
     return ""
 
 
+def _extract_product_tokens(product):
+    """브랜드명을 제외한 상품 핵심 단어 및 2~3음절 품목 어미 추출."""
+    brand_norm = norm_key(product.get("brand"))
+    raw = " ".join([
+        str(product.get("canonical_name") or ""),
+        str(product.get("search_keyword") or ""),
+    ]).lower()
+    tokens = set()
+    suffixes = set()
+    for word in re.findall(r"[0-9a-z가-힣]{2,}", raw):
+        w_norm = norm_key(word)
+        if not w_norm or w_norm == brand_norm or w_norm.isdigit():
+            continue
+        tokens.add(w_norm)
+        if re.fullmatch(r"[가-힣]{3,}", w_norm):
+            suffixes.add(w_norm[-2:])
+            if len(w_norm) >= 4:
+                suffixes.add(w_norm[-3:])
+    return tokens, suffixes
+
+
 def get_related_products(product, all_products, limit=3):
-    """세부 품목군(예: 음향기기) 우선 매칭 후 부족분은 동일 대분류 카테고리로 보완."""
+    """1순위 세부 품목군 -> 2순위 동일 카테고리 내 핵심 단어/어미 유사 상품 -> 3순위 동일 카테고리 인기 상품."""
     pid = str(product.get("product_id") or "")
     category = product.get("category") or "기타"
     target_group = detect_item_group(product)
+    target_tokens, target_suffixes = _extract_product_tokens(product)
 
     same_group = []
+    keyword_similar = []
     same_category = []
+
     for item in all_products:
         if str(item.get("product_id") or "") == pid:
             continue
-        if target_group and detect_item_group(item) == target_group:
-            same_group.append(item)
-        elif (item.get("category") or "기타") == category:
-            same_category.append(item)
+        item_cat = item.get("category") or "기타"
+        item_group = detect_item_group(item)
 
-    combined = (same_group + same_category)[:limit]
-    heading_label = target_group if (target_group and same_group) else category
+        if target_group and item_group == target_group:
+            same_group.append(item)
+            continue
+
+        if item_cat == category:
+            item_tokens, item_suffixes = _extract_product_tokens(item)
+            overlap_score = (len(target_tokens & item_tokens) * 3) + len(target_suffixes & item_suffixes)
+            if overlap_score > 0:
+                keyword_similar.append((overlap_score, item))
+            else:
+                same_category.append(item)
+
+    keyword_similar.sort(key=lambda pair: pair[0], reverse=True)
+    similar_items = [pair[1] for pair in keyword_similar]
+
+    combined = (same_group + similar_items + same_category)[:limit]
+    if target_group and same_group:
+        heading_label = target_group
+    elif similar_items:
+        heading_label = f"{category} 관련"
+    else:
+        heading_label = category
     return combined, heading_label
 
 
