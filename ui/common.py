@@ -10,6 +10,8 @@ from ui.components import (
 from ui.db import (
     SUPABASE_KEY,
     SUPABASE_URL,
+    api_count,
+    api_delete,
     api_get,
     api_get_all,
     api_patch,
@@ -80,6 +82,8 @@ __all__ = [
     "SEARCH_SYNONYMS",
     "SUPABASE_KEY",
     "SUPABASE_URL",
+    "api_count",
+    "api_delete",
     "api_get",
     "api_get_all",
     "api_patch",
