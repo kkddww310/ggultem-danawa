@@ -1,4 +1,5 @@
 import re
+import urllib.parse
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -32,12 +33,60 @@ MALL_ACTION_SUBS = {
     "ably": "전 상품 무료배송 · 앱 할인가 확인",
 }
 
+FOOD_BEVERAGE_KEYWORDS = (
+    "스파클링", "음료", "매실", "주스", "탄산", "커피", "원두", "캡슐커피", "드립백",
+    "라떼", "에이드", "녹차", "홍차", "콤부차", "보리차", "허브티", "아이스티",
+    "간식", "과자", "쿠키", "젤리", "초콜릿", "디저트", "라면", "소스", "밀키트",
+    "식품", "단백질", "프로틴", "쉐이크", "유산균", "비타민", "오메가3", "영양제",
+)
+
+HOLLOW_QUOTE_RE = re.compile(
+    r"(템으로\s*(소개|추천|언급|선정)|"
+    r"제품으로\s*(소개|추천|언급|선정)|"
+    r"아이템으로\s*(소개|추천|언급|선정)|"
+    r"(소개|추천|언급|리뷰|선정|사용)됨\.?$|"
+    r"(소개|추천|언급|리뷰|선정)한\s*(제품|템|아이템)|"
+    r"100%\s*내돈내산\s*템|"
+    r"이벤트\s*대표\s*상품)"
+)
+
+
+def _map_display_category(product):
+    raw_cat = str(product.get("category") or "기타").strip()
+    name_text = f"{product.get('canonical_name') or ''} {product.get('search_keyword') or ''}".lower()
+    if any(kw in name_text for kw in FOOD_BEVERAGE_KEYWORDS):
+        return "푸드·리빙"
+    if raw_cat == "IT·전자":
+        return "IT·테크"
+    if raw_cat in ("뷰티", "패션"):
+        return "뷰티·패션"
+    if raw_cat in ("주방", "생활·살림", "식품·음료"):
+        return "푸드·리빙"
+    return "라이프·기타"
+
+
+def _is_authentic_quote(text):
+    cleaned = re.sub(r"\s+", " ", str(text or "").strip())
+    if not is_meaningful_point(cleaned):
+        return False
+    if HOLLOW_QUOTE_RE.search(cleaned):
+        return False
+    return True
+
+
+def _build_detail_href_with_state(pid):
+    params = [("view", "detail"), ("pid", str(pid or "").strip())]
+    for key in ("cat", "q", "sort", "p"):
+        val = str(st.query_params.get(key, "")).strip()
+        if val:
+            params.append((key, val))
+    return "?" + urllib.parse.urlencode(params)
+
 
 def inject_detail_overrides():
     st.markdown(
         """
 <style>
-/* 상세 페이지 스토어형 레이아웃 오버라이드 */
 .detail-nav-row {
   display: flex;
   align-items: center;
@@ -52,7 +101,6 @@ def inject_detail_overrides():
   color: #8B95A1 !important;
 }
 
-/* 상단 히어로 그리드: 좌측 상품 비주얼+정보 / 우측 쇼핑몰 최저가 */
 .detail-top-grid {
   display: grid !important;
   grid-template-columns: 1.35fr 1fr !important;
@@ -122,7 +170,6 @@ def inject_detail_overrides():
   margin-top: 4px !important;
 }
 
-/* 우측 쇼핑몰 비교 박스 고도화 */
 .danawa-box {
   background: #FFFFFF !important;
   border: 1px solid #E6E9EF !important;
@@ -157,7 +204,6 @@ def inject_detail_overrides():
   background: #3182F6 !important;
 }
 
-/* 유튜버 실사용 결정적 한마디 (상단 인용구 카드) */
 .quote-highlight-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -198,7 +244,6 @@ def inject_detail_overrides():
   white-space: nowrap;
 }
 
-/* 하단 연관 추천템: 홈과 동일한 미니멀 스토어 카드 */
 .st-key-related_grid .product-card {
   background: #FFFFFF !important;
   border: 1px solid #E6E9EF !important;
@@ -324,7 +369,6 @@ def inject_detail_overrides():
 
 
 def build_danawa_price_html(product):
-    """상세 페이지 상단 우측용 컴팩트 쇼핑몰별 최저가 비교 박스 HTML."""
     pid = safe(product.get("product_id"))
     malls = detect_product_malls(product, include_all_default=True)
     rows_html = []
@@ -377,7 +421,9 @@ def render_product_detail(pid):
     with top_left:
         if st.button("← 전체 목록으로", key="detail_back_btn", type="secondary"):
             st.session_state.detail_pid = ""
-            st.query_params.clear()
+            for k in ("view", "pid"):
+                if k in st.query_params:
+                    del st.query_params[k]
             st.session_state.scroll_to_top = True
             st.rerun()
     with top_right:
@@ -426,16 +472,16 @@ def render_product_detail(pid):
     recs = sort_recommendations(product, detail_recs)
     channel_count = len({r.get("channel_id") for r in recs if r.get("channel_id")})
     summary = recommendation_summary(recs)
-    category = product.get("category") or "기타"
+    disp_category = _map_display_category(product)
 
     st.markdown(
-        f'<div class="detail-nav-row"><div class="detail-breadcrumb">에디션 픽 &gt; {safe(category)} &gt; {safe(product.get("brand"))}</div></div>',
+        f'<div class="detail-nav-row"><div class="detail-breadcrumb">에디션 픽 &gt; {safe(disp_category)} &gt; {safe(product.get("brand"))}</div></div>',
         unsafe_allow_html=True,
     )
 
     purchase_html = render_purchase_badges(summary["purchase_counts"])
     model_text = str(product.get("model") or "").strip()
-    brand_line = f"{product.get('brand')} · {category}" + (f" · {model_text}" if model_text else "")
+    brand_line = f"{product.get('brand')} · {disp_category}" + (f" · {model_text}" if model_text else "")
 
     counts = summary["purchase_counts"]
     total_recs = max(1, len(recs))
@@ -452,7 +498,7 @@ def render_product_detail(pid):
     hero_visual_html = build_product_visual_html(
         product,
         representative=rep_rec,
-        detail_href=f"?view=detail&pid={safe(pid)}",
+        detail_href=safe(_build_detail_href_with_state(pid)),
         is_detail=True,
     )
     danawa_html = build_danawa_price_html(product)
@@ -494,11 +540,10 @@ def render_product_detail(pid):
         unsafe_allow_html=True,
     )
 
-    # 유튜버 실제 인용구(원문 발언) 상단 하이라이트 섹션
     quote_cards = []
     for rec in recs:
         ev_txt = clean_evidence_text(rec.get("evidence"))
-        if len(ev_txt) < 10:
+        if len(ev_txt) < 10 or not _is_authentic_quote(ev_txt):
             continue
         ch_name = safe((rec.get("channel") or {}).get("channel_name") or "유튜버")
         p_type = str(rec.get("purchase_type") or "").strip()
@@ -529,8 +574,8 @@ def render_product_detail(pid):
             unsafe_allow_html=True,
         )
 
-    pros_list = summary["all_pros"]
-    cons_list = summary["all_cons"]
+    pros_list = [(t, c) for t, c in summary["all_pros"] if _is_authentic_quote(t)]
+    cons_list = [(t, c) for t, c in summary["all_cons"] if _is_authentic_quote(t)]
     if pros_list or cons_list:
         pro_items_html = "".join(
             f'<div class="pc-item">• {safe(text)}'
@@ -564,9 +609,9 @@ def render_product_detail(pid):
             p_type = str(rec.get("purchase_type") or "확인되지 않음").strip()
             p_badge = render_purchase_badges({p_type: 1}) or '<span class="purchase-dot purchase-unknown"><i></i>표기 미확인</span>'
             r_txt = re.sub(r"\s+", " ", str(rec.get("reason") or "").strip())
-            reason_cell = safe(r_txt) if is_meaningful_point(r_txt) else "-"
-            p_points = [re.sub(r"\s+", " ", str(x).strip()) for x in (rec.get("pros") or []) if is_meaningful_point(x)]
-            c_points = [re.sub(r"\s+", " ", str(x).strip()) for x in (rec.get("cons") or []) if is_meaningful_point(x)]
+            reason_cell = safe(r_txt) if _is_authentic_quote(r_txt) else "-"
+            p_points = [re.sub(r"\s+", " ", str(x).strip()) for x in (rec.get("pros") or []) if _is_authentic_quote(x)]
+            c_points = [re.sub(r"\s+", " ", str(x).strip()) for x in (rec.get("cons") or []) if _is_authentic_quote(x)]
             point_lines = []
             if p_points:
                 point_lines.append(f"장점 · {safe(' / '.join(p_points[:2]))}")
@@ -625,19 +670,19 @@ def render_product_detail(pid):
         )
         v_title = safe(video.get("title") or "영상 제목 정보 없음")
         reason_txt = re.sub(r"\s+", " ", str(rec.get("reason") or "").strip())
-        reason_html = f'<div class="creator-reason">{safe(reason_txt)}</div>' if is_meaningful_point(reason_txt) else ""
+        reason_html = f'<div class="creator-reason">{safe(reason_txt)}</div>' if _is_authentic_quote(reason_txt) else ""
 
         ev_txt = clean_evidence_text(rec.get("evidence"))
-        ev_html = f'<div class="creator-evidence">“{safe(ev_txt)}”</div>' if ev_txt else ""
+        ev_html = f'<div class="creator-evidence">“{safe(ev_txt)}”</div>' if _is_authentic_quote(ev_txt) else ""
 
         tag_parts = []
         for p in (rec.get("pros") or []):
             pt = re.sub(r"\s+", " ", str(p).strip())
-            if is_meaningful_point(pt):
+            if _is_authentic_quote(pt):
                 tag_parts.append(f'<span class="ctag-pro">장점 · {safe(pt)}</span>')
         for c in (rec.get("cons") or []):
             ct = re.sub(r"\s+", " ", str(c).strip())
-            if is_meaningful_point(ct):
+            if _is_authentic_quote(ct):
                 tag_parts.append(f'<span class="ctag-con">체크 · {safe(ct)}</span>')
         tags_html = f'<div class="creator-tags">{"".join(tag_parts)}</div>' if tag_parts else ""
 
@@ -672,24 +717,36 @@ def render_product_detail(pid):
             r_cols = st.columns(3, gap="medium")
             for col, rp in zip(r_cols, related):
                 raw_r_pid = str(rp.get("product_id") or "").strip()
-                r_href = f"?view=detail&pid={safe(raw_r_pid)}"
+                r_href = safe(_build_detail_href_with_state(raw_r_pid))
                 r_recs = rp.get("recommendations") or []
                 r_ch_cnt = rp.get("_channel_count") or len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
                 r_rep = get_representative_rec(rp)
                 r_visual = build_product_visual_html(rp, representative=r_rep, detail_href=r_href, is_detail=False)
                 r_sum = rp.get("_summary") or recommendation_summary(r_recs)
                 r_trust = _get_rel_trust_badge(r_sum)
-                r_pros = r_sum.get("pros") or []
-                r_reasons = r_sum.get("reasons") or []
-                r_line = r_pros[0] if r_pros else (r_reasons[0] if r_reasons else "실사용 리뷰로 검증된 추천 아이템")
-                r_line = str(r_line).strip().rstrip(".")
+
+                r_quotes = [
+                    clean_evidence_text(r.get("evidence")).rstrip(".")
+                    for r in r_recs
+                    if len(clean_evidence_text(r.get("evidence"))) >= 10 and _is_authentic_quote(clean_evidence_text(r.get("evidence")))
+                ]
+                r_pros = [p.strip().rstrip(".") for p in (r_sum.get("pros") or []) if _is_authentic_quote(p)]
+                r_reasons = [x.strip().rstrip(".") for x in (r_sum.get("reasons") or []) if _is_authentic_quote(x)]
+                if r_quotes:
+                    r_line = f"“{r_quotes[0]}”"
+                elif r_pros:
+                    r_line = r_pros[0]
+                elif r_reasons:
+                    r_line = r_reasons[0]
+                else:
+                    r_line = "실사용 리뷰로 검증된 추천 아이템"
 
                 with col:
                     st.markdown(
                         '<article class="product-card">'
                         f'<div class="rel-thumb-stage">{r_trust}{r_visual}</div>'
                         f'<a class="rel-card-link" href="{r_href}" target="_self" aria-label="{safe(rp.get("canonical_name"))} 상세 비교 보기">'
-                        f'<div class="rel-brand-line">{safe(rp.get("brand"))} · {safe(rp.get("category") or "기타")}</div>'
+                        f'<div class="rel-brand-line">{safe(rp.get("brand"))} · {safe(_map_display_category(rp))}</div>'
                         f'<div class="rel-title">{safe(rp.get("canonical_name"))}</div>'
                         f'<div class="rel-quote">{safe(r_line)}</div>'
                         '<div class="rel-foot">'
