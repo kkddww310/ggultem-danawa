@@ -28,36 +28,50 @@ if str(st.query_params.get("health", "")).strip() == "1":
 handle_click_redirect()
 inject_styles()
 
-# 무신사·크림(KREAM) 스타일 큐레이션 스토어 오버라이드 CSS
 st.markdown(
     """
 <style>
-/* 히어로 배너: 매거진·랭킹 스토어 톤으로 압축 */
+/* 상단 네비게이션 및 히어로 배너 슬림화 (첫 화면에 카드 코멘트까지 노출) */
+.top-nav {
+  padding: 10px 4px 12px !important;
+}
 .hero-banner {
-  background: linear-gradient(135deg, #161B24 0%, #232C3D 100%) !important;
+  background: linear-gradient(135deg, #151A23 0%, #222B3B 100%) !important;
   border: 0 !important;
-  border-radius: 20px !important;
-  padding: 22px 24px !important;
-  margin-bottom: 14px !important;
-  box-shadow: 0 10px 28px rgba(22, 27, 36, 0.12) !important;
+  border-radius: 16px !important;
+  padding: 15px 20px !important;
+  margin-bottom: 10px !important;
+  box-shadow: 0 8px 22px rgba(21, 26, 35, 0.10) !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+.hero-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .hero-kicker {
   display: inline-block !important;
-  font-size: 11px !important;
+  width: fit-content !important;
+  font-size: 10.5px !important;
   font-weight: 800 !important;
   letter-spacing: 0.04em !important;
   color: #7DB4FF !important;
   background: rgba(125, 180, 255, 0.14) !important;
-  padding: 4px 10px !important;
+  padding: 3px 9px !important;
   border-radius: 999px !important;
-  margin-bottom: 8px !important;
+  margin: 0 !important;
 }
 .hero-headline {
-  font-size: 22px !important;
+  font-size: 19px !important;
   font-weight: 850 !important;
   color: #FFFFFF !important;
   letter-spacing: -0.025em !important;
-  line-height: 1.35 !important;
+  line-height: 1.3 !important;
+  margin: 0 !important;
 }
 .hero-headline b {
   color: #7DB4FF !important;
@@ -65,28 +79,38 @@ st.markdown(
 .hero-stats {
   display: flex !important;
   flex-wrap: wrap !important;
-  gap: 8px !important;
-  margin-top: 12px !important;
+  gap: 6px !important;
+  margin: 0 !important;
 }
 .hero-banner .stat-pill {
   background: rgba(255, 255, 255, 0.09) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: #D5DCE6 !important;
-  font-size: 12px !important;
-  padding: 5px 11px !important;
+  font-size: 11.5px !important;
+  padding: 4px 10px !important;
 }
 .hero-banner .stat-pill strong {
   color: #FFFFFF !important;
 }
 
+/* 검색창 여백 축소 */
+div[data-testid="stTextInput"] {
+  margin-bottom: -4px !important;
+}
+div[data-testid="stTextInput"] input {
+  border-radius: 12px !important;
+  min-height: 42px !important;
+  font-size: 13.5px !important;
+}
+
 /* 가로 원클릭 카테고리 칩 바 */
 .st-key-chip_bar {
-  margin: 6px 0 14px !important;
+  margin: 4px 0 8px !important;
 }
 .st-key-chip_bar [data-testid="stHorizontalBlock"] {
   display: flex !important;
   flex-wrap: wrap !important;
-  gap: 7px !important;
+  gap: 6px !important;
   align-items: center !important;
   width: 100% !important;
 }
@@ -99,10 +123,10 @@ st.markdown(
   padding: 0 !important;
 }
 .st-key-chip_bar .stButton > button {
-  min-height: 36px !important;
-  padding: 0 14px !important;
+  min-height: 33px !important;
+  padding: 0 13px !important;
   border-radius: 999px !important;
-  font-size: 13px !important;
+  font-size: 12.5px !important;
   font-weight: 750 !important;
   letter-spacing: -0.02em !important;
   white-space: nowrap !important;
@@ -111,7 +135,6 @@ st.markdown(
   background: #191F28 !important;
   border: 1px solid #191F28 !important;
   color: #FFFFFF !important;
-  box-shadow: 0 4px 10px rgba(25, 31, 40, 0.16) !important;
 }
 .st-key-chip_bar .stButton > button[kind="secondary"] {
   background: #FFFFFF !important;
@@ -129,70 +152,89 @@ st.markdown(
   align-items: flex-end;
   justify-content: space-between;
   gap: 10px;
-  margin: 18px 2px 11px;
+  margin: 12px 2px 9px;
 }
 .curated-sec-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
   color: #191F28;
   letter-spacing: -0.025em;
   line-height: 1.25;
 }
 .curated-sec-sub {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   color: #8B95A1;
 }
 
-/* 가로 스크롤 큐레이션 레일 (TOP 5 & 중복 검증템) */
+/* PC에서는 5열 꽉 찬 그리드, 태블릿·모바일에서는 가로 스크롤 레일 */
+.top5-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
 .h-rail {
   display: flex;
-  gap: 14px;
+  gap: 13px;
   overflow-x: auto;
-  padding: 2px 2px 12px;
+  padding: 2px 2px 10px;
   margin-bottom: 10px;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
 .h-rail::-webkit-scrollbar {
-  height: 6px;
+  height: 5px;
 }
 .h-rail::-webkit-scrollbar-thumb {
   background: #D6DCE5;
   border-radius: 999px;
 }
 .rail-card {
-  flex: 0 0 272px;
-  width: 272px;
-  scroll-snap-align: start;
   background: #FFFFFF;
   border: 1px solid #E6E9EF;
-  border-radius: 16px;
-  padding: 11px 11px 14px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  border-radius: 15px;
+  padding: 10px 10px 12px;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.035);
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+}
+.h-rail .rail-card {
+  flex: 0 0 256px;
+  width: 256px;
+  scroll-snap-align: start;
 }
 .rail-card:hover {
   transform: translateY(-3px);
   border-color: #C7D2E0;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
 }
 
-/* 썸네일 스테이지 + 순위 배지 + 단일 투명도 배지 */
+/* 썸네일 스테이지 + 상단 배지 가독성 보호 그라데이션 */
 .thumb-stage {
   position: relative;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 11px;
   overflow: hidden;
+}
+.thumb-stage::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.34) 0%, rgba(15, 23, 42, 0) 100%);
+  pointer-events: none;
+  z-index: 2;
 }
 .thumb-stage .video-thumbnail-wrap,
 .thumb-stage .product-placeholder {
   margin: 0 !important;
-  border-radius: 12px !important;
+  border-radius: 11px !important;
 }
-/* 썸네일 우측 하단 '영상 보기' 오버레이 숨김으로 시선 분산 제거 */
 .thumb-stage a[href*="youtu"],
 .thumb-stage .thumb-play-badge,
 .thumb-stage .video-play-chip {
@@ -200,21 +242,21 @@ st.markdown(
 }
 .rank-flag {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 7px;
+  left: 7px;
   z-index: 3;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 7px;
-  border-radius: 8px;
-  background: #191F28;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 7px;
+  background: rgba(25, 31, 40, 0.92);
   color: #FFFFFF;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   pointer-events: none;
 }
 .rank-flag.top1 {
@@ -222,114 +264,109 @@ st.markdown(
 }
 .trust-flag {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 7px;
+  right: 7px;
   z-index: 3;
-  padding: 3px 8px;
-  border-radius: 7px;
-  font-size: 10.5px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  backdrop-filter: blur(6px);
   pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
 }
 .trust-self {
-  background: rgba(20, 108, 67, 0.92);
+  background: #146C43;
   color: #FFFFFF;
 }
 .trust-clean {
-  background: rgba(25, 31, 40, 0.84);
+  background: rgba(25, 31, 40, 0.88);
   color: #FFFFFF;
 }
 .trust-prov {
-  background: rgba(255, 247, 224, 0.95);
+  background: #FFF7E0;
   color: #7A4F00;
-  border: 1px solid rgba(224, 159, 0, 0.35);
 }
 
-/* 카드 본문 링크 & 타이포그래피 (다이어트 버전) */
+/* 카드 본문 타이포그래피 (위계 정리) */
 .store-card-link {
   display: flex;
   flex-direction: column;
   flex: 1;
   text-decoration: none !important;
   color: inherit !important;
-  padding-top: 9px;
+  padding-top: 8px;
 }
-.store-eyebrow {
+.store-brand-line {
+  font-size: 11px;
+  font-weight: 750;
+  color: #8B95A1;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.store-title {
+  font-size: 14.5px;
+  font-weight: 850;
+  color: #191F28;
+  line-height: 1.34;
+  letter-spacing: -0.02em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 39px;
+  margin-bottom: 7px;
+}
+.store-quote {
+  background: #F6F8FB;
+  border-left: 2.5px solid #3182F6;
+  border-radius: 0 8px 8px 0;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #333D4B;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 44px;
+  word-break: keep-all;
+  margin-bottom: 8px;
+}
+.store-foot {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid #F1F3F6;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
   font-size: 11px;
   font-weight: 700;
-  color: #8B95A1;
-  margin-bottom: 4px;
+  color: #6B7684;
 }
-.store-eyebrow span:first-child {
-  color: #4E5968;
-  font-weight: 750;
+.store-channel {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.store-eyebrow span:last-child {
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.store-title {
-  font-size: 15.5px;
-  font-weight: 850;
-  color: #191F28;
-  line-height: 1.36;
-  letter-spacing: -0.02em;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 42px;
-  margin-bottom: 8px;
-}
-.store-quote {
-  background: #F6F8FB;
-  border-left: 2.5px solid #191F28;
-  border-radius: 0 8px 8px 0;
-  padding: 7px 9px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #333D4B;
-  line-height: 1.42;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 46px;
-  word-break: keep-all;
-  margin-bottom: 9px;
-}
-.store-foot {
-  margin-top: auto;
-  padding-top: 7px;
-  border-top: 1px solid #F1F3F6;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #6B7684;
-}
 .store-cta {
   color: #3182F6;
   font-weight: 800;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-/* 그리드 카드 컨테이너 여백 & 호버 */
+/* 하단 전체 그리드 카드 */
 .st-key-product_grid .product-card {
   background: #FFFFFF !important;
   border: 1px solid #E6E9EF !important;
-  border-radius: 16px !important;
-  padding: 12px 12px 14px !important;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035) !important;
+  border-radius: 15px !important;
+  padding: 11px 11px 13px !important;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.03) !important;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease !important;
   display: flex !important;
   flex-direction: column !important;
@@ -338,19 +375,29 @@ st.markdown(
 .st-key-product_grid .product-card:hover {
   transform: translateY(-3px) !important;
   border-color: #C7D2E0 !important;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08) !important;
 }
 
-@media (max-width: 640px) {
-  .hero-banner {
-    padding: 16px 15px !important;
+@media (max-width: 1024px) {
+  .top5-grid {
+    display: flex;
+    overflow-x: auto;
+    gap: 12px;
+    padding-bottom: 8px;
+    scroll-snap-type: x mandatory;
   }
-  .hero-headline {
-    font-size: 18px !important;
-  }
-  .rail-card {
+  .top5-grid .rail-card {
     flex: 0 0 245px;
     width: 245px;
+    scroll-snap-align: start;
+  }
+}
+@media (max-width: 640px) {
+  .hero-banner {
+    padding: 14px 15px !important;
+  }
+  .hero-headline {
+    font-size: 17px !important;
   }
   .store-title, .store-quote {
     min-height: 0;
@@ -447,7 +494,6 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
 
 
 def get_trust_overlay_badge(summary):
-    """카드 썸네일 우측 상단에 붙는 단일 핵심 신뢰 배지."""
     counts = summary.get("purchase_counts") or {}
     buy_cnt = int(counts.get("직접 구매", 0))
     ad_cnt = int(counts.get("유료 광고", 0))
@@ -463,12 +509,38 @@ def get_trust_overlay_badge(summary):
 
 
 def get_hook_quote(summary):
-    """설명을 나열하지 않고 궁금증을 유발하는 유튜버 한 줄 코멘트 추출."""
     reasons = summary.get("reasons") or []
     pros = summary.get("pros") or []
     raw_line = reasons[0] if reasons else (pros[0] if pros else "실사용 리뷰로 검증된 추천 아이템")
     cleaned = str(raw_line).strip().rstrip(".")
     return f"“{safe(cleaned)}”"
+
+
+def pick_diverse_top_items(candidates, limit=5):
+    """같은 영상(하울/파우치 등) 썸네일이 TOP 5에 연속 도배되지 않도록 서로 다른 대표 영상을 우선 선발."""
+    selected = []
+    selected_pids = set()
+    used_vids = set()
+
+    for product in candidates:
+        pid = str(product.get("product_id") or "")
+        rep = get_representative_rec(product, exclude_video_ids=used_vids)
+        vid = str((rep or {}).get("video_id") or "")
+        if vid and vid not in used_vids:
+            selected.append(product)
+            selected_pids.add(pid)
+            used_vids.add(vid)
+            if len(selected) >= limit:
+                return selected
+
+    for product in candidates:
+        pid = str(product.get("product_id") or "")
+        if pid not in selected_pids:
+            selected.append(product)
+            selected_pids.add(pid)
+            if len(selected) >= limit:
+                break
+    return selected
 
 
 def build_store_card_inner_html(product, used_video_ids=None, rank=None):
@@ -499,14 +571,11 @@ def build_store_card_inner_html(product, used_video_ids=None, rank=None):
     return (
         f'<div class="thumb-stage">{rank_html}{trust_html}{visual_html}</div>'
         f'<a class="store-card-link" href="{detail_href}" target="_self" aria-label="{safe(product.get("canonical_name"))} 상세 비교 보기">'
-        '<div class="store-eyebrow">'
-        f'<span>▶ {safe(source_label)}</span>'
-        f'<span>{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</span>'
-        '</div>'
+        f'<div class="store-brand-line">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</div>'
         f'<div class="store-title">{safe(product.get("canonical_name"))}</div>'
         f'<div class="store-quote">{quote_html}</div>'
         '<div class="store-foot">'
-        f'<span>유튜버 {channel_count}명 · 영상 {len(recs)}개</span>'
+        f'<span class="store-channel">▶ {safe(source_label)}</span>'
         '<span class="store-cta">장단점·최저가 ›</span>'
         '</div>'
         '</a>'
@@ -518,7 +587,7 @@ def render_product_card(product, used_video_ids=None):
     st.markdown(f'<article class="product-card">{inner}</article>', unsafe_allow_html=True)
 
 
-def render_horizontal_rail(title, subtitle, items, show_rank=False):
+def render_curated_section(title, subtitle, items, show_rank=False, is_top5=False):
     if not items:
         return
     st.markdown(
@@ -528,11 +597,13 @@ def render_horizontal_rail(title, subtitle, items, show_rank=False):
         '</div>',
         unsafe_allow_html=True,
     )
+    used_vids = set()
     cards_html = []
     for idx, product in enumerate(items, start=1):
-        inner = build_store_card_inner_html(product, used_video_ids=None, rank=idx if show_rank else None)
+        inner = build_store_card_inner_html(product, used_video_ids=used_vids, rank=idx if show_rank else None)
         cards_html.append(f'<article class="rail-card">{inner}</article>')
-    st.markdown(f'<div class="h-rail">{"".join(cards_html)}</div>', unsafe_allow_html=True)
+    container_cls = "top5-grid" if is_top5 else "h-rail"
+    st.markdown(f'<div class="{container_cls}">{"".join(cards_html)}</div>', unsafe_allow_html=True)
 
 
 def render_home():
@@ -541,8 +612,10 @@ def render_home():
     video_ids = {r.get("video_id") for p in products for r in p["recommendations"] if r.get("video_id")}
     st.markdown(
         '<div class="hero-banner">'
+        '<div class="hero-left">'
         '<div class="hero-kicker">NO-AD REVIEW ARCHIVE · 실사용 교차 검증</div>'
         f'<div class="hero-headline">유튜버들이 직접 검증한 추천 아이템 <b>{len(products):,}개</b></div>'
+        '</div>'
         '<div class="hero-stats">'
         f'<span class="stat-pill">분석 채널 <strong>{len(channel_ids):,}개</strong></span>'
         f'<span class="stat-pill">근거 영상 <strong>{len(video_ids):,}개</strong></span>'
@@ -558,7 +631,6 @@ def render_home():
         label_visibility="collapsed",
     )
 
-    # 원클릭 가로 카테고리 칩 바
     existing_cats = sorted({p.get("category") or "기타" for p in products})
     preferred_order = ["IT·전자", "뷰티", "패션", "생활·살림", "주방", "운동·건강", "여행", "자동차", "육아", "반려동물", "기타"]
     ordered_cats = [c for c in preferred_order if c in existing_cats] + [c for c in existing_cats if c not in preferred_order]
@@ -624,35 +696,39 @@ def render_home():
     pages = max(1, (len(shown) + page_size - 1) // page_size)
     page = min(max(int(st.session_state.get("catalog_page", 1)), 1), pages)
 
-    # 기본 홈 첫 페이지에서만 탐색형 가로 큐레이션 섹션 노출
     is_default_landing = (not clean_kw) and (current_chip == "전체") and (page == 1)
     if is_default_landing:
-        top_self_buy = [
+        self_buy_pool = [
             p for p in products
             if p.get("_has_self_buy") and int((p.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)) == 0
-        ][:5]
-        if len(top_self_buy) < 5:
-            top_self_buy = [p for p in products if p.get("_has_self_buy")][:5]
-        render_horizontal_rail(
+        ]
+        if len(self_buy_pool) < 5:
+            self_buy_pool = [p for p in products if p.get("_has_self_buy")]
+        top_self_buy = pick_diverse_top_items(self_buy_pool, limit=5)
+
+        render_curated_section(
             "🔥 실시간 내돈내산 TOP 5",
             "광고 없이 유튜버가 직접 구매해 극찬한 1~5위",
             top_self_buy,
             show_rank=True,
+            is_top5=True,
         )
 
         top_ids = {str(p.get("product_id")) for p in top_self_buy}
-        multi_verified = [
+        multi_verified_pool = [
             p for p in products
             if str(p.get("product_id")) not in top_ids
             and int(p.get("_channel_count") or 0) >= 2
             and int((p.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)) == 0
-        ][:8]
+        ]
+        multi_verified = pick_diverse_top_items(multi_verified_pool, limit=8)
         if len(multi_verified) >= 3:
-            render_horizontal_rail(
+            render_curated_section(
                 "✨ 광고 0% · 2명 이상 중복 검증템",
                 "서로 다른 채널이 동시에 인정한 실패 없는 선택",
                 multi_verified,
                 show_rank=False,
+                is_top5=False,
             )
 
     grid_title = "전체 검증 아카이브" if is_default_landing else f"{current_chip} 추천 아이템"
