@@ -33,8 +33,19 @@ if str(st.query_params.get("health", "")).strip() == "1":
 handle_click_redirect()
 inject_styles()
 
-CHIP_OPTIONS = ["전체", "🔥 내돈내산", "IT·테크", "뷰티·패션", "푸드·리빙", "라이프·기타"]
+CATEGORY_OPTIONS = ["전체", "IT·테크", "뷰티·패션", "푸드·리빙", "라이프·기타"]
 SORT_OPTIONS = ["추천순", "내돈내산순", "중복추천순", "최신리뷰순"]
+
+TRUSTED_CREATOR_KEYWORDS = ("잇섭", "itsub")
+
+BEAUTY_FASHION_KEYWORDS = (
+    "립틴트", "틴트", "립스틱", "립글로스", "립밤", "블러셔", "하이라이터", "쉐딩",
+    "쿠션", "파운데이션", "컨실러", "프라이머", "파우더", "아이섀도우", "섀도우",
+    "마스카라", "아이라이너", "아이브로우", "선크림", "선스틱", "선쿠션",
+    "토너", "스킨", "로션", "에센스", "세럼", "앰플", "수분크림", "클렌징",
+    "마스크팩", "향수", "핸드크림", "바디로션", "샴푸", "트리트먼트",
+    "로퍼", "슬링백", "힐", "슈즈", "스니커즈", "자켓", "코트", "니트", "가방", "백팩",
+)
 
 FOOD_BEVERAGE_KEYWORDS = (
     "스파클링", "음료", "매실", "주스", "탄산", "커피", "원두", "캡슐커피", "드립백",
@@ -122,7 +133,7 @@ st.markdown(
   color: #FFFFFF !important;
 }
 
-/* 검색창 & 6개 대분류 칩 바 */
+/* 검색창 & 카테고리 칩 + 내돈내산 교차 필터 토글 바 */
 div[data-testid="stTextInput"] {
   margin-bottom: -4px !important;
 }
@@ -171,6 +182,32 @@ div[data-testid="stTextInput"] input {
 .st-key-chip_bar .stButton > button[kind="secondary"]:hover {
   border-color: #191F28 !important;
   color: #191F28 !important;
+}
+
+/* 우측 끝 독립 토글(🔥 내돈내산만) 전용 스타일 */
+.st-key-chip_bar [data-testid="stColumn"]:last-child,
+.st-key-chip_bar [data-testid="column"]:last-child {
+  margin-left: 6px !important;
+  padding-left: 11px !important;
+  border-left: 1px solid #E2E6EC !important;
+}
+.st-key-chip_bar [data-testid="stColumn"]:last-child .stButton > button[kind="primary"],
+.st-key-chip_bar [data-testid="column"]:last-child .stButton > button[kind="primary"] {
+  background: #146C43 !important;
+  border: 1px solid #146C43 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 3px 10px rgba(20, 108, 67, 0.22) !important;
+}
+.st-key-chip_bar [data-testid="stColumn"]:last-child .stButton > button[kind="secondary"],
+.st-key-chip_bar [data-testid="column"]:last-child .stButton > button[kind="secondary"] {
+  background: #F4FBF7 !important;
+  border: 1px solid #B7DEC9 !important;
+  color: #146C43 !important;
+}
+.st-key-chip_bar [data-testid="stColumn"]:last-child .stButton > button[kind="secondary"]:hover,
+.st-key-chip_bar [data-testid="column"]:last-child .stButton > button[kind="secondary"]:hover {
+  background: #E8F5EE !important;
+  border-color: #146C43 !important;
 }
 
 /* 아카이브 헤더 + 정렬 탭 바 */
@@ -489,6 +526,12 @@ div[data-testid="stTextInput"] input {
   .st-key-sort_bar [data-testid="stHorizontalBlock"] {
     justify-content: flex-start !important;
   }
+  .st-key-chip_bar [data-testid="stColumn"]:last-child,
+  .st-key-chip_bar [data-testid="column"]:last-child {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    border-left: 0 !important;
+  }
 }
 </style>
 """,
@@ -500,6 +543,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     st.stop()
 
 qp_cat = str(st.query_params.get("cat", "")).strip()
+qp_self = str(st.query_params.get("self", "")).strip() == "1"
 qp_q = str(st.query_params.get("q", "")).strip()
 qp_sort = str(st.query_params.get("sort", "")).strip()
 qp_p = str(st.query_params.get("p", "")).strip()
@@ -507,7 +551,8 @@ qp_p = str(st.query_params.get("p", "")).strip()
 if "_state_hydrated" not in st.session_state:
     st.session_state.page = "home"
     st.session_state.detail_pid = ""
-    st.session_state.selected_chip = qp_cat if qp_cat in CHIP_OPTIONS else "전체"
+    st.session_state.selected_chip = qp_cat if qp_cat in CATEGORY_OPTIONS else "전체"
+    st.session_state.only_self_buy = qp_self
     st.session_state.search_kw_input = qp_q
     st.session_state.sort_mode = qp_sort if qp_sort in SORT_OPTIONS else "추천순"
     st.session_state.catalog_page = int(qp_p) if qp_p.isdigit() and int(qp_p) >= 1 else 1
@@ -518,8 +563,10 @@ pid_param = str(st.query_params.get("pid", "")).strip()
 if view_param == "detail" and pid_param:
     st.session_state.page = "home"
     st.session_state.detail_pid = pid_param
-    if qp_cat in CHIP_OPTIONS:
+    if qp_cat in CATEGORY_OPTIONS:
         st.session_state.selected_chip = qp_cat
+    if "self" in st.query_params:
+        st.session_state.only_self_buy = qp_self
     if qp_q:
         st.session_state.search_kw_input = qp_q
     if qp_sort in SORT_OPTIONS:
@@ -608,6 +655,7 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
             st.query_params.clear()
             st.session_state.detail_pid = ""
             st.session_state.selected_chip = "전체"
+            st.session_state.only_self_buy = False
             st.session_state.search_kw_input = ""
             st.session_state.sort_mode = "추천순"
             st.session_state.catalog_page = 1
@@ -619,21 +667,39 @@ def map_display_category(product):
     raw_cat = str(product.get("category") or "기타").strip()
     name_text = f"{product.get('canonical_name') or ''} {product.get('search_keyword') or ''}".lower()
 
+    if raw_cat in ("뷰티", "패션") or any(kw in name_text for kw in BEAUTY_FASHION_KEYWORDS):
+        return "뷰티·패션"
     if any(kw in name_text for kw in FOOD_BEVERAGE_KEYWORDS):
         return "푸드·리빙"
     if raw_cat == "IT·전자":
         return "IT·테크"
-    if raw_cat in ("뷰티", "패션"):
-        return "뷰티·패션"
     if raw_cat in ("주방", "생활·살림", "식품·음료"):
         return "푸드·리빙"
     return "라이프·기타"
 
 
-def build_detail_href(pid, chip="전체", kw="", sort_mode="추천순", page=1):
+def has_trusted_creator(product):
+    for r in product.get("recommendations") or []:
+        ch_name = str((r.get("channel") or {}).get("channel_name") or "").lower()
+        if any(k in ch_name for k in TRUSTED_CREATOR_KEYWORDS):
+            return True
+    return False
+
+
+def get_effective_rank_score(product):
+    base_score = float(product.get("_quality_score") or 0)
+    ad_cnt = int((product.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0))
+    if ad_cnt == 0 and has_trusted_creator(product):
+        return base_score + 18.0
+    return base_score
+
+
+def build_detail_href(pid, chip="전체", only_self=False, kw="", sort_mode="추천순", page=1):
     params = [("view", "detail"), ("pid", str(pid or "").strip())]
     if chip and chip != "전체":
         params.append(("cat", chip))
+    if only_self:
+        params.append(("self", "1"))
     if kw:
         params.append(("q", kw))
     if sort_mode and sort_mode != "추천순":
@@ -643,10 +709,12 @@ def build_detail_href(pid, chip="전체", kw="", sort_mode="추천순", page=1):
     return "?" + urllib.parse.urlencode(params)
 
 
-def sync_home_query_params(chip, kw, sort_mode, page):
+def sync_home_query_params(chip, only_self, kw, sort_mode, page):
     desired = {}
     if chip and chip != "전체":
         desired["cat"] = chip
+    if only_self:
+        desired["self"] = "1"
     if kw:
         desired["q"] = kw
     if sort_mode and sort_mode != "추천순":
@@ -656,11 +724,11 @@ def sync_home_query_params(chip, kw, sort_mode, page):
 
     current = {
         k: str(st.query_params.get(k, ""))
-        for k in ("cat", "q", "sort", "p")
+        for k in ("cat", "self", "q", "sort", "p")
         if str(st.query_params.get(k, ""))
     }
     if current != desired:
-        for k in ("view", "pid", "cat", "q", "sort", "p"):
+        for k in ("view", "pid", "cat", "self", "q", "sort", "p"):
             if k in st.query_params:
                 del st.query_params[k]
         for k, v in desired.items():
@@ -694,11 +762,9 @@ def get_trust_inline_pill(summary):
 
 
 def build_hook_chips_html(product, summary):
-    """시선이 바로 꽂히는 '✓ 핵심 체크 포인트' 2단 칩 또는 유튜버 실제 발언 생성."""
     valid_pros = [p.strip().rstrip(".") for p in (summary.get("pros") or []) if is_authentic_quote(p)]
     valid_reasons = [r.strip().rstrip(".") for r in (summary.get("reasons") or []) if is_authentic_quote(r)]
 
-    # 구체적 수치·비교 표현이 있는 항목을 우선 배치
     concrete_pros = [p for p in valid_pros if CONCRETE_HOOK_RE.search(p)]
     other_pros = [p for p in valid_pros if p not in concrete_pros]
     concrete_reasons = [r for r in valid_reasons if CONCRETE_HOOK_RE.search(r)]
@@ -714,7 +780,6 @@ def build_hook_chips_html(product, summary):
         if len(picked_chips) >= 2:
             break
 
-    # 1개만 뽑혔을 때 유튜버 실제 코멘트가 있다면 2번째 줄로 보강
     recs = product.get("recommendations") or []
     valid_quotes = []
     for r in recs:
@@ -830,6 +895,7 @@ def build_store_card_inner_html(product, nav_state, used_video_ids=None, rank=No
         build_detail_href(
             raw_pid,
             chip=nav_state["chip"],
+            only_self=nav_state["only_self"],
             kw=nav_state["kw"],
             sort_mode=nav_state["sort"],
             page=nav_state["page"],
@@ -926,13 +992,15 @@ def render_home():
     )
 
     current_chip = st.session_state.get("selected_chip", "전체")
-    if current_chip not in CHIP_OPTIONS:
+    if current_chip not in CATEGORY_OPTIONS:
         current_chip = "전체"
         st.session_state.selected_chip = "전체"
 
+    only_self = bool(st.session_state.get("only_self_buy", False))
+
     with st.container(key="chip_bar"):
-        chip_cols = st.columns(len(CHIP_OPTIONS))
-        for col, chip_label in zip(chip_cols, CHIP_OPTIONS):
+        chip_cols = st.columns(len(CATEGORY_OPTIONS) + 1)
+        for col, chip_label in zip(chip_cols[:-1], CATEGORY_OPTIONS):
             is_selected = current_chip == chip_label
             if col.button(
                 chip_label,
@@ -944,13 +1012,23 @@ def render_home():
                     st.session_state.catalog_page = 1
                     st.rerun()
 
+        self_btn_label = "✓ 🔥 내돈내산만" if only_self else "🔥 내돈내산만"
+        if chip_cols[-1].button(
+            self_btn_label,
+            key="toggle_only_self_buy",
+            type="primary" if only_self else "secondary",
+        ):
+            st.session_state.only_self_buy = not only_self
+            st.session_state.catalog_page = 1
+            st.rerun()
+
     current_sort = st.session_state.get("sort_mode", "추천순")
     if current_sort not in SORT_OPTIONS:
         current_sort = "추천순"
         st.session_state.sort_mode = "추천순"
 
     clean_kw = keyword.strip()
-    filter_sig = (clean_kw, current_chip, current_sort)
+    filter_sig = (clean_kw, current_chip, only_self, current_sort)
     if "last_filter_sig" not in st.session_state:
         st.session_state.last_filter_sig = filter_sig
     elif st.session_state.last_filter_sig != filter_sig:
@@ -961,18 +1039,16 @@ def render_home():
         st.session_state.last_logged_keyword = clean_kw
         log_event("search", search_query=clean_kw)
 
-    is_default_landing = (not clean_kw) and (current_chip == "전체") and (current_sort == "추천순")
-    is_category_landing = (not clean_kw) and (current_chip != "전체") and (current_sort == "추천순")
+    is_default_landing = (not clean_kw) and (current_chip == "전체") and (not only_self) and (current_sort == "추천순")
+    is_filtered_landing = (not clean_kw) and (not is_default_landing) and (current_sort == "추천순")
     top_ids = set()
 
     scored_items = []
     for product in products:
-        if current_chip == "🔥 내돈내산":
-            if not product.get("_has_self_buy"):
-                continue
-        elif current_chip != "전체":
-            if map_display_category(product) != current_chip:
-                continue
+        if current_chip != "전체" and map_display_category(product) != current_chip:
+            continue
+        if only_self and not product.get("_has_self_buy"):
+            continue
 
         match_score = score_product_search(product, clean_kw)
         if clean_kw and match_score <= 0:
@@ -985,7 +1061,7 @@ def render_home():
                 item[0] if clean_kw else 0,
                 int((item[1].get("_summary") or {}).get("purchase_counts", {}).get("직접 구매", 0)),
                 -int((item[1].get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)),
-                item[1].get("_quality_score", 0),
+                get_effective_rank_score(item[1]),
             ),
             reverse=True,
         )
@@ -995,7 +1071,7 @@ def render_home():
                 item[0] if clean_kw else 0,
                 int(item[1].get("_channel_count") or 0),
                 len(item[1].get("recommendations") or []),
-                item[1].get("_quality_score", 0),
+                get_effective_rank_score(item[1]),
             ),
             reverse=True,
         )
@@ -1004,16 +1080,16 @@ def render_home():
             key=lambda item: (
                 item[0] if clean_kw else 0,
                 get_latest_published_at(item[1]),
-                item[1].get("_quality_score", 0),
+                get_effective_rank_score(item[1]),
             ),
             reverse=True,
         )
-    elif clean_kw:
+    else:
         scored_items.sort(
             key=lambda item: (
-                item[0],
-                item[1].get("_quality_score", 0),
-                item[1].get("_channel_count", 0),
+                item[0] if clean_kw else 0,
+                get_effective_rank_score(item[1]),
+                int(item[1].get("_channel_count") or 0),
                 len(item[1]["recommendations"]),
             ),
             reverse=True,
@@ -1041,16 +1117,17 @@ def render_home():
         ]
         multi_verified = pick_diverse_top_items(multi_verified_pool, limit=4)
 
-    elif is_category_landing:
+    elif is_filtered_landing:
         cat_candidates = [item[1] for item in scored_items]
-        if len(cat_candidates) >= 8:
+        if len(cat_candidates) >= 6:
             prioritized_cat = sorted(
                 cat_candidates,
                 key=lambda p: (
                     1 if (p.get("_has_self_buy") and int((p.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)) == 0) else 0,
+                    1 if (has_trusted_creator(p) and int((p.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)) == 0) else 0,
                     1 if int((p.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)) == 0 else 0,
                     int(p.get("_channel_count") or 0),
-                    p.get("_quality_score", 0),
+                    get_effective_rank_score(p),
                 ),
                 reverse=True,
             )
@@ -1068,8 +1145,8 @@ def render_home():
     page = min(max(int(st.session_state.get("catalog_page", 1)), 1), pages)
     st.session_state.catalog_page = page
 
-    sync_home_query_params(current_chip, clean_kw, current_sort, page)
-    nav_state = {"chip": current_chip, "kw": clean_kw, "sort": current_sort, "page": page}
+    sync_home_query_params(current_chip, only_self, clean_kw, current_sort, page)
+    nav_state = {"chip": current_chip, "only_self": only_self, "kw": clean_kw, "sort": current_sort, "page": page}
 
     if is_default_landing:
         render_curated_section(
@@ -1089,10 +1166,13 @@ def render_home():
                 show_rank=False,
                 grid_cls="grid-4",
             )
-    elif is_category_landing and cat_top5:
-        if current_chip == "🔥 내돈내산":
+    elif is_filtered_landing and cat_top5:
+        if current_chip == "전체" and only_self:
             cat_title = "🔥 실시간 내돈내산 베스트 TOP 5"
             cat_sub = "유튜버가 직접 사서 써보고 극찬한 핵심 1~5위"
+        elif only_self:
+            cat_title = f"🔥 {current_chip} 내돈내산 베스트 TOP 5"
+            cat_sub = f"{current_chip} 분야에서 직접 구매해 극찬한 1~5위"
         else:
             cat_title = f"🏆 {current_chip} 실시간 베스트 TOP 5"
             cat_sub = f"{current_chip} 분야에서 실사용 검증 점수가 가장 높은 1~5위"
@@ -1105,12 +1185,17 @@ def render_home():
             grid_cls="top5-grid",
         )
 
+    scope_label = (
+        "내돈내산"
+        if (current_chip == "전체" and only_self)
+        else (f"{current_chip} · 내돈내산" if only_self else current_chip)
+    )
     if is_default_landing:
         grid_title = "더 많은 검증 아이템"
-    elif is_category_landing and cat_top5:
-        grid_title = f"더 많은 {current_chip} 아이템"
+    elif is_filtered_landing and cat_top5:
+        grid_title = f"더 많은 {scope_label} 아이템"
     else:
-        grid_title = f"{current_chip} 추천 아이템"
+        grid_title = f"{scope_label} 추천 아이템"
 
     with st.container(key="archive_head_bar"):
         h_left, h_right = st.columns([1.4, 1.6])
