@@ -50,6 +50,9 @@ HOLLOW_QUOTE_RE = re.compile(
     r"이벤트\s*대표\s*상품)"
 )
 
+CJK_CHAR_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf]")
+CONCRETE_HOOK_RE = re.compile(r"(\d+|대비|이상|이하|만큼|처럼|없이|유일|최초|종결|역대|비교|차이)")
+
 
 def _map_display_category(product):
     raw_cat = str(product.get("category") or "기타").strip()
@@ -68,6 +71,8 @@ def _map_display_category(product):
 def _is_authentic_quote(text):
     cleaned = re.sub(r"\s+", " ", str(text or "").strip())
     if not is_meaningful_point(cleaned):
+        return False
+    if CJK_CHAR_RE.search(cleaned):
         return False
     if HOLLOW_QUOTE_RE.search(cleaned):
         return False
@@ -244,6 +249,7 @@ def inject_detail_overrides():
   white-space: nowrap;
 }
 
+/* 하단 연관 추천템: 홈과 동일한 클린 썸네일 + 인라인 신뢰 배지 */
 .st-key-related_grid .product-card {
   background: #FFFFFF !important;
   border: 1px solid #E6E9EF !important;
@@ -276,66 +282,71 @@ def inject_detail_overrides():
 .rel-thumb-stage .video-play-chip {
   display: none !important;
 }
-.rel-trust-flag {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  z-index: 3;
-  padding: 3px 7px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 800;
-  pointer-events: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-}
-.rel-trust-self {
-  background: #146C43;
-  color: #FFFFFF;
-}
-.rel-trust-clean {
-  background: rgba(25, 31, 40, 0.88);
-  color: #FFFFFF;
-}
-.rel-trust-prov {
-  background: #FFF7E0;
-  color: #7A4F00;
-}
 .rel-card-link {
   display: flex;
   flex-direction: column;
   flex: 1;
   text-decoration: none !important;
   color: inherit !important;
-  padding-top: 8px;
+  padding-top: 9px;
+}
+.rel-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+  min-height: 20px;
 }
 .rel-brand-line {
   font-size: 11px;
   font-weight: 750;
   color: #8B95A1;
-  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.rel-trust-pill {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.rel-trust-self {
+  background: #E8F5EE;
+  color: #146C43;
+}
+.rel-trust-clean {
+  background: #F1F4F8;
+  color: #4E5968;
+}
+.rel-trust-prov {
+  background: #FFF6DF;
+  color: #8A5A00;
 }
 .rel-title {
   font-size: 14.5px;
   font-weight: 850;
   color: #191F28;
   line-height: 1.34;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 .rel-quote {
-  background: #F6F8FB;
-  border-left: 2.5px solid #3182F6;
-  border-radius: 0 8px 8px 0;
-  padding: 7px 9px;
-  margin-bottom: 8px;
-  font-size: 11.5px;
-  font-weight: 650;
-  color: #333D4B;
-  line-height: 1.42;
+  margin-bottom: 9px;
+  padding-top: 1px;
+  font-size: 12px;
+  font-weight: 550;
+  color: #4E5968;
+  line-height: 1.45;
   word-break: keep-all;
 }
 .rel-foot {
   margin-top: auto;
-  padding-top: 6px;
+  padding-top: 7px;
   border-top: 1px solid #F1F3F6;
   display: flex;
   align-items: center;
@@ -398,18 +409,44 @@ def build_danawa_price_html(product):
     )
 
 
-def _get_rel_trust_badge(summary):
+def _get_rel_trust_pill(summary):
     counts = summary.get("purchase_counts") or {}
     buy_cnt = int(counts.get("직접 구매", 0))
     ad_cnt = int(counts.get("유료 광고", 0))
     prov_cnt = int(counts.get("제품 제공", 0))
     if buy_cnt >= 1:
-        return f'<span class="rel-trust-flag rel-trust-self">내돈내산 {buy_cnt}</span>'
+        return f'<span class="rel-trust-pill rel-trust-self">내돈내산 {buy_cnt}</span>'
     if ad_cnt == 0 and prov_cnt >= 1:
-        return f'<span class="rel-trust-flag rel-trust-prov">제품제공 {prov_cnt}</span>'
+        return f'<span class="rel-trust-pill rel-trust-prov">제품제공 {prov_cnt}</span>'
     if ad_cnt == 0:
-        return '<span class="rel-trust-flag rel-trust-clean">광고 0%</span>'
+        return '<span class="rel-trust-pill rel-trust-clean">광고 0%</span>'
     return ""
+
+
+def _get_rel_hook_line(r_recs, r_sum):
+    r_quotes = [
+        clean_evidence_text(r.get("evidence")).rstrip(".")
+        for r in r_recs
+        if len(clean_evidence_text(r.get("evidence"))) >= 12 and _is_authentic_quote(clean_evidence_text(r.get("evidence")))
+    ]
+    if r_quotes:
+        short_q = [q for q in r_quotes if len(q) <= 62]
+        return f"“{short_q[0] if short_q else r_quotes[0]}”"
+
+    r_pros = [p.strip().rstrip(".") for p in (r_sum.get("pros") or []) if _is_authentic_quote(p)]
+    r_reasons = [x.strip().rstrip(".") for x in (r_sum.get("reasons") or []) if _is_authentic_quote(x)]
+    all_pts = r_pros + r_reasons
+
+    concrete = [pt for pt in all_pts if CONCRETE_HOOK_RE.search(pt)]
+    if concrete:
+        return concrete[0]
+    if len(r_pros) >= 2 and len(r_pros[0]) <= 12 and len(r_pros[1]) <= 12:
+        return f"{r_pros[0]} · {r_pros[1]}"
+    if r_pros:
+        return r_pros[0]
+    if r_reasons:
+        return r_reasons[0]
+    return "실사용 리뷰로 검증된 추천 아이템"
 
 
 def render_product_detail(pid):
@@ -723,30 +760,18 @@ def render_product_detail(pid):
                 r_rep = get_representative_rec(rp)
                 r_visual = build_product_visual_html(rp, representative=r_rep, detail_href=r_href, is_detail=False)
                 r_sum = rp.get("_summary") or recommendation_summary(r_recs)
-                r_trust = _get_rel_trust_badge(r_sum)
-
-                r_quotes = [
-                    clean_evidence_text(r.get("evidence")).rstrip(".")
-                    for r in r_recs
-                    if len(clean_evidence_text(r.get("evidence"))) >= 10 and _is_authentic_quote(clean_evidence_text(r.get("evidence")))
-                ]
-                r_pros = [p.strip().rstrip(".") for p in (r_sum.get("pros") or []) if _is_authentic_quote(p)]
-                r_reasons = [x.strip().rstrip(".") for x in (r_sum.get("reasons") or []) if _is_authentic_quote(x)]
-                if r_quotes:
-                    r_line = f"“{r_quotes[0]}”"
-                elif r_pros:
-                    r_line = r_pros[0]
-                elif r_reasons:
-                    r_line = r_reasons[0]
-                else:
-                    r_line = "실사용 리뷰로 검증된 추천 아이템"
+                r_trust = _get_rel_trust_pill(r_sum)
+                r_line = _get_rel_hook_line(r_recs, r_sum)
 
                 with col:
                     st.markdown(
                         '<article class="product-card">'
-                        f'<div class="rel-thumb-stage">{r_trust}{r_visual}</div>'
+                        f'<div class="rel-thumb-stage">{r_visual}</div>'
                         f'<a class="rel-card-link" href="{r_href}" target="_self" aria-label="{safe(rp.get("canonical_name"))} 상세 비교 보기">'
-                        f'<div class="rel-brand-line">{safe(rp.get("brand"))} · {safe(_map_display_category(rp))}</div>'
+                        '<div class="rel-meta-row">'
+                        f'<span class="rel-brand-line">{safe(rp.get("brand"))} · {safe(_map_display_category(rp))}</span>'
+                        f'{r_trust}'
+                        '</div>'
                         f'<div class="rel-title">{safe(rp.get("canonical_name"))}</div>'
                         f'<div class="rel-quote">{safe(r_line)}</div>'
                         '<div class="rel-foot">'
