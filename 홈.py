@@ -269,7 +269,7 @@ div[data-testid="stTextInput"] input {
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
 }
 
-/* 썸네일 스테이지: 우측 상단 배지 제거로 원본 썸네일 자막 보존 */
+/* 썸네일 스테이지: 원본 썸네일 자막 보존 */
 .thumb-stage {
   position: relative;
   width: 100%;
@@ -310,7 +310,7 @@ div[data-testid="stTextInput"] input {
   background: #3182F6;
 }
 
-/* 카드 본문 타이포그래피: 신뢰 배지는 브랜드 줄 우측에 정돈 배치 */
+/* 카드 본문 타이포그래피 & 시선이 꽂히는 체크 포인트 칩 */
 .store-card-link {
   display: flex;
   flex-direction: column;
@@ -358,38 +358,67 @@ div[data-testid="stTextInput"] input {
   color: #8A5A00;
 }
 .store-title {
-  font-size: 14.5px;
-  font-weight: 850;
-  color: #191F28;
+  font-size: 15px;
+  font-weight: 900;
+  color: #111827;
   line-height: 1.34;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 39px;
-  margin-bottom: 6px;
+  min-height: 40px;
+  margin-bottom: 8px;
 }
 
-/* 가볍고 읽기 편한 에디토리얼 한 줄 코멘트 */
-.store-quote {
+/* 핵심 체크 포인트 칩 2단 스택 */
+.hook-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   margin-bottom: 9px;
-  padding-top: 1px;
 }
-.store-quote-text {
+.hook-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #F4F7FB;
+  border: 1px solid #E5ECF5;
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #2B3442;
+  line-height: 1.35;
+  min-width: 0;
+}
+.hook-chip-icon {
+  color: #3182F6;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.hook-chip-txt {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.hook-quote-pill {
+  background: #F6F8FB;
+  border: 1px solid #E6ECF5;
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #333D4B;
+  line-height: 1.42;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  padding: 0 !important;
-  margin: 0 !important;
-  font-size: 12px;
-  font-weight: 550;
-  color: #4E5968;
-  line-height: 1.45;
-  min-height: calc(12px * 1.45 * 2);
   word-break: keep-all;
 }
+
 .store-foot {
   margin-top: auto;
   padding-top: 7px;
@@ -415,12 +444,12 @@ div[data-testid="stTextInput"] input {
   flex-shrink: 0;
 }
 
-/* 하단 전체 그리드 카드 */
+/* 하단 4열 전체 그리드 카드 */
 .st-key-product_grid .product-card {
   background: #FFFFFF !important;
   border: 1px solid #E6E9EF !important;
   border-radius: 15px !important;
-  padding: 11px 11px 13px !important;
+  padding: 10px 10px 12px !important;
   box-shadow: 0 3px 12px rgba(15, 23, 42, 0.03) !important;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease !important;
   display: flex !important;
@@ -454,7 +483,7 @@ div[data-testid="stTextInput"] input {
   .hero-headline {
     font-size: 17px !important;
   }
-  .store-title, .store-quote-text {
+  .store-title {
     min-height: 0;
   }
   .st-key-sort_bar [data-testid="stHorizontalBlock"] {
@@ -650,7 +679,6 @@ def is_authentic_quote(text):
 
 
 def get_trust_inline_pill(summary):
-    """썸네일을 가리지 않고 브랜드 줄 우측에 배치되는 신뢰 배지."""
     counts = summary.get("purchase_counts") or {}
     buy_cnt = int(counts.get("직접 구매", 0))
     ad_cnt = int(counts.get("유료 광고", 0))
@@ -665,8 +693,28 @@ def get_trust_inline_pill(summary):
     return ""
 
 
-def get_hook_highlight(product, summary):
-    """중국어·기계적 서술문을 제외하고 유튜버 실제 코멘트 또는 구체적 체감 포인트를 우선 노출."""
+def build_hook_chips_html(product, summary):
+    """시선이 바로 꽂히는 '✓ 핵심 체크 포인트' 2단 칩 또는 유튜버 실제 발언 생성."""
+    valid_pros = [p.strip().rstrip(".") for p in (summary.get("pros") or []) if is_authentic_quote(p)]
+    valid_reasons = [r.strip().rstrip(".") for r in (summary.get("reasons") or []) if is_authentic_quote(r)]
+
+    # 구체적 수치·비교 표현이 있는 항목을 우선 배치
+    concrete_pros = [p for p in valid_pros if CONCRETE_HOOK_RE.search(p)]
+    other_pros = [p for p in valid_pros if p not in concrete_pros]
+    concrete_reasons = [r for r in valid_reasons if CONCRETE_HOOK_RE.search(r)]
+    other_reasons = [r for r in valid_reasons if r not in concrete_reasons]
+
+    ordered_candidates = concrete_pros + other_pros + concrete_reasons + other_reasons
+    picked_chips = []
+    for cand in ordered_candidates:
+        norm = re.sub(r"\s+", "", cand)
+        if any(norm in re.sub(r"\s+", "", ex) or re.sub(r"\s+", "", ex) in norm for ex in picked_chips):
+            continue
+        picked_chips.append(cand)
+        if len(picked_chips) >= 2:
+            break
+
+    # 1개만 뽑혔을 때 유튜버 실제 코멘트가 있다면 2번째 줄로 보강
     recs = product.get("recommendations") or []
     valid_quotes = []
     for r in recs:
@@ -674,31 +722,28 @@ def get_hook_highlight(product, summary):
         if len(ev) >= 12 and is_authentic_quote(ev):
             valid_quotes.append(ev.rstrip("."))
 
-    # 1순위: 2줄 안에 깔끔히 읽히는 유튜버 실제 구어체 발언
-    short_quotes = [q for q in valid_quotes if len(q) <= 62]
-    if short_quotes:
-        return f"“{safe(short_quotes[0])}”"
+    if len(picked_chips) == 1 and valid_quotes:
+        q_txt = valid_quotes[0]
+        if re.sub(r"\s+", "", picked_chips[0]) not in re.sub(r"\s+", "", q_txt):
+            picked_chips.append(f"“{q_txt}”")
+
+    if picked_chips:
+        chips_html = "".join(
+            f'<div class="hook-chip"><span class="hook-chip-icon">✓</span><span class="hook-chip-txt">{safe(pt)}</span></div>'
+            for pt in picked_chips[:2]
+        )
+        return f'<div class="hook-chips">{chips_html}</div>'
+
     if valid_quotes:
-        return f"“{safe(valid_quotes[0])}”"
+        short_q = [q for q in valid_quotes if len(q) <= 62]
+        chosen_q = short_q[0] if short_q else valid_quotes[0]
+        return f'<div class="hook-chips"><div class="hook-quote-pill">“{safe(chosen_q)}”</div></div>'
 
-    valid_pros = [p.strip().rstrip(".") for p in (summary.get("pros") or []) if is_authentic_quote(p)]
-    valid_reasons = [r.strip().rstrip(".") for r in (summary.get("reasons") or []) if is_authentic_quote(r)]
-    all_points = valid_pros + valid_reasons
-
-    # 2순위: 숫자·비교 기준이 담긴 구체적인 체감 포인트
-    concrete_points = [pt for pt in all_points if CONCRETE_HOOK_RE.search(pt)]
-    if concrete_points:
-        return safe(concrete_points[0])
-
-    # 3순위: 짧은 핵심 키워드 2개 조합 또는 첫 번째 유효 장점
-    if len(valid_pros) >= 2 and len(valid_pros[0]) <= 12 and len(valid_pros[1]) <= 12:
-        return safe(f"{valid_pros[0]} · {valid_pros[1]}")
-    if valid_pros:
-        return safe(valid_pros[0])
-    if valid_reasons:
-        return safe(valid_reasons[0])
-
-    return "실사용 리뷰로 검증된 추천 아이템"
+    return (
+        '<div class="hook-chips">'
+        '<div class="hook-chip"><span class="hook-chip-icon">✓</span><span class="hook-chip-txt">실사용 리뷰 교차 검증 완료</span></div>'
+        '</div>'
+    )
 
 
 def get_primary_video_id(product):
@@ -808,7 +853,7 @@ def build_store_card_inner_html(product, nav_state, used_video_ids=None, rank=No
         top_cls = " top1" if rank == 1 else ""
         rank_html = f'<span class="rank-flag{top_cls}">{rank}</span>'
 
-    highlight_html = get_hook_highlight(product, summary)
+    hook_html = build_hook_chips_html(product, summary)
     disp_cat = map_display_category(product)
 
     return (
@@ -819,7 +864,7 @@ def build_store_card_inner_html(product, nav_state, used_video_ids=None, rank=No
         f'{trust_pill_html}'
         '</div>'
         f'<div class="store-title">{safe(product.get("canonical_name"))}</div>'
-        f'<div class="store-quote"><span class="store-quote-text">{highlight_html}</span></div>'
+        f'{hook_html}'
         '<div class="store-foot">'
         f'<span class="store-channel">▶ {safe(source_label)}</span>'
         '<span class="store-cta">비교하기 ›</span>'
@@ -917,6 +962,7 @@ def render_home():
         log_event("search", search_query=clean_kw)
 
     is_default_landing = (not clean_kw) and (current_chip == "전체") and (current_sort == "추천순")
+    is_category_landing = (not clean_kw) and (current_chip != "전체") and (current_sort == "추천순")
     top_ids = set()
 
     scored_items = []
@@ -975,6 +1021,8 @@ def render_home():
 
     top_self_buy = []
     multi_verified = []
+    cat_top5 = []
+
     if is_default_landing:
         self_buy_pool = [
             p for p in products
@@ -993,9 +1041,25 @@ def render_home():
         ]
         multi_verified = pick_diverse_top_items(multi_verified_pool, limit=4)
 
+    elif is_category_landing:
+        cat_candidates = [item[1] for item in scored_items]
+        if len(cat_candidates) >= 8:
+            prioritized_cat = sorted(
+                cat_candidates,
+                key=lambda p: (
+                    1 if (p.get("_has_self_buy") and int((p.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)) == 0) else 0,
+                    1 if int((p.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)) == 0 else 0,
+                    int(p.get("_channel_count") or 0),
+                    p.get("_quality_score", 0),
+                ),
+                reverse=True,
+            )
+            cat_top5 = pick_diverse_top_items(prioritized_cat, limit=5)
+            top_ids = {str(p.get("product_id")) for p in cat_top5}
+
     raw_shown = [
         item[1] for item in scored_items
-        if not (is_default_landing and str(item[1].get("product_id")) in top_ids)
+        if str(item[1].get("product_id")) not in top_ids
     ]
     shown = arrange_diverse_visuals(raw_shown, window=6) if current_sort == "추천순" and not clean_kw else raw_shown
 
@@ -1025,8 +1089,29 @@ def render_home():
                 show_rank=False,
                 grid_cls="grid-4",
             )
+    elif is_category_landing and cat_top5:
+        if current_chip == "🔥 내돈내산":
+            cat_title = "🔥 실시간 내돈내산 베스트 TOP 5"
+            cat_sub = "유튜버가 직접 사서 써보고 극찬한 핵심 1~5위"
+        else:
+            cat_title = f"🏆 {current_chip} 실시간 베스트 TOP 5"
+            cat_sub = f"{current_chip} 분야에서 실사용 검증 점수가 가장 높은 1~5위"
+        render_curated_section(
+            cat_title,
+            cat_sub,
+            cat_top5,
+            nav_state=nav_state,
+            show_rank=True,
+            grid_cls="top5-grid",
+        )
 
-    grid_title = "더 많은 검증 아이템" if is_default_landing else f"{current_chip} 추천 아이템"
+    if is_default_landing:
+        grid_title = "더 많은 검증 아이템"
+    elif is_category_landing and cat_top5:
+        grid_title = f"더 많은 {current_chip} 아이템"
+    else:
+        grid_title = f"{current_chip} 추천 아이템"
+
     with st.container(key="archive_head_bar"):
         h_left, h_right = st.columns([1.4, 1.6])
         h_left.markdown(
@@ -1052,9 +1137,9 @@ def render_home():
 
     used_video_ids = set()
     with st.container(key="product_grid"):
-        for start in range(0, len(page_products), 3):
-            cols = st.columns(3, gap="medium")
-            for col, product in zip(cols, page_products[start:start + 3]):
+        for start in range(0, len(page_products), 4):
+            cols = st.columns(4, gap="medium")
+            for col, product in zip(cols, page_products[start:start + 4]):
                 with col:
                     render_product_card(product, nav_state=nav_state, used_video_ids=used_video_ids)
 
