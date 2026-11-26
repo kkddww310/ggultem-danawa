@@ -3,8 +3,9 @@ import json
 import re
 from collections import Counter
 
-MAX_CURATED_PRODUCTS = 300
+MAX_CURATED_PRODUCTS = 500
 AUTO_APPROVE_MIN_SCORE = 80
+TRUSTED_CREATOR_KEYWORDS = ("잇섭", "itsub")
 
 CATEGORIES = ["IT·전자", "뷰티", "패션", "생활·살림", "주방", "여행", "자동차", "운동·건강", "육아", "반려동물", "기타"]
 IMAGE_SOURCES = ["", "brand_official", "affiliate", "manual", "youtube_thumbnail"]
@@ -242,6 +243,14 @@ def passes_quality_gate(product):
     return True
 
 
+def _has_trusted_creator(product):
+    for r in product.get("recommendations") or []:
+        ch_name = str((r.get("channel") or {}).get("channel_name") or "").lower()
+        if any(k in ch_name for k in TRUSTED_CREATOR_KEYWORDS):
+            return True
+    return False
+
+
 def compute_curation_score(product):
     """내돈내산 최우선 · 유료광고 캠페인 후순위 · 리뷰 깊이 반영 큐레이션 점수."""
     recs = product.get("recommendations") or []
@@ -266,6 +275,10 @@ def compute_curation_score(product):
         score += 20
     elif buy_cnt == 0 and ad_cnt >= 1:
         score -= 35
+
+    # 대표 신뢰 크리에이터(잇섭 등) 무광고 리뷰 가산점
+    if ad_cnt == 0 and _has_trusted_creator(product):
+        score += 22
 
     # 3. 리뷰 깊이 및 원문 근거 보너스
     if any(is_single_product_video(product, r) for r in recs):
