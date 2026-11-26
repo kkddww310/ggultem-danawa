@@ -33,6 +33,15 @@ MALL_ACTION_SUBS = {
     "ably": "전 상품 무료배송 · 앱 할인가 확인",
 }
 
+BEAUTY_FASHION_KEYWORDS = (
+    "립틴트", "틴트", "립스틱", "립글로스", "립밤", "블러셔", "하이라이터", "쉐딩",
+    "쿠션", "파운데이션", "컨실러", "프라이머", "파우더", "아이섀도우", "섀도우",
+    "마스카라", "아이라이너", "아이브로우", "선크림", "선스틱", "선쿠션",
+    "토너", "스킨", "로션", "에센스", "세럼", "앰플", "수분크림", "클렌징",
+    "마스크팩", "향수", "핸드크림", "바디로션", "샴푸", "트리트먼트",
+    "로퍼", "슬링백", "힐", "슈즈", "스니커즈", "자켓", "코트", "니트", "가방", "백팩",
+)
+
 FOOD_BEVERAGE_KEYWORDS = (
     "스파클링", "음료", "매실", "주스", "탄산", "커피", "원두", "캡슐커피", "드립백",
     "라떼", "에이드", "녹차", "홍차", "콤부차", "보리차", "허브티", "아이스티",
@@ -57,12 +66,12 @@ CONCRETE_HOOK_RE = re.compile(r"(\d+|대비|이상|이하|만큼|처럼|없이|�
 def _map_display_category(product):
     raw_cat = str(product.get("category") or "기타").strip()
     name_text = f"{product.get('canonical_name') or ''} {product.get('search_keyword') or ''}".lower()
+    if raw_cat in ("뷰티", "패션") or any(kw in name_text for kw in BEAUTY_FASHION_KEYWORDS):
+        return "뷰티·패션"
     if any(kw in name_text for kw in FOOD_BEVERAGE_KEYWORDS):
         return "푸드·리빙"
     if raw_cat == "IT·전자":
         return "IT·테크"
-    if raw_cat in ("뷰티", "패션"):
-        return "뷰티·패션"
     if raw_cat in ("주방", "생활·살림", "식품·음료"):
         return "푸드·리빙"
     return "라이프·기타"
@@ -81,7 +90,7 @@ def _is_authentic_quote(text):
 
 def _build_detail_href_with_state(pid):
     params = [("view", "detail"), ("pid", str(pid or "").strip())]
-    for key in ("cat", "q", "sort", "p"):
+    for key in ("cat", "self", "q", "sort", "p"):
         val = str(st.query_params.get(key, "")).strip()
         if val:
             params.append((key, val))
