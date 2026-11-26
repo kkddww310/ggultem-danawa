@@ -31,9 +31,10 @@ inject_styles()
 st.markdown(
     """
 <style>
-/* 상단 네비게이션 및 히어로 배너 슬림화 (첫 화면에 카드 코멘트까지 노출) */
+/* 상단 브랜드 바 & 슬림 히어로 배너 */
 .top-nav {
-  padding: 10px 4px 12px !important;
+  padding: 8px 2px 10px !important;
+  margin-bottom: 2px !important;
 }
 .hero-banner {
   background: linear-gradient(135deg, #151A23 0%, #222B3B 100%) !important;
@@ -93,7 +94,7 @@ st.markdown(
   color: #FFFFFF !important;
 }
 
-/* 검색창 여백 축소 */
+/* 검색창 & 원클릭 카테고리 칩 바 */
 div[data-testid="stTextInput"] {
   margin-bottom: -4px !important;
 }
@@ -102,8 +103,6 @@ div[data-testid="stTextInput"] input {
   min-height: 42px !important;
   font-size: 13.5px !important;
 }
-
-/* 가로 원클릭 카테고리 칩 바 */
 .st-key-chip_bar {
   margin: 4px 0 8px !important;
 }
@@ -152,7 +151,7 @@ div[data-testid="stTextInput"] input {
   align-items: flex-end;
   justify-content: space-between;
   gap: 10px;
-  margin: 12px 2px 9px;
+  margin: 14px 2px 9px;
 }
 .curated-sec-title {
   font-size: 17px;
@@ -167,28 +166,18 @@ div[data-testid="stTextInput"] input {
   color: #8B95A1;
 }
 
-/* PC에서는 5열 꽉 찬 그리드, 태블릿·모바일에서는 가로 스크롤 레일 */
+/* 5열 TOP 5 그리드 & 4열 중복 검증템 그리드 (우측 빈칸 없이 꽉 찬 정렬) */
 .top5-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
-.h-rail {
-  display: flex;
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 13px;
-  overflow-x: auto;
-  padding: 2px 2px 10px;
-  margin-bottom: 10px;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-.h-rail::-webkit-scrollbar {
-  height: 5px;
-}
-.h-rail::-webkit-scrollbar-thumb {
-  background: #D6DCE5;
-  border-radius: 999px;
+  margin-bottom: 16px;
 }
 .rail-card {
   background: #FFFFFF;
@@ -200,11 +189,6 @@ div[data-testid="stTextInput"] input {
   display: flex;
   flex-direction: column;
   min-width: 0;
-}
-.h-rail .rail-card {
-  flex: 0 0 256px;
-  width: 256px;
-  scroll-snap-align: start;
 }
 .rail-card:hover {
   transform: translateY(-3px);
@@ -226,7 +210,7 @@ div[data-testid="stTextInput"] input {
   left: 0;
   right: 0;
   height: 44px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.34) 0%, rgba(15, 23, 42, 0) 100%);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.36) 0%, rgba(15, 23, 42, 0) 100%);
   pointer-events: none;
   z-index: 2;
 }
@@ -288,7 +272,7 @@ div[data-testid="stTextInput"] input {
   color: #7A4F00;
 }
 
-/* 카드 본문 타이포그래피 (위계 정리) */
+/* 카드 본문 타이포그래피 */
 .store-card-link {
   display: flex;
   flex-direction: column;
@@ -319,23 +303,31 @@ div[data-testid="stTextInput"] input {
   min-height: 39px;
   margin-bottom: 7px;
 }
+
+/* 말풍선 3번째 줄 잘림 방지: 바깥 박스(여백)와 안쪽 텍스트(line-clamp) 분리 */
 .store-quote {
   background: #F6F8FB;
   border-left: 2.5px solid #3182F6;
   border-radius: 0 8px 8px 0;
-  padding: 6px 8px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #333D4B;
-  line-height: 1.4;
+  padding: 7px 9px;
+  margin-bottom: 8px;
+}
+.store-quote-text {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 44px;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #333D4B;
+  line-height: 1.42;
+  min-height: calc(11.5px * 1.42 * 2);
   word-break: keep-all;
-  margin-bottom: 8px;
 }
+
+/* 카드 하단: 텍스트 충돌 없이 깔끔하게 정리 */
 .store-foot {
   margin-top: auto;
   padding-top: 6px;
@@ -343,7 +335,7 @@ div[data-testid="stTextInput"] input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
   font-size: 11px;
   font-weight: 700;
   color: #6B7684;
@@ -352,6 +344,7 @@ div[data-testid="stTextInput"] input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 .store-cta {
   color: #3182F6;
@@ -379,14 +372,14 @@ div[data-testid="stTextInput"] input {
 }
 
 @media (max-width: 1024px) {
-  .top5-grid {
+  .top5-grid, .grid-4 {
     display: flex;
     overflow-x: auto;
     gap: 12px;
     padding-bottom: 8px;
     scroll-snap-type: x mandatory;
   }
-  .top5-grid .rail-card {
+  .top5-grid .rail-card, .grid-4 .rail-card {
     flex: 0 0 245px;
     width: 245px;
     scroll-snap-align: start;
@@ -399,7 +392,7 @@ div[data-testid="stTextInput"] input {
   .hero-headline {
     font-size: 17px !important;
   }
-  .store-title, .store-quote {
+  .store-title, .store-quote-text {
     min-height: 0;
   }
 }
@@ -508,22 +501,42 @@ def get_trust_overlay_badge(summary):
     return ""
 
 
-def get_hook_quote(summary):
-    reasons = summary.get("reasons") or []
+def get_hook_highlight(summary):
+    """길고 딱딱한 '원하는 분' 설명 대신 짧고 직관적인 핵심 장점 우선 노출."""
     pros = summary.get("pros") or []
-    raw_line = reasons[0] if reasons else (pros[0] if pros else "실사용 리뷰로 검증된 추천 아이템")
+    reasons = summary.get("reasons") or []
+    raw_line = pros[0] if pros else (reasons[0] if reasons else "실사용 리뷰로 검증된 추천 아이템")
     cleaned = str(raw_line).strip().rstrip(".")
-    return f"“{safe(cleaned)}”"
+    return safe(cleaned)
 
 
 def pick_diverse_top_items(candidates, limit=5):
-    """같은 영상(하울/파우치 등) 썸네일이 TOP 5에 연속 도배되지 않도록 서로 다른 대표 영상을 우선 선발."""
+    """같은 유튜버나 같은 영상 썸네일이 상단 랭킹에 도배되지 않도록 다채널·다영상 우선 선발."""
     selected = []
     selected_pids = set()
     used_vids = set()
+    used_channels = set()
 
+    # 1순위: 채널도 다르고 영상도 다른 아이템
     for product in candidates:
         pid = str(product.get("product_id") or "")
+        rep = get_representative_rec(product, exclude_video_ids=used_vids)
+        vid = str((rep or {}).get("video_id") or "")
+        ch_key = str((rep or {}).get("channel_id") or ((rep or {}).get("channel") or {}).get("channel_name") or "")
+        if vid and vid not in used_vids and (not ch_key or ch_key not in used_channels):
+            selected.append(product)
+            selected_pids.add(pid)
+            used_vids.add(vid)
+            if ch_key:
+                used_channels.add(ch_key)
+            if len(selected) >= limit:
+                return selected
+
+    # 2순위: 영상만 다른 아이템
+    for product in candidates:
+        pid = str(product.get("product_id") or "")
+        if pid in selected_pids:
+            continue
         rep = get_representative_rec(product, exclude_video_ids=used_vids)
         vid = str((rep or {}).get("video_id") or "")
         if vid and vid not in used_vids:
@@ -533,6 +546,7 @@ def pick_diverse_top_items(candidates, limit=5):
             if len(selected) >= limit:
                 return selected
 
+    # 3순위: 부족분 채우기
     for product in candidates:
         pid = str(product.get("product_id") or "")
         if pid not in selected_pids:
@@ -566,17 +580,17 @@ def build_store_card_inner_html(product, used_video_ids=None, rank=None):
         top_cls = " top1" if rank == 1 else ""
         rank_html = f'<span class="rank-flag{top_cls}">{rank}</span>'
 
-    quote_html = get_hook_quote(summary)
+    highlight_html = get_hook_highlight(summary)
 
     return (
         f'<div class="thumb-stage">{rank_html}{trust_html}{visual_html}</div>'
         f'<a class="store-card-link" href="{detail_href}" target="_self" aria-label="{safe(product.get("canonical_name"))} 상세 비교 보기">'
         f'<div class="store-brand-line">{safe(product.get("brand"))} · {safe(product.get("category") or "기타")}</div>'
         f'<div class="store-title">{safe(product.get("canonical_name"))}</div>'
-        f'<div class="store-quote">{quote_html}</div>'
+        f'<div class="store-quote"><span class="store-quote-text">{highlight_html}</span></div>'
         '<div class="store-foot">'
         f'<span class="store-channel">▶ {safe(source_label)}</span>'
-        '<span class="store-cta">장단점·최저가 ›</span>'
+        '<span class="store-cta">비교하기 ›</span>'
         '</div>'
         '</a>'
     )
@@ -587,7 +601,7 @@ def render_product_card(product, used_video_ids=None):
     st.markdown(f'<article class="product-card">{inner}</article>', unsafe_allow_html=True)
 
 
-def render_curated_section(title, subtitle, items, show_rank=False, is_top5=False):
+def render_curated_section(title, subtitle, items, show_rank=False, grid_cls="top5-grid"):
     if not items:
         return
     st.markdown(
@@ -602,8 +616,7 @@ def render_curated_section(title, subtitle, items, show_rank=False, is_top5=Fals
     for idx, product in enumerate(items, start=1):
         inner = build_store_card_inner_html(product, used_video_ids=used_vids, rank=idx if show_rank else None)
         cards_html.append(f'<article class="rail-card">{inner}</article>')
-    container_cls = "top5-grid" if is_top5 else "h-rail"
-    st.markdown(f'<div class="{container_cls}">{"".join(cards_html)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="{grid_cls}">{"".join(cards_html)}</div>', unsafe_allow_html=True)
 
 
 def render_home():
@@ -708,10 +721,10 @@ def render_home():
 
         render_curated_section(
             "🔥 실시간 내돈내산 TOP 5",
-            "광고 없이 유튜버가 직접 구매해 극찬한 1~5위",
+            "광고 없이 서로 다른 유튜버가 직접 구매해 극찬한 1~5위",
             top_self_buy,
             show_rank=True,
-            is_top5=True,
+            grid_cls="top5-grid",
         )
 
         top_ids = {str(p.get("product_id")) for p in top_self_buy}
@@ -721,14 +734,14 @@ def render_home():
             and int(p.get("_channel_count") or 0) >= 2
             and int((p.get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)) == 0
         ]
-        multi_verified = pick_diverse_top_items(multi_verified_pool, limit=8)
-        if len(multi_verified) >= 3:
+        multi_verified = pick_diverse_top_items(multi_verified_pool, limit=4)
+        if len(multi_verified) >= 4:
             render_curated_section(
                 "✨ 광고 0% · 2명 이상 중복 검증템",
                 "서로 다른 채널이 동시에 인정한 실패 없는 선택",
                 multi_verified,
                 show_rank=False,
-                is_top5=False,
+                grid_cls="grid-4",
             )
 
     grid_title = "전체 검증 아카이브" if is_default_landing else f"{current_chip} 추천 아이템"
