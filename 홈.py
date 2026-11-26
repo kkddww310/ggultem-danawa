@@ -145,6 +145,51 @@ div[data-testid="stTextInput"] input {
   color: #191F28 !important;
 }
 
+/* 아카이브 헤더 + 정렬 탭 바 */
+.st-key-archive_head_bar {
+  margin: 12px 0 6px !important;
+}
+.st-key-archive_head_bar [data-testid="stHorizontalBlock"] {
+  align-items: center !important;
+}
+.st-key-sort_bar [data-testid="stHorizontalBlock"] {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+  gap: 5px !important;
+}
+.st-key-sort_bar [data-testid="stColumn"],
+.st-key-sort_bar [data-testid="column"] {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 0 !important;
+}
+.st-key-sort_bar .stButton > button {
+  min-height: 29px !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.02em !important;
+  white-space: nowrap !important;
+}
+.st-key-sort_bar .stButton > button[kind="primary"] {
+  background: #191F28 !important;
+  border: 1px solid #191F28 !important;
+  color: #FFFFFF !important;
+}
+.st-key-sort_bar .stButton > button[kind="secondary"] {
+  background: #F4F6F9 !important;
+  border: 1px solid transparent !important;
+  color: #6B7684 !important;
+}
+.st-key-sort_bar .stButton > button[kind="secondary"]:hover {
+  background: #EAEFF5 !important;
+  color: #191F28 !important;
+}
+
 /* 섹션 헤더 */
 .curated-sec-head {
   display: flex;
@@ -166,7 +211,7 @@ div[data-testid="stTextInput"] input {
   color: #8B95A1;
 }
 
-/* 5열 TOP 5 그리드 & 4열 중복 검증템 그리드 (우측 빈칸 없이 꽉 찬 정렬) */
+/* 5열 TOP 5 그리드 & 4열 중복 검증템 그리드 */
 .top5-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -303,8 +348,6 @@ div[data-testid="stTextInput"] input {
   min-height: 39px;
   margin-bottom: 7px;
 }
-
-/* 말풍선 3번째 줄 잘림 방지: 바깥 박스(여백)와 안쪽 텍스트(line-clamp) 분리 */
 .store-quote {
   background: #F6F8FB;
   border-left: 2.5px solid #3182F6;
@@ -326,8 +369,6 @@ div[data-testid="stTextInput"] input {
   min-height: calc(11.5px * 1.42 * 2);
   word-break: keep-all;
 }
-
-/* 카드 하단: 텍스트 충돌 없이 깔끔하게 정리 */
 .store-foot {
   margin-top: auto;
   padding-top: 6px;
@@ -395,6 +436,9 @@ div[data-testid="stTextInput"] input {
   .store-title, .store-quote-text {
     min-height: 0;
   }
+  .st-key-sort_bar [data-testid="stHorizontalBlock"] {
+    justify-content: flex-start !important;
+  }
 }
 </style>
 """,
@@ -411,6 +455,8 @@ if "detail_pid" not in st.session_state:
     st.session_state.detail_pid = ""
 if "selected_chip" not in st.session_state:
     st.session_state.selected_chip = "전체"
+if "sort_mode" not in st.session_state:
+    st.session_state.sort_mode = "추천순"
 
 view_param = str(st.query_params.get("view", "")).strip()
 pid_param = str(st.query_params.get("pid", "")).strip()
@@ -502,12 +548,46 @@ def get_trust_overlay_badge(summary):
 
 
 def get_hook_highlight(summary):
-    """길고 딱딱한 '원하는 분' 설명 대신 짧고 직관적인 핵심 장점 우선 노출."""
     pros = summary.get("pros") or []
     reasons = summary.get("reasons") or []
     raw_line = pros[0] if pros else (reasons[0] if reasons else "실사용 리뷰로 검증된 추천 아이템")
     cleaned = str(raw_line).strip().rstrip(".")
     return safe(cleaned)
+
+
+def get_primary_video_id(product):
+    rep = get_representative_rec(product)
+    return str((rep or {}).get("video_id") or "")
+
+
+def get_latest_published_at(product):
+    dates = [
+        str((r.get("video") or {}).get("published_at") or "")
+        for r in (product.get("recommendations") or [])
+    ]
+    return max(dates) if dates else ""
+
+
+def arrange_diverse_visuals(items, window=6):
+    """연속된 2줄(6칸) 안에 같은 영상 썸네일이 겹치지 않도록 배치 순서 조정."""
+    remaining = list(items)
+    result = []
+    recent_vids = []
+    while remaining:
+        picked_idx = 0
+        for idx, prod in enumerate(remaining):
+            vid = get_primary_video_id(prod)
+            if not vid or vid not in recent_vids:
+                picked_idx = idx
+                break
+        chosen = remaining.pop(picked_idx)
+        result.append(chosen)
+        c_vid = get_primary_video_id(chosen)
+        if c_vid:
+            recent_vids.append(c_vid)
+            if len(recent_vids) > window:
+                recent_vids.pop(0)
+    return result
 
 
 def pick_diverse_top_items(candidates, limit=5):
@@ -517,7 +597,6 @@ def pick_diverse_top_items(candidates, limit=5):
     used_vids = set()
     used_channels = set()
 
-    # 1순위: 채널도 다르고 영상도 다른 아이템
     for product in candidates:
         pid = str(product.get("product_id") or "")
         rep = get_representative_rec(product, exclude_video_ids=used_vids)
@@ -532,7 +611,6 @@ def pick_diverse_top_items(candidates, limit=5):
             if len(selected) >= limit:
                 return selected
 
-    # 2순위: 영상만 다른 아이템
     for product in candidates:
         pid = str(product.get("product_id") or "")
         if pid in selected_pids:
@@ -546,7 +624,6 @@ def pick_diverse_top_items(candidates, limit=5):
             if len(selected) >= limit:
                 return selected
 
-    # 3순위: 부족분 채우기
     for product in candidates:
         pid = str(product.get("product_id") or "")
         if pid not in selected_pids:
@@ -668,8 +745,14 @@ def render_home():
                     st.session_state.catalog_page = 1
                     st.rerun()
 
+    sort_options = ["추천순", "내돈내산순", "중복추천순", "최신리뷰순"]
+    current_sort = st.session_state.get("sort_mode", "추천순")
+    if current_sort not in sort_options:
+        current_sort = "추천순"
+        st.session_state.sort_mode = "추천순"
+
     clean_kw = keyword.strip()
-    filter_sig = (clean_kw, current_chip)
+    filter_sig = (clean_kw, current_chip, current_sort)
     if st.session_state.get("last_filter_sig") != filter_sig:
         st.session_state.last_filter_sig = filter_sig
         st.session_state.catalog_page = 1
@@ -678,38 +761,9 @@ def render_home():
         st.session_state.last_logged_keyword = clean_kw
         log_event("search", search_query=clean_kw)
 
-    scored_items = []
-    for product in products:
-        if current_chip == "🔥 내돈내산":
-            if not product.get("_has_self_buy"):
-                continue
-        elif current_chip != "전체":
-            if (product.get("category") or "기타") != current_chip:
-                continue
+    is_default_landing = (not clean_kw) and (current_chip == "전체") and (current_sort == "추천순")
+    top_ids = set()
 
-        match_score = score_product_search(product, clean_kw)
-        if clean_kw and match_score <= 0:
-            continue
-        scored_items.append((match_score, product))
-
-    if clean_kw:
-        scored_items.sort(
-            key=lambda item: (
-                item[0],
-                item[1].get("_quality_score", 0),
-                item[1].get("_channel_count", 0),
-                len(item[1]["recommendations"]),
-            ),
-            reverse=True,
-        )
-
-    shown = [item[1] for item in scored_items]
-
-    page_size = 24
-    pages = max(1, (len(shown) + page_size - 1) // page_size)
-    page = min(max(int(st.session_state.get("catalog_page", 1)), 1), pages)
-
-    is_default_landing = (not clean_kw) and (current_chip == "전체") and (page == 1)
     if is_default_landing:
         self_buy_pool = [
             p for p in products
@@ -726,8 +780,8 @@ def render_home():
             show_rank=True,
             grid_cls="top5-grid",
         )
-
         top_ids = {str(p.get("product_id")) for p in top_self_buy}
+
         multi_verified_pool = [
             p for p in products
             if str(p.get("product_id")) not in top_ids
@@ -744,15 +798,90 @@ def render_home():
                 grid_cls="grid-4",
             )
 
-    grid_title = "전체 검증 아카이브" if is_default_landing else f"{current_chip} 추천 아이템"
-    st.markdown(
-        '<div class="curated-sec-head">'
-        f'<div class="curated-sec-title">{safe(grid_title)} <span style="color:#3182F6">{len(shown):,}</span></div>'
-        '<div class="curated-sec-sub">카드를 누르면 상세 장단점과 최저가가 열립니다</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    scored_items = []
+    for product in products:
+        if is_default_landing and str(product.get("product_id")) in top_ids:
+            continue
+        if current_chip == "🔥 내돈내산":
+            if not product.get("_has_self_buy"):
+                continue
+        elif current_chip != "전체":
+            if (product.get("category") or "기타") != current_chip:
+                continue
 
+        match_score = score_product_search(product, clean_kw)
+        if clean_kw and match_score <= 0:
+            continue
+        scored_items.append((match_score, product))
+
+    if current_sort == "내돈내산순":
+        scored_items.sort(
+            key=lambda item: (
+                item[0] if clean_kw else 0,
+                int((item[1].get("_summary") or {}).get("purchase_counts", {}).get("직접 구매", 0)),
+                -int((item[1].get("_summary") or {}).get("purchase_counts", {}).get("유료 광고", 0)),
+                item[1].get("_quality_score", 0),
+            ),
+            reverse=True,
+        )
+    elif current_sort == "중복추천순":
+        scored_items.sort(
+            key=lambda item: (
+                item[0] if clean_kw else 0,
+                int(item[1].get("_channel_count") or 0),
+                len(item[1].get("recommendations") or []),
+                item[1].get("_quality_score", 0),
+            ),
+            reverse=True,
+        )
+    elif current_sort == "최신리뷰순":
+        scored_items.sort(
+            key=lambda item: (
+                item[0] if clean_kw else 0,
+                get_latest_published_at(item[1]),
+                item[1].get("_quality_score", 0),
+            ),
+            reverse=True,
+        )
+    elif clean_kw:
+        scored_items.sort(
+            key=lambda item: (
+                item[0],
+                item[1].get("_quality_score", 0),
+                item[1].get("_channel_count", 0),
+                len(item[1]["recommendations"]),
+            ),
+            reverse=True,
+        )
+
+    raw_shown = [item[1] for item in scored_items]
+    shown = arrange_diverse_visuals(raw_shown, window=6) if current_sort == "추천순" and not clean_kw else raw_shown
+
+    grid_title = "더 많은 검증 아이템" if is_default_landing else f"{current_chip} 추천 아이템"
+    with st.container(key="archive_head_bar"):
+        h_left, h_right = st.columns([1.4, 1.6])
+        h_left.markdown(
+            f'<div class="curated-sec-title" style="margin:2px 0;">{safe(grid_title)} <span style="color:#3182F6">{len(shown):,}</span></div>',
+            unsafe_allow_html=True,
+        )
+        with h_right:
+            with st.container(key="sort_bar"):
+                s_cols = st.columns(len(sort_options))
+                for s_col, s_label in zip(s_cols, sort_options):
+                    is_s_curr = current_sort == s_label
+                    if s_col.button(
+                        s_label,
+                        key=f"sort_{s_label}",
+                        type="primary" if is_s_curr else "secondary",
+                    ):
+                        if not is_s_curr:
+                            st.session_state.sort_mode = s_label
+                            st.session_state.catalog_page = 1
+                            st.rerun()
+
+    page_size = 24
+    pages = max(1, (len(shown) + page_size - 1) // page_size)
+    page = min(max(int(st.session_state.get("catalog_page", 1)), 1), pages)
     page_products = shown[(page - 1) * page_size:page * page_size]
 
     used_video_ids = set()
