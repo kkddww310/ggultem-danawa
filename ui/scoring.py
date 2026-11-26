@@ -3,7 +3,7 @@ import json
 import re
 from collections import Counter
 
-MAX_CURATED_PRODUCTS = 220
+MAX_CURATED_PRODUCTS = 300
 AUTO_APPROVE_MIN_SCORE = 80
 
 CATEGORIES = ["IT·전자", "뷰티", "패션", "생활·살림", "주방", "여행", "자동차", "운동·건강", "육아", "반려동물", "기타"]
@@ -243,18 +243,44 @@ def passes_quality_gate(product):
 
 
 def compute_curation_score(product):
-    """다중 채널 교차 검증 중심 알짜 가치 점수."""
+    """내돈내산 우대 · 유료광고 감점 · 리뷰 깊이 반영 알짜 가치 점수."""
     recs = product.get("recommendations") or []
     channel_count = int(product.get("_channel_count") or 0)
     rec_count = len(recs)
     summary = product.get("_summary") or {}
+    purchase_counts = summary.get("purchase_counts") or Counter()
 
-    score = (channel_count * 30) + (rec_count * 10)
+    buy_cnt = int(purchase_counts.get("직접 구매", 0))
+    prov_cnt = int(purchase_counts.get("제품 제공", 0))
+    ad_cnt = int(purchase_counts.get("유료 광고", 0))
+
+    # 1. 기본 교차 검증 점수
+    score = (channel_count * 28) + (rec_count * 8)
+
+    # 2. 구매 투명도 가중치 (내돈내산 우대, 유료광고 캠페인 감점)
+    score += buy_cnt * 22
+    score += prov_cnt * 4
+    score -= ad_cnt * 18
+
+    if buy_cnt >= 1 and ad_cnt == 0:
+        score += 15
+    elif buy_cnt == 0 and ad_cnt >= 1:
+        score -= 20
+
+    # 3. 리뷰 깊이 및 원문 근거 보너스
     if any(is_single_product_video(product, r) for r in recs):
         score += 10
-    point_count = len(summary.get("all_pros") or []) + len(summary.get("all_cons") or [])
-    if point_count >= 2:
+
+    pros_cnt = len(summary.get("all_pros") or [])
+    cons_cnt = len(summary.get("all_cons") or [])
+    if pros_cnt >= 1 and cons_cnt >= 1:
+        score += 8
+    elif (pros_cnt + cons_cnt) >= 2:
+        score += 4
+
+    if any(len(clean_evidence_text(r.get("evidence"))) >= 15 for r in recs):
         score += 5
+
     return score
 
 
