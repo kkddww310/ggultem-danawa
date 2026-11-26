@@ -53,6 +53,9 @@ HOLLOW_QUOTE_RE = re.compile(
     r"이벤트\s*대표\s*상품)"
 )
 
+CJK_CHAR_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf]")
+CONCRETE_HOOK_RE = re.compile(r"(\d+|대비|이상|이하|만큼|처럼|없이|유일|최초|종결|역대|비교|차이)")
+
 st.markdown(
     """
 <style>
@@ -266,23 +269,12 @@ div[data-testid="stTextInput"] input {
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
 }
 
-/* 썸네일 스테이지 + 상단 배지 가독성 보호 그라데이션 */
+/* 썸네일 스테이지: 우측 상단 배지 제거로 원본 썸네일 자막 보존 */
 .thumb-stage {
   position: relative;
   width: 100%;
   border-radius: 11px;
   overflow: hidden;
-}
-.thumb-stage::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 44px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.36) 0%, rgba(15, 23, 42, 0) 100%);
-  pointer-events: none;
-  z-index: 2;
 }
 .thumb-stage .video-thumbnail-wrap,
 .thumb-stage .product-placeholder {
@@ -304,6 +296,7 @@ div[data-testid="stTextInput"] input {
   padding: 0 6px;
   border-radius: 7px;
   background: rgba(25, 31, 40, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   color: #FFFFFF;
   font-size: 12px;
   font-weight: 900;
@@ -316,49 +309,53 @@ div[data-testid="stTextInput"] input {
 .rank-flag.top1 {
   background: #3182F6;
 }
-.trust-flag {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  z-index: 3;
-  padding: 3px 7px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  pointer-events: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-}
-.trust-self {
-  background: #146C43;
-  color: #FFFFFF;
-}
-.trust-clean {
-  background: rgba(25, 31, 40, 0.88);
-  color: #FFFFFF;
-}
-.trust-prov {
-  background: #FFF7E0;
-  color: #7A4F00;
-}
 
-/* 카드 본문 타이포그래피 */
+/* 카드 본문 타이포그래피: 신뢰 배지는 브랜드 줄 우측에 정돈 배치 */
 .store-card-link {
   display: flex;
   flex-direction: column;
   flex: 1;
   text-decoration: none !important;
   color: inherit !important;
-  padding-top: 8px;
+  padding-top: 9px;
+}
+.store-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+  min-height: 20px;
 }
 .store-brand-line {
   font-size: 11px;
   font-weight: 750;
   color: #8B95A1;
-  margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+.trust-pill {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.trust-pill-self {
+  background: #E8F5EE;
+  color: #146C43;
+}
+.trust-pill-clean {
+  background: #F1F4F8;
+  color: #4E5968;
+}
+.trust-pill-prov {
+  background: #FFF6DF;
+  color: #8A5A00;
 }
 .store-title {
   font-size: 14.5px;
@@ -371,14 +368,13 @@ div[data-testid="stTextInput"] input {
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 39px;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
+
+/* 가볍고 읽기 편한 에디토리얼 한 줄 코멘트 */
 .store-quote {
-  background: #F6F8FB;
-  border-left: 2.5px solid #3182F6;
-  border-radius: 0 8px 8px 0;
-  padding: 7px 9px;
-  margin-bottom: 8px;
+  margin-bottom: 9px;
+  padding-top: 1px;
 }
 .store-quote-text {
   display: -webkit-box;
@@ -387,16 +383,16 @@ div[data-testid="stTextInput"] input {
   overflow: hidden;
   padding: 0 !important;
   margin: 0 !important;
-  font-size: 11.5px;
-  font-weight: 650;
-  color: #333D4B;
-  line-height: 1.42;
-  min-height: calc(11.5px * 1.42 * 2);
+  font-size: 12px;
+  font-weight: 550;
+  color: #4E5968;
+  line-height: 1.45;
+  min-height: calc(12px * 1.45 * 2);
   word-break: keep-all;
 }
 .store-foot {
   margin-top: auto;
-  padding-top: 6px;
+  padding-top: 7px;
   border-top: 1px solid #F1F3F6;
   display: flex;
   align-items: center;
@@ -474,7 +470,6 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("Streamlit Secrets에 SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY를 등록하세요.")
     st.stop()
 
-# URL 쿼리 파라미터에서 초기 탐색 상태 복원
 qp_cat = str(st.query_params.get("cat", "")).strip()
 qp_q = str(st.query_params.get("q", "")).strip()
 qp_sort = str(st.query_params.get("sort", "")).strip()
@@ -592,7 +587,6 @@ if st.session_state.get("show_admin_bar") or st.session_state.page != "home":
 
 
 def map_display_category(product):
-    """소수 카테고리와 음료·식품 오분류를 6개 핵심 대분류로 통합 보정."""
     raw_cat = str(product.get("category") or "기타").strip()
     name_text = f"{product.get('canonical_name') or ''} {product.get('search_keyword') or ''}".lower()
 
@@ -648,51 +642,59 @@ def is_authentic_quote(text):
     cleaned = re.sub(r"\s+", " ", str(text or "").strip())
     if not is_meaningful_point(cleaned):
         return False
+    if CJK_CHAR_RE.search(cleaned):
+        return False
     if HOLLOW_QUOTE_RE.search(cleaned):
         return False
     return True
 
 
-def get_trust_overlay_badge(summary):
+def get_trust_inline_pill(summary):
+    """썸네일을 가리지 않고 브랜드 줄 우측에 배치되는 신뢰 배지."""
     counts = summary.get("purchase_counts") or {}
     buy_cnt = int(counts.get("직접 구매", 0))
     ad_cnt = int(counts.get("유료 광고", 0))
     prov_cnt = int(counts.get("제품 제공", 0))
 
     if buy_cnt >= 1:
-        return f'<span class="trust-flag trust-self">내돈내산 {buy_cnt}</span>'
+        return f'<span class="trust-pill trust-pill-self">내돈내산 {buy_cnt}</span>'
     if ad_cnt == 0 and prov_cnt >= 1:
-        return f'<span class="trust-flag trust-prov">제품제공 {prov_cnt}</span>'
+        return f'<span class="trust-pill trust-pill-prov">제품제공 {prov_cnt}</span>'
     if ad_cnt == 0:
-        return '<span class="trust-flag trust-clean">광고 0%</span>'
+        return '<span class="trust-pill trust-pill-clean">광고 0%</span>'
     return ""
 
 
 def get_hook_highlight(product, summary):
-    """기계적 서술문을 제외하고 유튜버 실제 코멘트 또는 매력적인 핵심 포인트를 우선 노출."""
+    """중국어·기계적 서술문을 제외하고 유튜버 실제 코멘트 또는 구체적 체감 포인트를 우선 노출."""
     recs = product.get("recommendations") or []
     valid_quotes = []
     for r in recs:
         ev = clean_evidence_text(r.get("evidence"))
-        if len(ev) >= 10 and is_authentic_quote(ev):
+        if len(ev) >= 12 and is_authentic_quote(ev):
             valid_quotes.append(ev.rstrip("."))
 
-    # 1순위: 2줄 안에 깔끔히 읽히는 유튜버 실제 발언 인용구
-    short_quotes = [q for q in valid_quotes if len(q) <= 64]
+    # 1순위: 2줄 안에 깔끔히 읽히는 유튜버 실제 구어체 발언
+    short_quotes = [q for q in valid_quotes if len(q) <= 62]
     if short_quotes:
         return f"“{safe(short_quotes[0])}”"
     if valid_quotes:
         return f"“{safe(valid_quotes[0])}”"
 
-    # 2순위: 유의미한 핵심 장점 (단답형 키워드 2개면 묶어서 풍성하게 표시)
     valid_pros = [p.strip().rstrip(".") for p in (summary.get("pros") or []) if is_authentic_quote(p)]
+    valid_reasons = [r.strip().rstrip(".") for r in (summary.get("reasons") or []) if is_authentic_quote(r)]
+    all_points = valid_pros + valid_reasons
+
+    # 2순위: 숫자·비교 기준이 담긴 구체적인 체감 포인트
+    concrete_points = [pt for pt in all_points if CONCRETE_HOOK_RE.search(pt)]
+    if concrete_points:
+        return safe(concrete_points[0])
+
+    # 3순위: 짧은 핵심 키워드 2개 조합 또는 첫 번째 유효 장점
     if len(valid_pros) >= 2 and len(valid_pros[0]) <= 12 and len(valid_pros[1]) <= 12:
         return safe(f"{valid_pros[0]} · {valid_pros[1]}")
     if valid_pros:
         return safe(valid_pros[0])
-
-    # 3순위: 유의미한 추천 이유
-    valid_reasons = [r.strip().rstrip(".") for r in (summary.get("reasons") or []) if is_authentic_quote(r)]
     if valid_reasons:
         return safe(valid_reasons[0])
 
@@ -800,7 +802,7 @@ def build_store_card_inner_html(product, nav_state, used_video_ids=None, rank=No
 
     visual_html = build_product_visual_html(product, representative=representative, detail_href=detail_href, is_detail=False)
     summary = product.get("_summary") or recommendation_summary(recs)
-    trust_html = get_trust_overlay_badge(summary)
+    trust_pill_html = get_trust_inline_pill(summary)
     rank_html = ""
     if rank is not None:
         top_cls = " top1" if rank == 1 else ""
@@ -810,9 +812,12 @@ def build_store_card_inner_html(product, nav_state, used_video_ids=None, rank=No
     disp_cat = map_display_category(product)
 
     return (
-        f'<div class="thumb-stage">{rank_html}{trust_html}{visual_html}</div>'
+        f'<div class="thumb-stage">{rank_html}{visual_html}</div>'
         f'<a class="store-card-link" href="{detail_href}" target="_self" aria-label="{safe(product.get("canonical_name"))} 상세 비교 보기">'
-        f'<div class="store-brand-line">{safe(product.get("brand"))} · {safe(disp_cat)}</div>'
+        '<div class="store-meta-row">'
+        f'<span class="store-brand-line">{safe(product.get("brand"))} · {safe(disp_cat)}</span>'
+        f'{trust_pill_html}'
+        '</div>'
         f'<div class="store-title">{safe(product.get("canonical_name"))}</div>'
         f'<div class="store-quote"><span class="store-quote-text">{highlight_html}</span></div>'
         '<div class="store-foot">'
@@ -914,7 +919,6 @@ def render_home():
     is_default_landing = (not clean_kw) and (current_chip == "전체") and (current_sort == "추천순")
     top_ids = set()
 
-    # 필터·정렬 후보군 계산
     scored_items = []
     for product in products:
         if current_chip == "🔥 내돈내산":
@@ -969,7 +973,6 @@ def render_home():
             reverse=True,
         )
 
-    # 기본 홈일 때 상단 TOP 5 선발 후 하단 목록에서 제외
     top_self_buy = []
     multi_verified = []
     if is_default_landing:
