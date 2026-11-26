@@ -1,6 +1,7 @@
 import re
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from ui.common import (
     MALL_META,
@@ -9,6 +10,7 @@ from ui.common import (
     detect_product_malls,
     format_korean_count,
     get_related_products,
+    get_representative_rec,
     is_meaningful_point,
     load_product_detail_recs,
     load_public_catalog,
@@ -20,6 +22,306 @@ from ui.common import (
     sort_recommendations,
 )
 
+MALL_ACTION_SUBS = {
+    "naver": "네이버페이 적립 · 공식 스토어 가격 비교",
+    "coupang": "로켓배송 여부 · 실시간 판매가 확인",
+    "oliveyoung": "오늘드림 당일배송 · 멤버십 할인가 확인",
+    "musinsa": "전 상품 무료배송 · 회원 등급 혜택가 확인",
+    "29cm": "감도 셀렉트샵 · 쿠폰 적용가 확인",
+    "zigzag": "직진배송 빠른도착 · 스토어 통합 최저가",
+    "ably": "전 상품 무료배송 · 앱 할인가 확인",
+}
+
+
+def inject_detail_overrides():
+    st.markdown(
+        """
+<style>
+/* 상세 페이지 스토어형 레이아웃 오버라이드 */
+.detail-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 2px 0 10px;
+}
+.detail-breadcrumb {
+  margin: 0 !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  color: #8B95A1 !important;
+}
+
+/* 상단 히어로 그리드: 좌측 상품 비주얼+정보 / 우측 쇼핑몰 최저가 */
+.detail-top-grid {
+  display: grid !important;
+  grid-template-columns: 1.35fr 1fr !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+  margin-bottom: 16px !important;
+}
+.detail-hero-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E6E9EF !important;
+  border-radius: 18px !important;
+  padding: 18px !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+}
+.detail-hero-main {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+.detail-visual-stage {
+  position: relative;
+  width: 100%;
+  border-radius: 13px;
+  overflow: hidden;
+  border: 1px solid #EDF0F5;
+  background: #F8FAFC;
+}
+.detail-visual-stage .video-thumbnail-wrap,
+.detail-visual-stage .product-placeholder {
+  margin: 0 !important;
+  border-radius: 12px !important;
+}
+.detail-visual-stage a[href*="youtu"],
+.detail-visual-stage .thumb-play-badge,
+.detail-visual-stage .video-play-chip {
+  display: none !important;
+}
+.detail-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.detail-brand-line {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #3182F6 !important;
+}
+.detail-title {
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  color: #191F28 !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.025em !important;
+  margin: 0 !important;
+  word-break: keep-all;
+}
+.detail-badges {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  margin-top: 4px !important;
+}
+
+/* 우측 쇼핑몰 비교 박스 고도화 */
+.danawa-box {
+  background: #FFFFFF !important;
+  border: 1px solid #E6E9EF !important;
+  border-radius: 18px !important;
+  padding: 18px !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+}
+.danawa-row {
+  padding: 11px 12px !important;
+  border-radius: 12px !important;
+  border: 1px solid #EEF1F6 !important;
+  background: #FAFBFD !important;
+  transition: border-color 0.15s ease, background 0.15s ease !important;
+}
+.danawa-row:hover {
+  border-color: #C7D2E0 !important;
+  background: #F4F7FC !important;
+}
+.danawa-go-btn {
+  background: #191F28 !important;
+  color: #FFFFFF !important;
+  border-radius: 10px !important;
+  padding: 8px 13px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+.danawa-go-btn:hover {
+  background: #3182F6 !important;
+}
+
+/* 유튜버 실사용 결정적 한마디 (상단 인용구 카드) */
+.quote-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+.quote-highlight-card {
+  background: #F7F9FC;
+  border: 1px solid #E6ECF5;
+  border-left: 3.5px solid #3182F6;
+  border-radius: 12px;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 9px;
+}
+.quote-highlight-body {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #191F28;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+.quote-highlight-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6B7684;
+}
+.quote-video-link {
+  color: #3182F6 !important;
+  text-decoration: none !important;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 하단 연관 추천템: 홈과 동일한 미니멀 스토어 카드 */
+.st-key-related_grid .product-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E6E9EF !important;
+  border-radius: 15px !important;
+  padding: 11px 11px 13px !important;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.03) !important;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+}
+.st-key-related_grid .product-card:hover {
+  transform: translateY(-3px) !important;
+  border-color: #C7D2E0 !important;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08) !important;
+}
+.rel-thumb-stage {
+  position: relative;
+  width: 100%;
+  border-radius: 11px;
+  overflow: hidden;
+}
+.rel-thumb-stage .video-thumbnail-wrap,
+.rel-thumb-stage .product-placeholder {
+  margin: 0 !important;
+  border-radius: 11px !important;
+}
+.rel-thumb-stage a[href*="youtu"],
+.rel-thumb-stage .thumb-play-badge,
+.rel-thumb-stage .video-play-chip {
+  display: none !important;
+}
+.rel-trust-flag {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 3;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.rel-trust-self {
+  background: #146C43;
+  color: #FFFFFF;
+}
+.rel-trust-clean {
+  background: rgba(25, 31, 40, 0.88);
+  color: #FFFFFF;
+}
+.rel-trust-prov {
+  background: #FFF7E0;
+  color: #7A4F00;
+}
+.rel-card-link {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  text-decoration: none !important;
+  color: inherit !important;
+  padding-top: 8px;
+}
+.rel-brand-line {
+  font-size: 11px;
+  font-weight: 750;
+  color: #8B95A1;
+  margin-bottom: 3px;
+}
+.rel-title {
+  font-size: 14.5px;
+  font-weight: 850;
+  color: #191F28;
+  line-height: 1.34;
+  margin-bottom: 7px;
+}
+.rel-quote {
+  background: #F6F8FB;
+  border-left: 2.5px solid #3182F6;
+  border-radius: 0 8px 8px 0;
+  padding: 7px 9px;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #333D4B;
+  line-height: 1.42;
+  word-break: keep-all;
+}
+.rel-foot {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid #F1F3F6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6B7684;
+}
+.rel-cta {
+  color: #3182F6;
+  font-weight: 800;
+}
+
+@media (max-width: 960px) {
+  .detail-top-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+@media (max-width: 600px) {
+  .detail-hero-main {
+    grid-template-columns: 1fr;
+  }
+  .detail-title {
+    font-size: 19px !important;
+  }
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
 
 def build_danawa_price_html(product):
     """상세 페이지 상단 우측용 컴팩트 쇼핑몰별 최저가 비교 박스 HTML."""
@@ -29,15 +331,15 @@ def build_danawa_price_html(product):
     for item in malls:
         mall_key = item["mall"]
         meta = MALL_META[mall_key]
-        status_label = "공식 제휴 최저가 링크" if item["is_partner"] else "쇼핑몰 실시간 최저가 검색"
+        status_label = "공식 제휴 최저가 링크" if item["is_partner"] else MALL_ACTION_SUBS.get(mall_key, "쇼핑몰 실시간 가격 비교")
         partner_tag = '<span class="danawa-partner-badge">제휴연결</span>' if item["is_partner"] else ""
-        btn_label = "최저가 보기 →" if item["is_partner"] else "가격 비교 →"
+        btn_label = "최저가 보기 →" if item["is_partner"] else "가격 확인 →"
         rows_html.append(
             '<div class="danawa-row">'
             '<div class="danawa-mall-info">'
             f'<span class="mall-pill {safe(meta["badge_css"])}">{safe(meta["short"])}</span>'
             '<div class="danawa-desc-wrap">'
-            f'<div class="danawa-tag-row"><span class="danawa-status-tag">{status_label}</span>{partner_tag}</div>'
+            f'<div class="danawa-tag-row"><span class="danawa-status-tag">{safe(status_label)}</span>{partner_tag}</div>'
             f'<div class="danawa-benefit">{safe(meta["benefit"])}</div>'
             '</div>'
             '</div>'
@@ -52,15 +354,65 @@ def build_danawa_price_html(product):
     )
 
 
+def _get_rel_trust_badge(summary):
+    counts = summary.get("purchase_counts") or {}
+    buy_cnt = int(counts.get("직접 구매", 0))
+    ad_cnt = int(counts.get("유료 광고", 0))
+    prov_cnt = int(counts.get("제품 제공", 0))
+    if buy_cnt >= 1:
+        return f'<span class="rel-trust-flag rel-trust-self">내돈내산 {buy_cnt}</span>'
+    if ad_cnt == 0 and prov_cnt >= 1:
+        return f'<span class="rel-trust-flag rel-trust-prov">제품제공 {prov_cnt}</span>'
+    if ad_cnt == 0:
+        return '<span class="rel-trust-flag rel-trust-clean">광고 0%</span>'
+    return ""
+
+
 def render_product_detail(pid):
+    inject_detail_overrides()
     products = load_public_catalog()
     product = next((p for p in products if str(p.get("product_id")) == pid), None)
 
-    if st.button("← 전체 목록으로", key="detail_back_btn", type="secondary"):
-        st.session_state.detail_pid = ""
-        st.query_params.clear()
-        st.session_state.scroll_to_top = True
-        st.rerun()
+    top_left, top_right = st.columns([4, 1])
+    with top_left:
+        if st.button("← 전체 목록으로", key="detail_back_btn", type="secondary"):
+            st.session_state.detail_pid = ""
+            st.query_params.clear()
+            st.session_state.scroll_to_top = True
+            st.rerun()
+    with top_right:
+        components.html(
+            """
+            <div style="display:flex;justify-content:flex-end;margin:0;padding:0;">
+              <button id="copy-share-btn" style="
+                height:38px;padding:0 14px;border-radius:10px;
+                border:1px solid #DCE2EC;background:#FFFFFF;color:#191F28;
+                font-size:12.5px;font-weight:800;cursor:pointer;
+                font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
+              ">🔗 링크 복사</button>
+            </div>
+            <script>
+              const btn = document.getElementById('copy-share-btn');
+              btn.addEventListener('click', async () => {
+                try {
+                  const url = window.parent.location.href;
+                  await navigator.clipboard.writeText(url);
+                  btn.textContent = '✓ 복사 완료!';
+                  btn.style.background = '#191F28';
+                  btn.style.color = '#FFFFFF';
+                  setTimeout(() => {
+                    btn.textContent = '🔗 링크 복사';
+                    btn.style.background = '#FFFFFF';
+                    btn.style.color = '#191F28';
+                  }, 1800);
+                } catch (e) {
+                  btn.textContent = '주소창 복사';
+                }
+              });
+            </script>
+            """,
+            height=42,
+        )
 
     if not product:
         st.warning("요청하신 상품 정보를 찾을 수 없거나 현재 비공개 상태입니다.")
@@ -77,7 +429,7 @@ def render_product_detail(pid):
     category = product.get("category") or "기타"
 
     st.markdown(
-        f'<div class="detail-breadcrumb">에디션 픽 &gt; {safe(category)} &gt; {safe(product.get("brand"))}</div>',
+        f'<div class="detail-nav-row"><div class="detail-breadcrumb">에디션 픽 &gt; {safe(category)} &gt; {safe(product.get("brand"))}</div></div>',
         unsafe_allow_html=True,
     )
 
@@ -96,18 +448,28 @@ def render_product_detail(pid):
     ad_pct = round(ad_cnt / total_recs * 100)
     unk_pct = max(0, 100 - buy_pct - prov_pct - ad_pct)
 
+    rep_rec = get_representative_rec(product) or (recs[0] if recs else None)
+    hero_visual_html = build_product_visual_html(
+        product,
+        representative=rep_rec,
+        detail_href=f"?view=detail&pid={safe(pid)}",
+        is_detail=True,
+    )
     danawa_html = build_danawa_price_html(product)
 
     st.markdown(
         '<div class="detail-top-grid">'
         '<div class="detail-hero-card">'
-        '<div>'
+        '<div class="detail-hero-main">'
+        f'<div class="detail-visual-stage">{hero_visual_html}</div>'
+        '<div class="detail-info-col">'
         f'<div class="detail-brand-line">{safe(brand_line)}</div>'
         f'<div class="detail-title">{safe(product.get("canonical_name"))}</div>'
         '<div class="detail-badges">'
         f'<span class="badge">유튜버 {channel_count}명 추천</span>'
         f'<span class="badge">근거 영상 {len(recs)}개</span>'
         f'{purchase_html}'
+        '</div>'
         '</div>'
         '</div>'
         '<div class="trust-box">'
@@ -132,15 +494,37 @@ def render_product_detail(pid):
         unsafe_allow_html=True,
     )
 
-    if summary["reasons"]:
-        fit_html = "".join(
-            f'<div class="recommend-fit-item">✦ {safe(reason)}</div>'
-            for reason in summary["reasons"]
+    # 유튜버 실제 인용구(원문 발언) 상단 하이라이트 섹션
+    quote_cards = []
+    for rec in recs:
+        ev_txt = clean_evidence_text(rec.get("evidence"))
+        if len(ev_txt) < 10:
+            continue
+        ch_name = safe((rec.get("channel") or {}).get("channel_name") or "유튜버")
+        p_type = str(rec.get("purchase_type") or "").strip()
+        p_tag = f" · {safe(p_type)}" if p_type and p_type != "확인되지 않음" else ""
+        v_id = safe(rec.get("video_id") or "")
+        link_html = (
+            f'<a class="quote-video-link" href="https://youtu.be/{v_id}" target="_blank" rel="noopener noreferrer">원문 영상 ↗</a>'
+            if v_id else ""
         )
+        quote_cards.append(
+            '<div class="quote-highlight-card">'
+            f'<div class="quote-highlight-body">“{safe(ev_txt)}”</div>'
+            '<div class="quote-highlight-foot">'
+            f'<span>▶ {ch_name}{p_tag}</span>'
+            f'{link_html}'
+            '</div>'
+            '</div>'
+        )
+        if len(quote_cards) >= 3:
+            break
+
+    if quote_cards:
         st.markdown(
             '<div class="detail-section">'
-            '<div class="detail-section-title"><span>이런 분께 추천해요</span><span class="detail-section-sub">유튜버 선정 근거 요약</span></div>'
-            f'<div class="recommend-fit-list">{fit_html}</div>'
+            '<div class="detail-section-title"><span>유튜버 실사용 결정적 한마디</span><span class="detail-section-sub">영상 속 실제 코멘트 발췌</span></div>'
+            f'<div class="quote-highlight-grid">{"".join(quote_cards)}</div>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -291,14 +675,27 @@ def render_product_detail(pid):
                 r_href = f"?view=detail&pid={safe(raw_r_pid)}"
                 r_recs = rp.get("recommendations") or []
                 r_ch_cnt = rp.get("_channel_count") or len({r.get("channel_id") for r in r_recs if r.get("channel_id")})
-                r_visual = build_product_visual_html(rp, detail_href=r_href, is_detail=False)
+                r_rep = get_representative_rec(rp)
+                r_visual = build_product_visual_html(rp, representative=r_rep, detail_href=r_href, is_detail=False)
+                r_sum = rp.get("_summary") or recommendation_summary(r_recs)
+                r_trust = _get_rel_trust_badge(r_sum)
+                r_pros = r_sum.get("pros") or []
+                r_reasons = r_sum.get("reasons") or []
+                r_line = r_pros[0] if r_pros else (r_reasons[0] if r_reasons else "실사용 리뷰로 검증된 추천 아이템")
+                r_line = str(r_line).strip().rstrip(".")
+
                 with col:
                     st.markdown(
                         '<article class="product-card">'
-                        f'{r_visual}'
-                        f'<a class="card-body-link" href="{r_href}" target="_self" aria-label="{safe(rp.get("canonical_name"))} 상세 비교 보기">'
-                        f'<div class="related-brand">{safe(rp.get("brand"))} · 유튜버 {r_ch_cnt}명 추천</div>'
-                        f'<div class="related-name">{safe(rp.get("canonical_name"))}</div>'
+                        f'<div class="rel-thumb-stage">{r_trust}{r_visual}</div>'
+                        f'<a class="rel-card-link" href="{r_href}" target="_self" aria-label="{safe(rp.get("canonical_name"))} 상세 비교 보기">'
+                        f'<div class="rel-brand-line">{safe(rp.get("brand"))} · {safe(rp.get("category") or "기타")}</div>'
+                        f'<div class="rel-title">{safe(rp.get("canonical_name"))}</div>'
+                        f'<div class="rel-quote">{safe(r_line)}</div>'
+                        '<div class="rel-foot">'
+                        f'<span>유튜버 {r_ch_cnt}명 추천</span>'
+                        '<span class="rel-cta">비교하기 ›</span>'
+                        '</div>'
                         '</a>'
                         '</article>',
                         unsafe_allow_html=True,
