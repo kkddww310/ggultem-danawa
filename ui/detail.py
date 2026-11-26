@@ -249,12 +249,12 @@ def inject_detail_overrides():
   white-space: nowrap;
 }
 
-/* 하단 연관 추천템: 홈과 동일한 클린 썸네일 + 인라인 신뢰 배지 */
+/* 하단 연관 추천템: 홈과 동일한 클린 썸네일 + 체크 포인트 칩 */
 .st-key-related_grid .product-card {
   background: #FFFFFF !important;
   border: 1px solid #E6E9EF !important;
   border-radius: 15px !important;
-  padding: 11px 11px 13px !important;
+  padding: 10px 10px 12px !important;
   box-shadow: 0 3px 12px rgba(15, 23, 42, 0.03) !important;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease !important;
   display: flex !important;
@@ -329,20 +329,43 @@ def inject_detail_overrides():
   color: #8A5A00;
 }
 .rel-title {
-  font-size: 14.5px;
-  font-weight: 850;
-  color: #191F28;
+  font-size: 15px;
+  font-weight: 900;
+  color: #111827;
   line-height: 1.34;
-  margin-bottom: 6px;
+  letter-spacing: -0.025em;
+  margin-bottom: 8px;
 }
-.rel-quote {
+.rel-hook-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   margin-bottom: 9px;
-  padding-top: 1px;
-  font-size: 12px;
-  font-weight: 550;
-  color: #4E5968;
-  line-height: 1.45;
-  word-break: keep-all;
+}
+.rel-hook-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #F4F7FB;
+  border: 1px solid #E5ECF5;
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #2B3442;
+  line-height: 1.35;
+  min-width: 0;
+}
+.rel-hook-icon {
+  color: #3182F6;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.rel-hook-txt {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .rel-foot {
   margin-top: auto;
@@ -423,30 +446,41 @@ def _get_rel_trust_pill(summary):
     return ""
 
 
-def _get_rel_hook_line(r_recs, r_sum):
+def _build_rel_hook_html(r_recs, r_sum):
+    r_pros = [p.strip().rstrip(".") for p in (r_sum.get("pros") or []) if _is_authentic_quote(p)]
+    r_reasons = [x.strip().rstrip(".") for x in (r_sum.get("reasons") or []) if _is_authentic_quote(x)]
+    concrete_p = [p for p in r_pros if CONCRETE_HOOK_RE.search(p)]
+    other_p = [p for p in r_pros if p not in concrete_p]
+    concrete_r = [r for r in r_reasons if CONCRETE_HOOK_RE.search(r)]
+    other_r = [r for r in r_reasons if r not in concrete_r]
+
+    cands = concrete_p + other_p + concrete_r + other_r
+    picked = []
+    for cand in cands:
+        norm = re.sub(r"\s+", "", cand)
+        if any(norm in re.sub(r"\s+", "", ex) or re.sub(r"\s+", "", ex) in norm for ex in picked):
+            continue
+        picked.append(cand)
+        if len(picked) >= 2:
+            break
+
     r_quotes = [
         clean_evidence_text(r.get("evidence")).rstrip(".")
         for r in r_recs
         if len(clean_evidence_text(r.get("evidence"))) >= 12 and _is_authentic_quote(clean_evidence_text(r.get("evidence")))
     ]
-    if r_quotes:
-        short_q = [q for q in r_quotes if len(q) <= 62]
-        return f"“{short_q[0] if short_q else r_quotes[0]}”"
+    if len(picked) == 1 and r_quotes:
+        picked.append(f"“{r_quotes[0]}”")
+    elif not picked and r_quotes:
+        picked.append(f"“{r_quotes[0]}”")
+    elif not picked:
+        picked.append("실사용 리뷰 교차 검증 완료")
 
-    r_pros = [p.strip().rstrip(".") for p in (r_sum.get("pros") or []) if _is_authentic_quote(p)]
-    r_reasons = [x.strip().rstrip(".") for x in (r_sum.get("reasons") or []) if _is_authentic_quote(x)]
-    all_pts = r_pros + r_reasons
-
-    concrete = [pt for pt in all_pts if CONCRETE_HOOK_RE.search(pt)]
-    if concrete:
-        return concrete[0]
-    if len(r_pros) >= 2 and len(r_pros[0]) <= 12 and len(r_pros[1]) <= 12:
-        return f"{r_pros[0]} · {r_pros[1]}"
-    if r_pros:
-        return r_pros[0]
-    if r_reasons:
-        return r_reasons[0]
-    return "실사용 리뷰로 검증된 추천 아이템"
+    chips = "".join(
+        f'<div class="rel-hook-chip"><span class="rel-hook-icon">✓</span><span class="rel-hook-txt">{safe(pt)}</span></div>'
+        for pt in picked[:2]
+    )
+    return f'<div class="rel-hook-chips">{chips}</div>'
 
 
 def render_product_detail(pid):
@@ -761,7 +795,7 @@ def render_product_detail(pid):
                 r_visual = build_product_visual_html(rp, representative=r_rep, detail_href=r_href, is_detail=False)
                 r_sum = rp.get("_summary") or recommendation_summary(r_recs)
                 r_trust = _get_rel_trust_pill(r_sum)
-                r_line = _get_rel_hook_line(r_recs, r_sum)
+                r_hook_html = _build_rel_hook_html(r_recs, r_sum)
 
                 with col:
                     st.markdown(
@@ -773,7 +807,7 @@ def render_product_detail(pid):
                         f'{r_trust}'
                         '</div>'
                         f'<div class="rel-title">{safe(rp.get("canonical_name"))}</div>'
-                        f'<div class="rel-quote">{safe(r_line)}</div>'
+                        f'{r_hook_html}'
                         '<div class="rel-foot">'
                         f'<span>유튜버 {r_ch_cnt}명 추천</span>'
                         '<span class="rel-cta">비교하기 ›</span>'
