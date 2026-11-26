@@ -44,6 +44,26 @@ def api_get(table, fields="*", params=None):
     return response.json()
 
 
+def api_count(table, params=None):
+    query = {"select": "*", "limit": "1"}
+    query.update(params or {})
+    response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=headers("count=exact"),
+        params=query,
+        timeout=20,
+    )
+    if not response.ok:
+        raise RuntimeError(f"{table} 개수 조회 실패: HTTP {response.status_code} · {response.text[:250]}")
+    content_range = response.headers.get("Content-Range", "")
+    if "/" in content_range:
+        total_str = content_range.split("/")[-1].strip()
+        if total_str.isdigit():
+            return int(total_str)
+    data = response.json()
+    return len(data) if isinstance(data, list) else 0
+
+
 def api_post(table, values):
     response = requests.post(
         f"{SUPABASE_URL}/rest/v1/{table}",
@@ -91,6 +111,19 @@ def api_patch(table, values, params):
     if not response.ok:
         raise RuntimeError(f"{table} 수정 실패: HTTP {response.status_code} · {response.text[:250]}")
     return response.json() if response.text else []
+
+
+def api_delete(table, params):
+    if not params:
+        raise ValueError("삭제 조건(params)이 필요합니다.")
+    response = requests.delete(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=headers("return=minimal"),
+        params=params,
+        timeout=30,
+    )
+    if not response.ok:
+        raise RuntimeError(f"{table} 삭제 실패: HTTP {response.status_code} · {response.text[:250]}")
 
 
 def log_event(event_type, product_id=None, product_name=None, search_query=None):
@@ -205,7 +238,7 @@ def _attach_recommendations(products, recs):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_public_catalog():
-    """홈 목록 전용 경량 데이터 로더 (자격 필터 + 점수제 상위 220개 압축)."""
+    """홈 목록 전용 경량 데이터 로더 (자격 필터 + 점수제 상위 500개 압축)."""
     try:
         products = api_get_all(
             "products",
